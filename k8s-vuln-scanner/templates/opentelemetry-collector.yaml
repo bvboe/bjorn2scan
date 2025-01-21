@@ -1,0 +1,100 @@
+{{ if .Values.openTelemetryCollector.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opentelemetry-collector-config
+data:
+  opentelemetry-collector-config.yml: |
+    receivers:
+      prometheus/localk8s:
+        config:
+          scrape_configs:
+          - job_name: kubernetes-vulnerability-collector
+            scrape_interval: {{ .Values.openTelemetryCollector.scrapeInterval }}
+            static_configs:
+            - targets:
+              - vulnerability-coordinator:80
+    processors:
+      batch:
+    exporters:
+      debug: {}
+      {{ if .Values.openTelemetryCollector.exporters.otlp.enabled -}}
+      otlp:
+        endpoint: {{ .Values.openTelemetryCollector.exporters.otlp.endpoint }}
+        tls:
+          insecure: {{ .Values.openTelemetryCollector.exporters.otlp.tls.insecure }}
+      {{end}}
+      {{ if .Values.openTelemetryCollector.exporters.otlphttp.enabled -}}
+      otlphttp:
+        endpoint: {{ .Values.openTelemetryCollector.exporters.otlphttp.endpoint }}
+        tls:
+          insecure: {{ .Values.openTelemetryCollector.exporters.otlphttp.tls.insecure }}
+      {{end}}
+    service:
+      pipelines:
+        metrics:
+          receivers: [prometheus/localk8s]
+          processors: [batch]
+          exporters: [debug{{- if .Values.openTelemetryCollector.exporters.otlp.enabled -}}, otlp{{- end -}}{{- if .Values.openTelemetryCollector.exporters.otlphttp.enabled -}}, otlphttp{{- end -}}]
+      telemetry:
+        logs:
+          level: {{ .Values.openTelemetryCollector.logLevel }}
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: opentelemetry-collector
+  name: opentelemetry-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opentelemetry-collector
+  template:
+    metadata:
+      labels:
+        app: opentelemetry-collector
+    spec:
+      containers:
+      - name: opentelemetry-collector
+        image: {{ .Values.openTelemetryCollector.image.repository }}:{{ .Values.openTelemetryCollector.image.tag }}
+        imagePullPolicy: {{ .Values.openTelemetryCollector.image.pullPolicy }}
+        image: otel/opentelemetry-collector-contrib:0.117.0
+        imagePullPolicy: "IfNotPresent"
+        args:
+          - --config=/conf/opentelemetry-collector-config.yml
+        ports:
+          - name: metrics
+            containerPort: 8888
+            protocol: TCP
+          - name: otlp
+            containerPort: 4317
+            protocol: TCP
+          - name: otlp-http
+            containerPort: 4318
+            protocol: TCP        
+        env:
+          - name: GOMEMLIMIT
+            value: 160MiB
+#        livenessProbe:
+#          httpGet:
+#            path: /metrics
+#            port: 8888
+#        readinessProbe:
+#          httpGet:
+#            path: /metrics
+#            port: 8888
+        resources:
+          limits:
+            memory: 200Mi
+        volumeMounts:
+          - mountPath: /conf
+            name: config-volume
+      volumes:
+        - name: config-volume
+          configMap:
+            name: opentelemetry-collector-config
+{{end}}

@@ -2,6 +2,8 @@
 dev-*
 old/
 test-sboms
+otel-collector/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
