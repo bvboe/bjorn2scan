@@ -8,6 +8,9 @@ function calculateAveragePerContainer(total, numberOfContainers) {
 
 async function loadNamespaceSummaryTable(selectedNamespace) {
     console.log("loadNamespaceSummaryTable(" + selectedNamespace + ")");
+    if (!showContainerScans()) {
+        return;
+    }
     namespaceString="";
     if(selectedNamespace !== null) {
         console.log("Namespace is set");
@@ -59,6 +62,9 @@ async function loadNamespaceSummaryTable(selectedNamespace) {
 }
 
 async function loadDistroTable(selectedNamespace) {
+    if (!showContainerScans()) {
+        return;
+    }
     console.log("loadDistroTable(" + selectedNamespace + ")");
     namespaceString="";
     if(selectedNamespace !== null) {
@@ -111,6 +117,9 @@ async function loadDistroTable(selectedNamespace) {
 }
 
 async function loadNodeTable() {
+    if (!showNodeScans()) {
+        return;
+    }
     console.log("loadNodeTable()");
     const response = await fetch("/api/distro/node-summary");
     console.log("loadDistroTable() - Got data")
@@ -159,6 +168,9 @@ async function loadNodeTable() {
 
 async function loadContainerScanStatus(selectedNamespace) {
     console.log("loadContainerScanStatus(" + selectedNamespace + ")");
+    if (!showContainerScans()) {
+        return;
+    }
     namespaceString="";
     if(selectedNamespace !== null) {
         console.log("Namespace is set");
@@ -175,7 +187,7 @@ async function loadContainerScanStatus(selectedNamespace) {
     const data = await response.json();
 
     // Get the table body element where rows will be added
-    const tableBody = document.querySelector("#containerScanStatus tbody");
+    const tableBody = document.querySelector("#containerScanStatusTable tbody");
     tableBody.replaceChildren();
 
     addStatusTableRow(tableBody, "Scanning", data.SCANNING);
@@ -187,6 +199,9 @@ async function loadContainerScanStatus(selectedNamespace) {
 
 async function loadNodeScanStatus() {
     console.log("loadNodeScanStatus()");
+    if (!showNodeScans()) {
+        return;
+    }
     const response = await fetch("/api/node/scanstatus");
     console.log("loadNodeScanStatus() - Got data")
     // Check if the response is OK (status code 200)
@@ -198,7 +213,7 @@ async function loadNodeScanStatus() {
     const data = await response.json();
 
     // Get the table body element where rows will be added
-    const tableBody = document.querySelector("#nodeScanStatus tbody");
+    const tableBody = document.querySelector("#nodeScanStatusTable tbody");
     tableBody.replaceChildren();
 
     addStatusTableRow(tableBody, "Scanning", data.SCANNING);
@@ -243,9 +258,25 @@ function initCsvLink(selectedNamespace) {
     }
 }
 
+async function hideSections() {
+    const doShowContainerScans = await showContainerScans();
+    const doShowNodeScans = await showNodeScans();
+    if(!doShowContainerScans) {
+        document.getElementById("containerScanStatus").style.display = "none";
+        document.getElementById("namespaceSummary").style.display = "none";
+        document.getElementById("distroSummary").style.display = "none";
+    }
+    if(!doShowNodeScans) {
+        document.getElementById("nodeScanStatus").style.display = "none";
+        document.getElementById("nodeSummary").style.display = "none";
+    }
+}
+
 const urlParams = new URLSearchParams(window.location.search);
 const namespace = urlParams.get('namespace');
 
+renderSectionTable("index.html", namespace);
+hideSections();
 loadNamespaceSummaryTable(namespace);
 loadDistroTable(namespace);
 loadNodeTable();
@@ -254,4 +285,3 @@ loadNodeScanStatus();
 loadNamespaceTable("index.html", namespace);
 initCsvLink(namespace);
 initClusterName("Vulnerability Summary");
-renderSectionTable("index.html", namespace);

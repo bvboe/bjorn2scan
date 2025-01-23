@@ -1,3 +1,6 @@
+// Cache object to store the fetched configuration
+const configCache = {};
+
 async function loadNamespaceTable(currentUrl, currentNamespace) {
     console.log("loadNamespaceTable()")
     const response = await fetch("/api/namespaces");
@@ -61,12 +64,23 @@ async function renderSectionTable(currentUrl, currentNamespace) {
     const tableBody = document.querySelector("#headerTable tbody");
     tableBody.replaceChildren();
 
+    const doShowContainerScans = await showContainerScans();
+    const doShowNodeScans = await showNodeScans();
+    console.log("container scans - " + doShowContainerScans);
+    console.log("node scans - " + doShowNodeScans);
+    
     doRenderHeaderCell(tableBody, "Summary", "index.html", currentUrl, currentNamespace);
-    doRenderHeaderCell(tableBody, "Images", "images.html", currentUrl, currentNamespace);
-    doRenderHeaderCell(tableBody, "Pods", "pods.html", currentUrl, currentNamespace);
-    doRenderHeaderCell(tableBody, "Nodes", "nodes.html", currentUrl, currentNamespace);
-    doRenderHeaderCell(tableBody, "CVEs", "cves.html", currentUrl, currentNamespace);
-    doRenderHeaderCell(tableBody, "SBOM", "sbom.html", currentUrl, currentNamespace);
+    if (doShowContainerScans) {
+        doRenderHeaderCell(tableBody, "Images", "images.html", currentUrl, currentNamespace);
+        doRenderHeaderCell(tableBody, "Pods", "pods.html", currentUrl, currentNamespace);
+    }
+    if (doShowNodeScans) { 
+        doRenderHeaderCell(tableBody, "Nodes", "nodes.html", currentUrl, currentNamespace);
+    }
+    if (doShowContainerScans) {
+        doRenderHeaderCell(tableBody, "CVEs", "cves.html", currentUrl, currentNamespace);
+        doRenderHeaderCell(tableBody, "SBOM", "sbom.html", currentUrl, currentNamespace);
+    }
 }
 
 function formatNumber(num, digits = 0) {
@@ -79,15 +93,7 @@ function onNamespaceChange(selectedNamespace) {
 
 async function initClusterName(pageTitle) {
     console.log("initClusterName()");
-    const response = await fetch("/api/clustername");
-    console.log("initClusterName() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
-
-    // Parse the JSON data from the response
-    const clusterName = await response.text();
+    const clusterName = await getConfigProperty("clusterName")
     const clusternameDiv = document.getElementById("clusterName");
     clusternameDiv.innerText = pageTitle + " - " + clusterName;
 }
@@ -178,4 +184,37 @@ function initSelect(selectID, values) {
             select.add(option);
         });
     }
+}
+
+async function getConfigProperty(property) {
+    // Check if the property is already cached
+    if (configCache[property] !== undefined) {
+        console.log(`Cache hit for property: ${property}`);
+        return configCache[property];
+    }
+
+    console.log("Fetching configuration from API...");
+    const response = await fetch("/api/scannerconfig");
+
+    // Check if the response is OK (status code 200)
+    if (!response.ok) {
+        throw new Error("Network response was not ok");
+    }
+
+    // Parse the JSON data from the response
+    const data = await response.json();
+
+    // Cache all the data properties
+    Object.assign(configCache, data);
+    return data[property];
+}
+
+async function showContainerScans() {
+    property = await getConfigProperty("scanContainers");
+    return Boolean(property);
+}
+
+async function showNodeScans() {
+    property = await getConfigProperty("scanNodes");
+    return Boolean(property);
 }

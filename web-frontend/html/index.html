@@ -38,89 +38,99 @@
                     <table>
                         <tr>
                             <td valign="top">
-                                <h3>Container Scan Status</h3>
-                                <table id="containerScanStatus" class="listingTable">
-                                    <thead>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
+                                <div id="containerScanStatus">
+                                    <h3>Container Scan Status</h3>
+                                    <table id="containerScanStatusTable" class="listingTable">
+                                        <thead>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
                             </td>
                             <td valign="top">
-                                <h3>Node Scan Status</h3>
-                                <table id="nodeScanStatus" class="listingTable">
-                                    <thead>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
+                                <div id="nodeScanStatus">
+                                    <h3>Node Scan Status</h3>
+                                    <table id="nodeScanStatusTable" class="listingTable">
+                                        <thead>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
                             </td>
                         </tr>
                     </table>
 
-                    <h3>Namespace Summary</h3>
-                    <div style="text-align: right; text-decoration: underline;"><b><a href="" id="namespaceCsvlink">Export to CSV</a></b></div>
-                    <table id="namespaceSummaryTable" width="100%" class="listingTable">
-                        <thead>
-                            <tr>
-                                <th rowspan="2"><b>Namespace</b></th>
-                                <th rowspan="2"><b># Instances</b></th>
-                                <th colspan="6"><b>Average # Vulnerabilities Per Container Instance</b></th>
-                                <th rowspan="2"><b>Average # Packages</b></th>
-                            </tr>
-                            <tr>
-                                <th><b>Critical</b></th>
-                                <th><b>High</b></th>
-                                <th><b>Medium</b></th>
-                                <th><b>Low</b></th>
-                                <th><b>Negligible</b></th>
-                                <th><b>Unknown</b></th>
-                            </tr>
-                            </thead>
-                            <tbody></tbody>
-                    </table>
-                    <br/>
-                    <h3>Container Distribution Summary</h3>
-                    <div style="text-align: right; text-decoration: underline;"><b><a href="" id="distroCsvlink">Export to CSV</a></b></div>
-                    <table id="distroSummaryTable" width="100%" class="listingTable">
-                        <thead>
-                            <tr>
-                                <th rowspan="2"><b>Container Distro</b></th>
-                                <th rowspan="2"><b># Instances</b></th>
-                                <th colspan="6"><b>Average # Vulnerabilities Per Container Instance</b></th>
-                                <th rowspan="2"><b>Average # Packages</b></th>
-                            </tr>
-                            <tr>
-                                <th><b>Critical</b></th>
-                                <th><b>High</b></th>
-                                <th><b>Medium</b></th>
-                                <th><b>Low</b></th>
-                                <th><b>Negligible</b></th>
-                                <th><b>Unknown</b></th>
-                            </tr>
-                            </thead>
-                            <tbody></tbody>
-                    </table>
-                    <br/>
-                    <h3>Kubernetes Node Summary</h3>
-                    <div style="text-align: right; text-decoration: underline;"><b><a href="/api/distro/node-summary?output=csv" id="nodeCsvlink">Export to CSV</a></b></div>
-                    <table id="nodeSummaryTable" width="100%" class="listingTable">
-                        <thead>
-                            <tr>
-                                <th rowspan="2"><b>Node Distribution</b></th>
-                                <th rowspan="2"><b># Nodes</b></th>
-                                <th colspan="6"><b>Average # Vulnerabilities Per Kubernetes Node</b></th>
-                                <th rowspan="2"><b>Average # Packages</b></th>
-                            </tr>
-                            <tr>
-                                <th><b>Critical</b></th>
-                                <th><b>High</b></th>
-                                <th><b>Medium</b></th>
-                                <th><b>Low</b></th>
-                                <th><b>Negligible</b></th>
-                                <th><b>Unknown</b></th>
-                            </tr>
-                            </thead>
-                            <tbody></tbody>
-                    </table>
+                    <div id="namespaceSummary">
+                        <h3>Namespace Summary</h3>
+                        <div style="text-align: right; text-decoration: underline;"><b><a href="" id="namespaceCsvlink">Export to CSV</a></b></div>
+                        <table id="namespaceSummaryTable" width="100%" class="listingTable">
+                            <thead>
+                                <tr>
+                                    <th rowspan="2"><b>Namespace</b></th>
+                                    <th rowspan="2"><b># Instances</b></th>
+                                    <th colspan="6"><b>Average # Vulnerabilities Per Container Instance</b></th>
+                                    <th rowspan="2"><b>Average # Packages</b></th>
+                                </tr>
+                                <tr>
+                                    <th><b>Critical</b></th>
+                                    <th><b>High</b></th>
+                                    <th><b>Medium</b></th>
+                                    <th><b>Low</b></th>
+                                    <th><b>Negligible</b></th>
+                                    <th><b>Unknown</b></th>
+                                </tr>
+                                </thead>
+                                <tbody></tbody>
+                        </table>
+                        <br/>
+                    </div>
+                    <div id="distroSummary">
+                        <h3>Container Distribution Summary</h3>
+                        <div style="text-align: right; text-decoration: underline;"><b><a href="" id="distroCsvlink">Export to CSV</a></b></div>
+                        <table id="distroSummaryTable" width="100%" class="listingTable">
+                            <thead>
+                                <tr>
+                                    <th rowspan="2"><b>Container Distro</b></th>
+                                    <th rowspan="2"><b># Instances</b></th>
+                                    <th colspan="6"><b>Average # Vulnerabilities Per Container Instance</b></th>
+                                    <th rowspan="2"><b>Average # Packages</b></th>
+                                </tr>
+                                <tr>
+                                    <th><b>Critical</b></th>
+                                    <th><b>High</b></th>
+                                    <th><b>Medium</b></th>
+                                    <th><b>Low</b></th>
+                                    <th><b>Negligible</b></th>
+                                    <th><b>Unknown</b></th>
+                                </tr>
+                                </thead>
+                                <tbody></tbody>
+                        </table>
+                        <br/>
+                    </div>
+                    <div id="nodeSummary">
+                        <h3>Kubernetes Node Summary</h3>
+                        <div style="text-align: right; text-decoration: underline;"><b><a href="/api/distro/node-summary?output=csv" id="nodeCsvlink">Export to CSV</a></b></div>
+                        <table id="nodeSummaryTable" width="100%" class="listingTable">
+                            <thead>
+                                <tr>
+                                    <th rowspan="2"><b>Node Distribution</b></th>
+                                    <th rowspan="2"><b># Nodes</b></th>
+                                    <th colspan="6"><b>Average # Vulnerabilities Per Kubernetes Node</b></th>
+                                    <th rowspan="2"><b>Average # Packages</b></th>
+                                </tr>
+                                <tr>
+                                    <th><b>Critical</b></th>
+                                    <th><b>High</b></th>
+                                    <th><b>Medium</b></th>
+                                    <th><b>Low</b></th>
+                                    <th><b>Negligible</b></th>
+                                    <th><b>Unknown</b></th>
+                                </tr>
+                                </thead>
+                                <tbody></tbody>
+                        </table>
+                    </div>
                 </td>
             </tr>
         </table>

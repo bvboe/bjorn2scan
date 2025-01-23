@@ -93,5 +93,5 @@ $(function(){
     loadSBOMTable();
     renderSectionTable("sbom.html", null);
     document.getElementById("csvlink").href = generateUrl(true);
-    initClusterName("Software Bill of Materials");
+    initClusterName("Image Software Bill of Materials");
 });

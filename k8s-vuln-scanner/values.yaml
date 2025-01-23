@@ -4,7 +4,7 @@ podScanner:
   image:
     repository: "bjornvb/k8s-pod-scanner"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.03"
+    tag: "0.2.04"
   #Settings determining how the scanner integrates with container manager
   scannerIntegration:
     #Comma-separated list of potential places the docer socket could be on the scanner container.
@@ -13,6 +13,10 @@ podScanner:
     potentialContainerDSnapshotLocations: "/host/var/lib/rancher/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots,/host/var/snap/microk8s/common/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots,/host/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots"
 vulnerabilityCoordinator:
   enabled: true
+  # Option to turn on and off the container scanner
+  scanContainers: true
+  # Option to turn on and off the node / host scanner
+  scanNodes: true
   externalStorage: true
   # Refresh the cache to ensure data consistency every 30 minutes
   cacheRefreshMinuteInterval: 30
@@ -21,7 +25,7 @@ vulnerabilityCoordinator:
   image:
     repository: "bjornvb/k8s-scanner-vulnerability-coordinator"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.03"
+    tag: "0.2.04"
 webFrontend:
   enabled: true
   # How is the web frontend exposed to the world?
@@ -30,7 +34,7 @@ webFrontend:
   image:
     repository: "bjornvb/k8s-scanner-web-frontend"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.03"
+    tag: "0.2.04"
 openTelemetryCollector:
   enabled: false
   #How often does the collector forward metrics

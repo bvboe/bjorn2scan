@@ -99,5 +99,5 @@ $(function(){
     loadCVEsTable();
     renderSectionTable("cves.html", null);
     document.getElementById("csvlink").href = generateUrl(true);
-    initClusterName("CVE Summary");
+    initClusterName("Image CVE Summary");
 });
