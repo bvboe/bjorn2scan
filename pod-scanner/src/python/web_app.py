@@ -1,3 +1,5 @@
+from logging_config import setup_logging
+setup_logging()
 from kubernetes import client, config, watch
 from flask import Flask, request, jsonify
 import os
@@ -5,7 +7,9 @@ import json
 import subprocess
 import ast
 import threading
+import logging
 
+logger = logging.getLogger(__name__)
 NODE_NAME=os.getenv("NODE_NAME")
 POD_NAME=os.getenv("POD_NAME")
 POD_NAMESPACE=os.getenv("POD_NAMESPACE")
@@ -15,16 +19,16 @@ POTENTIAL_CONTAINERD_SNAPSHOT_LOCATIONS = os.getenv("POTENTIAL_CONTAINERD_SNAPSH
 HOST_CONFIGURATION = None
 GET_SBOM_LOCK = threading.Lock()
 
-print(f"Starting app on node {NODE_NAME}")
-print(f"NODE_NAME {NODE_NAME}")
-print(f"POD_NAME {POD_NAME}")
-print(f"POD_NAMESPACE {POD_NAMESPACE}")
-print(f"POD_IP {POD_IP}")
-print(f"POTENTIAL_DOCKER_SOCKET_LOCATIONS {POTENTIAL_DOCKER_SOCKET_LOCATIONS}")
-print(f"POTENTIAL_CONTAINERD_SNAPSHOT_LOCATIONS {POTENTIAL_CONTAINERD_SNAPSHOT_LOCATIONS}")
+logger.info(f"Starting app on node {NODE_NAME}")
+logger.info(f"NODE_NAME {NODE_NAME}")
+logger.info(f"POD_NAME {POD_NAME}")
+logger.info(f"POD_NAMESPACE {POD_NAMESPACE}")
+logger.info(f"POD_IP {POD_IP}")
+logger.info(f"POTENTIAL_DOCKER_SOCKET_LOCATIONS {POTENTIAL_DOCKER_SOCKET_LOCATIONS}")
+logger.info(f"POTENTIAL_CONTAINERD_SNAPSHOT_LOCATIONS {POTENTIAL_CONTAINERD_SNAPSHOT_LOCATIONS}")
 
 def get_container_runtime():
-    print("get_container_runtime()")
+    logger.debug("get_container_runtime()")
     config.load_incluster_config()
     v1 = client.CoreV1Api()
     nodes = v1.list_node()
@@ -32,36 +36,36 @@ def get_container_runtime():
     for node in nodes.items:
         node_name = node.metadata.name
         if node_name == NODE_NAME:
-            print(f"Found {node.status.node_info.container_runtime_version}")
+            logger.debug(f"Found {node.status.node_info.container_runtime_version}")
             return node.status.node_info.container_runtime_version
     
     return None
 
 def get_host_configuration():
-    print("get_host_configuration()")
+    logger.debug("get_host_configuration()")
     container_runtime = get_container_runtime()
     config_file_location = "/tmp/scanner-configuration.json"
     console_out = None
 
     if container_runtime.startswith("containerd"):
-        print("Loading ContainerD runtime configuration")
+        logger.debug("Loading ContainerD runtime configuration")
         console_out = subprocess.run(["./containerd-check-environment.sh", config_file_location, POTENTIAL_CONTAINERD_SNAPSHOT_LOCATIONS], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=True)
     elif container_runtime.startswith("docker"):
-        print("Loading Docker runtime configuration")
+        logger.debug("Loading Docker runtime configuration")
         console_out = subprocess.run(["./docker-check-environment.sh", config_file_location, POTENTIAL_DOCKER_SOCKET_LOCATIONS], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=True)
     else:
-        print(f"ERROR - Unknown runtime {container_runtime}")
+        logger.error(f"ERROR - Unknown runtime {container_runtime}")
         return None
 
-    print(console_out.stdout)
+    logger.debug(console_out.stdout)
 
     with open(config_file_location, 'r') as file:
         scanner_configuration = file.read()
-        print(scanner_configuration)
+        logger.debug(scanner_configuration)
         return json.loads(scanner_configuration)
 
 HOST_CONFIGURATION = get_host_configuration()
-print(f"Current host configuration: {HOST_CONFIGURATION}")
+logger.info(f"Current host configuration: {HOST_CONFIGURATION}")
 
 app = Flask(__name__)
 
@@ -93,13 +97,13 @@ def sayHello():
         "uptime": get_system_uptime()
     }
     strresult=json.dumps(result)
-    print(f"sayHello(): {strresult}")
+    logger.info(f"sayHello(): {strresult}")
     return strresult
 
 
 @app.route("/")
 def index():
-    print("index()")
+    logger.info("index()")
     return "Scanner application running!\n"
 
 @app.route("/image-sbom" , methods=['GET'])
@@ -108,22 +112,22 @@ def get_image_sbom():
     image_id = request.args.get('image_id')
     container_id = request.args.get('container_id')
     sbom_file = "/tmp/sbom.json"
-    print(f"get_image_sbom()")
-    print(f"image: {image}")
-    print(f"image_id: {image_id}")
-    print(f"container_id: {container_id}")
+    logger.info(f"get_image_sbom()")
+    logger.info(f"image: {image}")
+    logger.info(f"image_id: {image_id}")
+    logger.info(f"container_id: {container_id}")
     if "@" in image:
         image_sha = image
     else:
         image_sha = image.split(":")[0] + "@" + image_id
-    print(f"image_sha: {image_sha}")
+    logger.debug(f"image_sha: {image_sha}")
 
     # This function is currently designed to only handle one call at the time
     # which is also the way the vulnerability coordinator works
     # The lock is just a safety feature
     with GET_SBOM_LOCK:
         if HOST_CONFIGURATION['runtime'] == "docker":
-            print("Do Docker based scan")
+            logger.debug("Do Docker based scan")
             docker_host = HOST_CONFIGURATION['DOCKER_HOST']
             create_sbom(["./docker-sbom.sh", docker_host, sbom_file, image_sha])
             sbom = load_sbom(sbom_file)
@@ -132,7 +136,7 @@ def get_image_sbom():
             else:
                 return {"result": "fail"}
         elif HOST_CONFIGURATION['runtime'] == "containerd":
-            print("Do Containerd based scan")
+            logger.debug("Do Containerd based scan")
             containerd_snapshot_folder = HOST_CONFIGURATION['CONTAINERD_SNAPSHOT_LOCATION']
             create_sbom(["./containerd-filesystem-sbom.sh", container_id, image, containerd_snapshot_folder, sbom_file])
             sbom = load_sbom(sbom_file)
@@ -141,13 +145,13 @@ def get_image_sbom():
             else:
                 return {"result": "fail"}
         else:
-            print(f"Invalid configuration - {HOST_CONFIGURATION}, returning none")
+            logger.error(f"Invalid configuration - {HOST_CONFIGURATION}, returning none")
             return {"result": "fail"}
 
 @app.route("/host-sbom" , methods=['GET'])
 def get_host_sbom():
     sbom_file = "/tmp/host-sbom.json"
-    print(f"get_host_sbom()")
+    logger.info(f"get_host_sbom()")
 
     # This function is currently designed to only handle one call at the time
     # which is also the way the vulnerability coordinator works
@@ -161,33 +165,33 @@ def get_host_sbom():
             return {"result": "fail"}
 
 def load_sbom(file_path):
-    print(f"load_sbom({file_path})")
+    logger.info(f"load_sbom({file_path})")
     try:
         with open(file_path, 'r') as file:
             return file.read()
     except FileNotFoundError:
         # Handle the error if the file doesn't exist
-        print(f"The file {file_path} does not exist.")
+        logger.error(f"The file {file_path} does not exist.")
         return None
 
 
 def create_sbom(sbom_call):
-    print(f"create_sbom({sbom_call})")
+    logger.info(f"create_sbom({sbom_call})")
 
     try:
         result = subprocess.run(sbom_call, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=True)
-        print(result.stdout)
+        logger.debug(result.stdout)
     except subprocess.CalledProcessError as e:
-        print(f"Command failed with return code {e.returncode}")
-        print(f"Command output:\n{e.output}")
-        print(f"Command error:\n{e.stderr}")
+        logger.error(f"Command failed with return code {e.returncode}")
+        logger.error(f"Command output:\n{e.output}")
+        logger.error(f"Command error:\n{e.stderr}")
     except FileNotFoundError:
-        print("The specified command was not found.")
+        logger.error("The specified command was not found.")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")
 
 def get_system_uptime():
-    print(f"get_system_uptime()")
+    logger.info(f"get_system_uptime()")
 
     with open('/host/proc/uptime', 'r') as f:
         uptime_seconds = float(f.readline().split()[0])

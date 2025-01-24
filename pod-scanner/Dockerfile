@@ -25,7 +25,8 @@ WORKDIR /flask-app
 
 COPY --from=builder /flask-app/venv /flask-app/venv
 COPY src/python/*.py ./
+COPY src/python/*.yaml ./
 COPY src/shell/* ./
 
 EXPOSE 8080
-ENTRYPOINT ["python", "-m", "gunicorn", "--timeout", "6000", "-b", "0.0.0.0:8080", "app:app"]
+ENTRYPOINT ["python", "-m", "gunicorn", "--timeout", "6000", "-b", "0.0.0.0:8080", "web_app:app"]
