@@ -31,23 +31,17 @@ This adds Prometheus and Grafana to analyze the data for this Minikube cluster. 
 
 Install Prometheus and Grafana, configured to retrieve data from the Kubernetes scanner:
 ```
-$ helm upgrade --install k8s-monitoring prometheus-community/kube-prometheus-stack \
+helm upgrade --install k8s-monitoring prometheus-community/kube-prometheus-stack \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].job_name=Kubernetes-Vulnerability-Scanner" \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].metrics_path=/metrics" \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].static_configs[0].targets[0]=vulnerability-coordinator:80" \
   --wait
-Release "k8s-monitoring" does not exist. Installing it now.
-
-kube-prometheus-stack has been installed. Check its status by running:
-  kubectl --namespace default get pods -l "release=k8s-monitoring"
-
-Visit https://github.com/prometheus-operator/kube-prometheus for instructions on how to create & configure Alertmanager and Prometheus instances using the Operator.
 ```
 
 ### Explore data in Prometheus
 Get access to the Prometheus by running the following command:
 ```
-$ kubectl port-forward svc/k8s-monitoring-kube-promet-prometheus 9090
+kubectl port-forward svc/k8s-monitoring-kube-promet-prometheus 9090
 ```
 
 Open http://localhost:9090 and validate that Prometheus is reading data.
@@ -66,7 +60,7 @@ Also feel free to explore some of the data within Prometheus:
 ### Analyze data in Grafana
 Get access to the Grafana by running the following command:
 ```
-$ kubectl port-forward service/k8s-monitoring-grafana 3000:80
+kubectl port-forward service/k8s-monitoring-grafana 3000:80
 ```
 
 Open http://localhost:3000 and log in using default username/password admin/prom-operator:
@@ -87,12 +81,12 @@ Start exploring the vulnerability dashboard that was just imported:
 ### A note about monitoring multiple Kubernetes clusters
 It's important that each cluster is given a unique name, which is given when installing the Kubernetes Vulnerability Scanner, as shown below:
 ```
-$ helm upgrade --install k8s-scanner k8s-vuln-scanner --set clusterName="SET NAME OF CLUSTER HERE" --wait
+helm upgrade --install k8s-scanner k8s-vuln-scanner --set clusterName="SET NAME OF CLUSTER HERE" --wait
 ```
 
 Additional clusters can be added to the Prometheus configuration by modifying the helm installation as follows:
 ```
-$ helm upgrade --install k8s-monitoring prometheus-community/kube-prometheus-stack \
+helm upgrade --install k8s-monitoring prometheus-community/kube-prometheus-stack \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].job_name=Kubernetes-Vulnerability-Scanner" \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].metrics_path=/metrics" \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].static_configs[0].targets[0]=vulnerability-coordinator:80" \
@@ -104,17 +98,12 @@ $ helm upgrade --install k8s-monitoring prometheus-community/kube-prometheus-sta
 ## Uninstallation
 Use Helm to see what's installed
 ```
-$ helm list
-NAME          	NAMESPACE	REVISION	STATUS  	CHART                       	APP VERSION
-k8s-monitoring	default  	1       	deployed	kube-prometheus-stack-63.1.0	v0.76.1
-k8s-scanner   	default  	1       	deployed	k8s-vuln-scanner-0.1.17     	0.1.17
+helm list
 ```
 
 Ask Helm to delete the monitoring and scanning components:
 ```
-$ helm delete k8s-monitoring k8s-scanner
-release "k8s-monitoring" uninstalled
-release "k8s-scanner" uninstalled
+helm delete k8s-monitoring k8s-scanner
 ```
 
 ## Troubleshooting and Testing
