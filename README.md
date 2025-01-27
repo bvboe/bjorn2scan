@@ -4,23 +4,21 @@ Application for scanning the containers in your Kubernetes cluster for vulnerabi
 ## Installation
 Spin up or connect to your favorite Kubernetes cluster. In this case, https://minikube.sigs.k8s.io/.
 ```
-$ minikube start
+minikube start
 ```
 Download and deploy the Kubernetes scanner
 ```
-$ git clone https://github.com/bvboe/kubernetes-vulnerability-scanner/
-$ cd kubernetes-vulnerability-scanner/
-$ helm upgrade --install k8s-scanner k8s-vuln-scanner --set clusterName="Minikube Cluster" --wait
-Release "k8s-scanner" does not exist. Installing it now.
-Congratulations! The Kubernetes Vulnerability Scanner is now up and running.
-
-To access the web ui, run the following command:
-kubectl port-forward service/web-frontend 8080:80
-And access the UI on http://localhost:8080
+git clone https://github.com/bvboe/kubernetes-vulnerability-scanner/
+```
+```
+cd kubernetes-vulnerability-scanner/
+```
+```
+helm upgrade --install k8s-scanner k8s-vuln-scanner --set clusterName="Minikube Cluster" --wait
 ```
 Once it's running open up a connection to the web frontend
 ```
-$ kubectl port-forward service/web-frontend 8080:80
+kubectl port-forward service/web-frontend 8080:80
 ```
 Open up your browser at http://localhost:8080 and you're up and running.
 <img width="1792" alt="image" src="https://github.com/user-attachments/assets/d94e4cee-33a4-49f0-a762-3a0f9da1fa73">
