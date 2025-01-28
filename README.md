@@ -6,15 +6,13 @@ Spin up or connect to your favorite Kubernetes cluster. In this case, https://mi
 ```
 minikube start
 ```
-Download and deploy the Kubernetes scanner
+Download the scanner
 ```
 git clone https://github.com/bvboe/kubernetes-vulnerability-scanner/
 ```
+Deploy the scanner
 ```
-cd kubernetes-vulnerability-scanner/
-```
-```
-helm upgrade --install k8s-scanner k8s-vuln-scanner --set clusterName="Minikube Cluster" --wait
+helm upgrade --install k8s-scanner kubernetes-vulnerability-scanner/k8s-vuln-scanner --set clusterName="Minikube Cluster" --wait
 ```
 Once it's running open up a connection to the web frontend
 ```
