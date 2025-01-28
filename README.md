@@ -14,7 +14,7 @@ git clone https://github.com/bvboe/bjorn2scan/
 ```
 Deploy the scanner
 ```
-helm upgrade --install k8s-scanner bjorn2scan/k8s-vuln-scanner --set clusterName="Minikube Cluster" --wait
+helm upgrade --install k8s-scanner bjorn2scan/bjorn2scan --set clusterName="Minikube Cluster" --wait
 ```
 Once it's running open up a connection to the web frontend
 ```
@@ -79,7 +79,7 @@ Start exploring the vulnerability dashboard that was just imported:
 ### A note about monitoring multiple Kubernetes clusters
 It's important that each cluster is given a unique name, which is given when installing the Kubernetes Vulnerability Scanner, as shown below:
 ```
-helm upgrade --install k8s-scanner k8s-vuln-scanner --set clusterName="SET NAME OF CLUSTER HERE" --wait
+helm upgrade --install bjorn2scan bjorn2scan --set clusterName="SET NAME OF CLUSTER HERE" --wait
 ```
 
 Additional clusters can be added to the Prometheus configuration by modifying the helm installation as follows:
@@ -101,7 +101,7 @@ helm list
 
 Ask Helm to delete the monitoring and scanning components:
 ```
-helm delete k8s-monitoring k8s-scanner
+helm delete k8s-monitoring bjorn2scan
 ```
 
 ## Troubleshooting and Testing

@@ -1,1 +1,1 @@
-helm delete k8s-scanner --wait
+helm delete bjorn2scan --wait

@@ -1,1 +1,1 @@
-helm upgrade --install k8s-scanner k8s-vuln-scanner
+helm upgrade --install bjorn2scan bjorn2scan
