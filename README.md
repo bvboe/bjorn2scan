@@ -1,5 +1,7 @@
-# Kubernetes Vulnerability Scanner
-Application for scanning the containers in your Kubernetes cluster for vulnerabilities!
+# Bjørn2Scan - The Kubernetes Vulnerability Scanner
+Bjørn2Scan helps track the vulnerabilities in your Kubernetes cluster and help you track it direct in Prometheus/Grafana or wherever you want using OpenTelemetry. Underneath the hood it connects to your container manager (Docker or ContainerD) and scans whatever is running using Syft and Grype, which also means it does not need access to your container registry.
+
+<img src="https://github.com/user-attachments/assets/3ec4d350-1cf6-4f2c-a4c6-f19251d70267" width="400" alt="bjorn2scan">
 
 ## Installation
 Spin up or connect to your favorite Kubernetes cluster. In this case, https://minikube.sigs.k8s.io/.
@@ -8,11 +10,11 @@ minikube start
 ```
 Download the scanner
 ```
-git clone https://github.com/bvboe/kubernetes-vulnerability-scanner/
+git clone https://github.com/bvboe/bjorn2scan/
 ```
 Deploy the scanner
 ```
-helm upgrade --install k8s-scanner kubernetes-vulnerability-scanner/k8s-vuln-scanner --set clusterName="Minikube Cluster" --wait
+helm upgrade --install k8s-scanner bjorn2scan/k8s-vuln-scanner --set clusterName="Minikube Cluster" --wait
 ```
 Once it's running open up a connection to the web frontend
 ```
@@ -65,7 +67,7 @@ Open Dashboard page and click New -> Import to import a pre-built Kubernetes vul
 <img width="1792" alt="image" src="https://github.com/user-attachments/assets/c0ddcb74-92e9-4bfb-9bed-91bd47a48a18">
 
 Open the following link in a separate window, copy into the JSON model window and click Load:
-https://raw.githubusercontent.com/bvboe/kubernetes-vulnerability-scanner/refs/heads/main/grafana-dashboard/container-vulnerability-dashboard.json
+https://raw.githubusercontent.com/bvboe/bjorn2scan/refs/heads/main/grafana-dashboard/container-vulnerability-dashboard.json
 <img width="1792" alt="image" src="https://github.com/user-attachments/assets/57aaf0b4-999f-4657-8cde-e0f753c52f9d">
 
 Select the defautl Prometheus datasource for the dashboard and click Import:
