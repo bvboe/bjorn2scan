@@ -1,4 +1,4 @@
-Congratulations! The Kubernetes Vulnerability Scanner is now up and running.
+Congratulations! The Bjorn2Scan is now up and running.
 
 To access the web ui, run the following command:
 kubectl port-forward service/web-frontend 8080:80
