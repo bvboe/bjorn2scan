@@ -27,10 +27,26 @@ spec:
           value: {{ .Values.podScanner.scannerIntegration.potentialDockerSocketLocations }}
         - name: POTENTIAL_CONTAINERD_SNAPSHOT_LOCATIONS
           value: {{ .Values.podScanner.scannerIntegration.potentialContainerDSnapshotLocations }}
+        - name: AWS_TAGS_PREFIX
+          value: {{ .Values.podScanner.aws.tagPrefix }}
+        - name: AWS_TAGS_INCLUDE_LIST
+          value: {{ .Values.podScanner.aws.includeTagList }}
+        - name: AWS_TAGS_EXCLUDE_LIST
+          value: {{ .Values.podScanner.aws.exludeTagList }}
+        - name: GCP_TAGS_PREFIX
+          value: {{ .Values.podScanner.gcp.tagPrefix }}
+        - name: GCP_TAGS_INCLUDE_LIST
+          value: {{ .Values.podScanner.gcp.includeTagList }}
+        - name: GCP_TAGS_EXCLUDE_LIST
+          value: {{ .Values.podScanner.gcp.exludeTagList }}
         - name: NODE_NAME
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName        
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP        
         - name: POD_NAME
           valueFrom:
             fieldRef:

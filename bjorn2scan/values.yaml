@@ -4,13 +4,33 @@ podScanner:
   image:
     repository: "bjornvb/k8s-pod-scanner"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.06"
+    tag: "0.2.11"
   #Settings determining how the scanner integrates with container manager
   scannerIntegration:
     #Comma-separated list of potential places the docer socket could be on the scanner container.
     potentialDockerSocketLocations: "/host/run/docker.sock"
     #Comma-separated list of potential directories where ContainerD is storing its image snapshots
     potentialContainerDSnapshotLocations: "/host/var/lib/rancher/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots,/host/var/snap/microk8s/common/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots,/host/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots"
+  aws:
+    #Prefix for all tags retrieved from AWS VMs
+    tagPrefix: "aws_"
+    #If running on AWS, retrieve all tags, except the following ones specified as comma-separated list
+    #exludeTagList: "billingProducts,devpayProductCodes,instanceType,kernelId,marketplaceProductCodes,pendingTime,ramdiskId,version"
+    exludeTagList: ""
+    #If running on AWS, only retrieve the following tags specified as comma-separated list
+    #Empty means all tags will be returned
+    includeTagList: "accountId,architecture,availabilityZone,imageId,instanceId,privateIp,region"
+    #includeTagList: ""
+  gcp:
+    #Prefix for all tags retrieved from AWS VMs
+    tagPrefix: "gcp_"
+    #If running on GCP, retrieve all tags, except the following ones specified as comma-separated list
+    #exludeTagList: "configure-sh,disable-legacy-endpoints,gci-metrics-enabled,gci-update-strategy,google-compute-enable-pcid,instance-template,kube-env,kubeconfig,kubelet-config,serial-port-logging-enable,user-data,kube-labels"
+    exludeTagList: ""
+    #If running on GCP, only retrieve the following tags specified as comma-separated list
+    #Empty means all tags will be returned
+    includeTagList: "cluster-location,cluster-name,cluster-uid,created-by"
+    #includeTagList: ""
 vulnerabilityCoordinator:
   enabled: true
   # Option to turn on and off the container scanner
@@ -27,7 +47,7 @@ vulnerabilityCoordinator:
   image:
     repository: "bjornvb/k8s-scanner-vulnerability-coordinator"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.06"
+    tag: "0.2.11"
 webFrontend:
   enabled: true
   # How is the web frontend exposed to the world?
@@ -36,7 +56,7 @@ webFrontend:
   image:
     repository: "bjornvb/k8s-scanner-web-frontend"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.06"
+    tag: "0.2.11"
 openTelemetryCollector:
   enabled: false
   #How often does the collector forward metrics
