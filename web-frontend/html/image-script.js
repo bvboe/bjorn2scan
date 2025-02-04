@@ -178,4 +178,6 @@ const imageid = urlParams.get('imageid');
 
 loadImageDetails(imageid);
 document.getElementById("cvecsvlink").href = "/api/image/vulnerabilities?output=csv&imageid=" + imageid;
+document.getElementById("cvejsonlink").href = "/api/image/vulnerabilities?output=json&imageid=" + imageid;
 document.getElementById("sbomcsvlink").href = "/api/image/sbom?output=csv&imageid=" + imageid;
+document.getElementById("sbomjsonlink").href = "/api/image/sbom?output=json&imageid=" + imageid;

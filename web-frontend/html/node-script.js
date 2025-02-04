@@ -178,4 +178,6 @@ const nodename = urlParams.get('nodename');
 
 loadNodeDetails(nodename);
 document.getElementById("cvecsvlink").href = "/api/node/vulnerabilities?output=csv&nodename=" + nodename;
+document.getElementById("cvejsonlink").href = "/api/node/vulnerabilities?output=json&nodename=" + nodename;
 document.getElementById("sbomcsvlink").href = "/api/node/sbom?output=csv&nodename=" + nodename;
+document.getElementById("sbomjsonlink").href = "/api/node/sbom?output=json&nodename=" + nodename;
