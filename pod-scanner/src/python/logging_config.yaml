@@ -8,6 +8,18 @@ loggers:
     level: DEBUG
     handlers: [consoleHandler]
     propagate: false
+  node_tags:
+    level: DEBUG
+    handlers: [consoleHandler]
+    propagate: false
+  host_configuration:
+    level: DEBUG
+    handlers: [consoleHandler]
+    propagate: false
+  sbom:
+    level: DEBUG
+    handlers: [consoleHandler]
+    propagate: false
 
 formatters:
   simpleFormatter:
