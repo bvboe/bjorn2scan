@@ -84,6 +84,7 @@ helm upgrade --install bjorn2scan bjorn2scan --set clusterName="SET NAME OF CLUS
 Additional clusters can be added to the Prometheus configuration by modifying the helm installation as follows:
 ```
 helm upgrade --install k8s-monitoring prometheus-community/kube-prometheus-stack \
+  --set "prometheus.prometheusSpec.maximumStartupDurationSeconds=900" \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].job_name=Kubernetes-Vulnerability-Scanner" \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].metrics_path=/metrics" \
   --set "prometheus.prometheusSpec.additionalScrapeConfigs[0].static_configs[0].targets[0]=vulnerability-coordinator:80" \
