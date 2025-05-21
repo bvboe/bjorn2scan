@@ -21,7 +21,15 @@ mv bjorn2scan/newvalues.yaml bjorn2scan/values.yaml
 cat bjorn2scan/Chart.yaml | yq eval ".appVersion=\"${APP_VERSION}\""  | yq eval ".version=\"${CHART_VERSION}\"" > bjorn2scan/newChart.yaml
 mv bjorn2scan/newChart.yaml bjorn2scan/Chart.yaml
 
+echo Publish Helm chart
+CHART_FILE_NAME="bjorn2scan-${CHART_VERSION}.tgz"
+helm package bjorn2scan
+echo "Chart filename: $CHART_FILE_NAME"
+helm push ${CHART_FILE_NAME} oci://registry-1.docker.io/bjornvb
+rm ${CHART_FILE_NAME}
+
 echo Complete and generated the following containers:
 echo "$POD_SCANNER_REPOSITORY:$APP_VERSION"
 echo "$VULNERABILITY_COORDINATOR_REPOSITORY:$APP_VERSION"
 echo "$WEB_FRONTEND_REPOSITORY:$APP_VERSION"
+echo "registry-1.docker.io/bjornvb/${CHART_FILE_NAME}"

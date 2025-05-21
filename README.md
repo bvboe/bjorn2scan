@@ -8,14 +8,12 @@ Spin up or connect to your favorite Kubernetes cluster. In this case, https://mi
 ```
 minikube start
 ```
-Download the scanner
-```
-git clone https://github.com/bvboe/bjorn2scan/
-```
 Deploy the scanner
 ```
-helm upgrade --install k8s-scanner bjorn2scan/bjorn2scan --set clusterName="Minikube Cluster" --wait
+helm upgrade --install bjorn2scan oci://harbor.cloudnative.biz/k8s-scanner/bjorn2scan --set clusterName="Minikube Cluster" --wait
 ```
+See https://github.com/bvboe/bjorn2scan/blob/main/bjorn2scan/values.yaml for more configuration options.
+
 Once it's running open up a connection to the web frontend
 ```
 kubectl port-forward service/web-frontend 8080:80
