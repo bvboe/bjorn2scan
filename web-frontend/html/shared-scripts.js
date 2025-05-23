@@ -177,7 +177,11 @@ function initSelect(selectID, values) {
             var option = document.createElement("option");
     
             // Set the text and value
-            option.text = item;
+            if(item == "") {
+                option.text = "<none>";
+            } else {
+                option.text = item;
+            }
             option.value = item;
         
             // Add the option to the select element
