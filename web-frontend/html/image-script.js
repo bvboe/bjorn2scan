@@ -83,27 +83,61 @@ async function loadCVEsTable(imageid, scanStatus) {
     
         // Parse the JSON data from the response
         const data = await response.json();
+        counter = 0;
     
         data.forEach(item => {
             console.log(item)
+            vulnCellId = "vulncell"+counter;
             // Create a new row
             const newRow = document.createElement("tr");
-            addCellToRow(newRow, "left", item.vulnerability_severity);
-            addCellToRow(newRow, "left", item.vulnerability_id);
-            addCellToRow(newRow, "left", item.artifact_name);
-            addCellToRow(newRow, "left", item.artifact_version);
-            addCellToRow(newRow, "left", item.vulnerability_fix_versions);
-            addCellToRow(newRow, "left", item.vulnerability_fix_state);
-            addCellToRow(newRow, "left", item.artifact_type);
+            linkRef = "<a href=\"#\" onclick=\"toggleScanData(\'vulncell" + counter + "\', this.dataset.url); return false;\" data-url=" + item.details_url + ">";
+            addCellToRow(newRow, "left", linkRef + item.vulnerability_severity + "</a>");
+            addCellToRow(newRow, "left", linkRef + item.vulnerability_id + "</a>");
+            addCellToRow(newRow, "left", linkRef + item.artifact_name + "</a>");
+            addCellToRow(newRow, "left", linkRef + item.artifact_version + "</a>");
+            addCellToRow(newRow, "left", linkRef + item.vulnerability_fix_versions + "</a>");
+            addCellToRow(newRow, "left", linkRef + item.vulnerability_fix_state + "</a>");
+            addCellToRow(newRow, "left", linkRef + item.artifact_type + "</a>");
     
+
             // Append the new row to the table body
             tableBody.appendChild(newRow);
+
+            const vulnRow = document.createElement("tr");
+            const vulnCell = document.createElement("td");
+            vulnCell.colSpan = 7;
+            vulnCell.id = vulnCellId;
+            vulnCell.hidden = true;
+
+            vulnRow.appendChild(vulnCell);
+            tableBody.appendChild(vulnRow);
+            counter++;
         });
     } else {
         const newRow = document.createElement("tr");
         const newCell = addCellToRow(newRow, "left", "Vulnerability data missing");
         newCell.colSpan = 7;
         tableBody.appendChild(newRow);
+    }
+}
+
+async function toggleScanData(cellId, scanDataUrl) {
+    const cell = document.querySelector("#" + cellId);
+    if (cell.hidden == false) {
+        cell.hidden = true;
+        cell.innerHTML = "";
+    } else {
+        cell.hidden = false;
+        try {
+            const response = await fetch(scanDataUrl);
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+            const data = await response.json();
+            cell.innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+        } catch (error) {
+            cell.innerHTML = "<span style='color: red;'>Failed to load details: " + error.message + "</span>";
+        }
     }
 }
 
