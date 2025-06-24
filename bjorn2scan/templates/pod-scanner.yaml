@@ -39,6 +39,8 @@ spec:
           value: {{ .Values.podScanner.gcp.includeTagList }}
         - name: GCP_TAGS_EXCLUDE_LIST
           value: {{ .Values.podScanner.gcp.exludeTagList }}
+        - name: K8S_VERIFY_SSL
+          value: "{{ .Values.kubernetes.verifySSL }}"
         - name: NODE_NAME
           valueFrom:
             fieldRef:

@@ -1,10 +1,14 @@
 clusterName: "Kubernetes Cluster"
+kubernetes:
+  #Determine if the Kubernetes integration code will validate the SSL connection.
+  #In most cases this setting should be left to true, but may need to be turned off for some self hosted Kubernetes deployments, like MicroK8s.
+  verifySSL: true
 podScanner:
   enabled: true
   image:
     repository: "bjornvb/k8s-pod-scanner"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.20"
+    tag: "0.2.21"
   #Settings determining how the scanner integrates with container manager
   scannerIntegration:
     #Comma-separated list of potential places the docer socket could be on the scanner container.
@@ -49,7 +53,7 @@ vulnerabilityCoordinator:
   image:
     repository: "bjornvb/k8s-scanner-vulnerability-coordinator"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.20"
+    tag: "0.2.21"
 webFrontend:
   enabled: true
   # How is the web frontend exposed to the world?
@@ -58,7 +62,7 @@ webFrontend:
   image:
     repository: "bjornvb/k8s-scanner-web-frontend"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.20"
+    tag: "0.2.21"
 openTelemetryCollector:
   enabled: false
   #How often does the collector forward metrics
