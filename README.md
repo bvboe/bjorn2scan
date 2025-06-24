@@ -109,7 +109,7 @@ The scanner is designed to work with Kubernetes running on Docker and ContainerD
 * Amazon Elastic Kubernetes Service (EKS)
 * Google Kubernetes Engine (GKE)
 * K3s
-* MicroK8s
+* MicroK8s (see note about verifying SSL)
 * Kubeadm on ContainerD
 * Minikube
 * Kind
@@ -117,3 +117,8 @@ The scanner is designed to work with Kubernetes running on Docker and ContainerD
 The scanner is currently not integrated with CRI-O.
 
 The scanner will also require read-only access to the host operating system and leverages a Persistent Volume Claim for caching scan results. The use of a Persistent Volume Claim can be disabled by adding `--set vulnerabilityCoordinator.externalStorage=false` to the helm installation command.
+
+Known issue on MicroK8s: Add `--set kubernetes.verifySSL="false"` to disable Kubernetes SSL verification if the following error appears:
+```
+urllib3.connectionpool - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: CA cert does not include key usage extension (_ssl.c:1028)'))': /api/v1/nodes
+```
