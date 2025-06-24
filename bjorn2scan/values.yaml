@@ -8,7 +8,7 @@ podScanner:
   image:
     repository: "bjornvb/k8s-pod-scanner"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.21"
+    tag: "0.2.22"
   #Settings determining how the scanner integrates with container manager
   scannerIntegration:
     #Comma-separated list of potential places the docer socket could be on the scanner container.
@@ -53,7 +53,7 @@ vulnerabilityCoordinator:
   image:
     repository: "bjornvb/k8s-scanner-vulnerability-coordinator"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.21"
+    tag: "0.2.22"
 webFrontend:
   enabled: true
   # How is the web frontend exposed to the world?
@@ -62,7 +62,7 @@ webFrontend:
   image:
     repository: "bjornvb/k8s-scanner-web-frontend"
     pullPolicy: "IfNotPresent"
-    tag: "0.2.21"
+    tag: "0.2.22"
 openTelemetryCollector:
   enabled: false
   #How often does the collector forward metrics
