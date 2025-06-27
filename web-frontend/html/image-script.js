@@ -74,7 +74,9 @@ async function loadCVEsTable(imageid, scanStatus) {
     tableBody.replaceChildren();
 
     if(scanStatus == "COMPLETE") {
-        const response = await fetch("/api/image/vulnerabilities?imageid=" + imageid);
+        url = "/api/image/vulnerabilities?imageid=" + imageid;
+        console.log(url);
+        const response = await fetch(url);
         console.log("loadCVEsTable() - Got data")
         // Check if the response is OK (status code 200)
         if (!response.ok) {
@@ -86,7 +88,7 @@ async function loadCVEsTable(imageid, scanStatus) {
         counter = 0;
     
         data.forEach(item => {
-            console.log(item)
+            //console.log(item)
             vulnCellId = "vulncell"+counter;
             // Create a new row
             const newRow = document.createElement("tr");
@@ -98,6 +100,8 @@ async function loadCVEsTable(imageid, scanStatus) {
             addCellToRow(newRow, "left", linkRef + item.vulnerability_fix_versions + "</a>");
             addCellToRow(newRow, "left", linkRef + item.vulnerability_fix_state + "</a>");
             addCellToRow(newRow, "left", linkRef + item.artifact_type + "</a>");
+            addCellToRow(newRow, "right", linkRef + formatRiskNumber(item.vulnerability_risk) + "</a>");
+            addCellToRow(newRow, "right", linkRef + item.vulnerability_known_exploits + "</a>");
     
 
             // Append the new row to the table body
@@ -119,6 +123,13 @@ async function loadCVEsTable(imageid, scanStatus) {
         newCell.colSpan = 7;
         tableBody.appendChild(newRow);
     }
+}
+
+function formatRiskNumber(risk) {
+    if (risk < 0.1) {
+        return "< 0.1";
+    }
+    return risk.toFixed(1);
 }
 
 async function toggleScanData(cellId, scanDataUrl) {
@@ -155,7 +166,9 @@ async function loadSBOMTable(imageid, scanStatus) {
     tableBody.replaceChildren();
 
     if(scanStatus == "COMPLETE") {
-        const response = await fetch("/api/image/sbom?imageid=" + imageid);
+        url = "/api/image/sbom?imageid=" + imageid;
+        console.log(url);
+        const response = await fetch(url);
         console.log("loadSBOMTable() - Got data")
         // Check if the response is OK (status code 200)
         if (!response.ok) {
@@ -167,7 +180,7 @@ async function loadSBOMTable(imageid, scanStatus) {
 
 
         data.forEach(item => {
-            console.log(item)
+            //console.log(item)
             // Create a new row
             const newRow = document.createElement("tr");
             addCellToRow(newRow, "left", item.name);

@@ -87,6 +87,9 @@ async function loadCVEsTable(nodename, scanStatus) {
             addCellToRow(newRow, "left", linkRef + item.vulnerability_fix_versions + "</a>");
             addCellToRow(newRow, "left", linkRef + item.vulnerability_fix_state + "</a>");
             addCellToRow(newRow, "left", linkRef + item.artifact_type + "</a>");
+            addCellToRow(newRow, "right", linkRef + formatRiskNumber(item.vulnerability_risk) + "</a>");
+            addCellToRow(newRow, "right", linkRef + item.vulnerability_known_exploits + "</a>");
+
     
             // Append the new row to the table body
             tableBody.appendChild(newRow);
@@ -107,6 +110,13 @@ async function loadCVEsTable(nodename, scanStatus) {
         newCell.colSpan = 7;
         tableBody.appendChild(newRow);
     }
+}
+
+function formatRiskNumber(risk) {
+    if (risk < 0.1) {
+        return "< 0.1";
+    }
+    return risk.toFixed(1);
 }
 
 async function toggleScanData(cellId, scanDataUrl) {
