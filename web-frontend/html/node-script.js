@@ -74,7 +74,7 @@ async function loadCVEsTable(nodename, scanStatus) {
         counter = 0;
 
         data.forEach(item => {
-            console.log(item)
+            //console.log(item)
             vulnCellId = "vulncell"+counter;
             // Create a new row
             const newRow = document.createElement("tr");
@@ -165,7 +165,7 @@ async function loadSBOMTable(nodename, scanStatus) {
 
 
         data.forEach(item => {
-            console.log(item)
+            //console.log(item)
             // Create a new row
             const newRow = document.createElement("tr");
             addCellToRow(newRow, "left", item.name);

@@ -53,6 +53,8 @@ async function loadPodsTable() {
         addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.namespace + "</a");
         addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.pod_name + "</a");
         addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.container_name + "</a");
+        addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.known_exploits));
+        addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.total_risk));
 
         switch(item.scan_status) {
             case "COMPLETE":

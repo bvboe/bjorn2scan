@@ -48,7 +48,7 @@ async function loadCVEsTable() {
     tableBody.replaceChildren();
 
     data.forEach(item => {
-        console.log(item)
+        //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
         addCellToRow(newRow, "left", item.vulnerability_severity);
@@ -58,6 +58,8 @@ async function loadCVEsTable() {
         addCellToRow(newRow, "left", item.vulnerability_fix_versions);
         addCellToRow(newRow, "left", item.vulnerability_fix_state);
         addCellToRow(newRow, "left", item.artifact_type);
+        addCellToRow(newRow, "right", formatNumber(item.vulnerability_known_exploits));
+        addCellToRow(newRow, "right", formatNumber(item.vulnerability_risk));
         addCellToRow(newRow, "right", formatNumber(item.image_count));
 
         // Append the new row to the table body
