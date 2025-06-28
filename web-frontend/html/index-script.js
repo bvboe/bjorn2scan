@@ -16,7 +16,9 @@ async function loadNamespaceSummaryTable(selectedNamespace) {
         console.log("Namespace is set");
         namespaceString = "?namespace="+selectedNamespace;
     }
-    const response = await fetch("/api/image/summary" + namespaceString);
+    url = "/api/image/summary" + namespaceString;
+    console.log(url);
+    const response = await fetch(url);
     console.log("loadNamespaceSummaryTable() - Got data")
     // Check if the response is OK (status code 200)
     if (!response.ok) {
@@ -35,12 +37,14 @@ async function loadNamespaceSummaryTable(selectedNamespace) {
     rowCounter = 0;
     data.forEach(item => {
         rowCounter++;
-        console.log(item)
+        //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
         const scannedContainers = item.scanned_containers;
         addCellToRow(newRow, "left", item.namespace);
         addCellToRow(newRow, "right", formatNumber(scannedContainers));
+        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.known_exploits, scannedContainers), 2));
+        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.risk_total, scannedContainers), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_critical, scannedContainers), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_high, scannedContainers), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_medium, scannedContainers), 2));
@@ -71,7 +75,9 @@ async function loadDistroTable(selectedNamespace) {
         console.log("Namespace is set");
         namespaceString = "?namespace="+selectedNamespace;
     }
-    const response = await fetch("/api/distro/container-summary" + namespaceString);
+    url = "/api/distro/container-summary" + namespaceString;
+    console.log("/api/distro/container-summary" + namespaceString);
+    const response = await fetch(url);
     console.log("loadDistroTable() - Got data")
     // Check if the response is OK (status code 200)
     if (!response.ok) {
@@ -90,12 +96,14 @@ async function loadDistroTable(selectedNamespace) {
     rowCounter = 0;
     data.forEach(item => {
         rowCounter++;
-        console.log(item)
+        //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
         const scannedContainers = item.scanned_containers;
         addCellToRow(newRow, "left", item.distro_name + " (" + item.distro_id + ")");
         addCellToRow(newRow, "right", formatNumber(scannedContainers));
+        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.known_exploits, scannedContainers), 2));
+        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.risk_total, scannedContainers), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_critical, scannedContainers), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_high, scannedContainers), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_medium, scannedContainers), 2));
@@ -121,7 +129,9 @@ async function loadNodeTable() {
         return;
     }
     console.log("loadNodeTable()");
-    const response = await fetch("/api/distro/node-summary");
+    url = "/api/distro/node-summary";
+    console.log(url);
+    const response = await fetch(url);
     console.log("loadDistroTable() - Got data")
     // Check if the response is OK (status code 200)
     if (!response.ok) {
@@ -140,12 +150,14 @@ async function loadNodeTable() {
     rowCounter = 0;
     data.forEach(item => {
         rowCounter++;
-        console.log(item)
+        //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
         const scannedNodes = item.scanned_nodes;
         addCellToRow(newRow, "left", item.distro_name + " (" + item.distro_id + ")");
         addCellToRow(newRow, "right", formatNumber(scannedNodes));
+        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.known_exploits, scannedNodes), 2));
+        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.risk_total, scannedNodes), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_critical, scannedNodes), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_high, scannedNodes), 2));
         addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_medium, scannedNodes), 2));
@@ -251,10 +263,10 @@ function initCsvLink(selectedNamespace) {
     const distroCsvLink = document.getElementById("distroCsvlink");
     if(selectedNamespace !== null) {
         namespaceCsvLink.href = "/api/image/summary?output=csv&namespace=" + selectedNamespace;
-        distroCsvLink.href = "/api/distro/summary?output=csv&namespace=" + selectedNamespace;
+        distroCsvLink.href = "/api/distro/container-summary?output=csv&namespace=" + selectedNamespace;
     } else {
         namespaceCsvLink.href = "/api/image/summary?output=csv"
-        distroCsvLink.href = "/api/distro/summary?output=csv"
+        distroCsvLink.href = "/api/distro/container-summary?output=csv"
     }
 }
 

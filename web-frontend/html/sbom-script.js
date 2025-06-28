@@ -28,7 +28,7 @@ function addSelectedItemsToArgument(currentArgument, selectId, urlArgument) {
 async function loadSBOMTable() {
     console.log("loadSBOMTable()");
     url = generateUrl(false);
-    console.log("Use URL: " + url)
+    console.log(url)
     const response = await fetch(url);
     console.log("loadSBOMTable() - Got data")
     // Check if the response is OK (status code 200)
@@ -46,7 +46,7 @@ async function loadSBOMTable() {
     tableBody.replaceChildren();
 
     data.forEach(item => {
-        console.log(item)
+        //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
         addCellToRow(newRow, "left", item.name);

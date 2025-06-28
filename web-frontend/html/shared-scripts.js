@@ -12,7 +12,7 @@ async function loadNamespaceTable(currentUrl, currentNamespace) {
 
     // Parse the JSON data from the response
     const data = await response.json();
-    console.log(data)
+    //console.log(data)
 
     const select = document.getElementById("namespaceSelect")
 

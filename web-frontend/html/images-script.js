@@ -54,10 +54,10 @@ async function loadContainerTable() {
         //addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.image + "</br>" + item.image_id + "</a");
         addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.image + "</a");
         addCellToRow(newRow, "right", formatNumber(item.num_instances));
-        addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.known_exploits));
-        addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.total_risk));
         switch(item.scan_status) {
             case "COMPLETE":
+                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.known_exploits));
+                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.total_risk));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.critical));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.high));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.medium));
@@ -68,19 +68,19 @@ async function loadContainerTable() {
                 break;
             case "SCANNING":
                 newCell = addCellToRow(newRow, "left", "Scanning");
-                newCell.colSpan = 11;
+                newCell.colSpan = 9;
                 break;
             case "TO_BE_SCANNED":
                 newCell = addCellToRow(newRow, "left", "To be scanned");
-                newCell.colSpan = 11;
+                newCell.colSpan = 9;
                 break;
             case "NO_SCAN_AVAILABLE":
                 newCell = addCellToRow(newRow, "left", "No scan information");
-                newCell.colSpan = 11;
+                newCell.colSpan = 9;
                 break;
             case "SCAN_FAILED":
                 newCell = addCellToRow(newRow, "left", "Scan failed");
-                newCell.colSpan = 11;
+                newCell.colSpan = 9;
                 break;
             default:
               // code block

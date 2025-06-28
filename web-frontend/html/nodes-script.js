@@ -67,19 +67,19 @@ async function loadNodeTable() {
                 break;
             case "SCANNING":
                 newCell = addCellToRow(newRow, "left", "Scanning");
-                newCell.colSpan = 8;
+                newCell.colSpan = 10;
                 break;
             case "TO_BE_SCANNED":
                 newCell = addCellToRow(newRow, "left", "To be scanned");
-                newCell.colSpan = 8;
+                newCell.colSpan = 10;
                 break;
             case "NO_SCAN_AVAILABLE":
                 newCell = addCellToRow(newRow, "left", "No scan information");
-                newCell.colSpan = 8;
+                newCell.colSpan = 10;
                 break;
             case "SCAN_FAILED":
                 newCell = addCellToRow(newRow, "left", "Scan failed");
-                newCell.colSpan = 8;
+                newCell.colSpan = 10;
                 break;
             default:
               // code block
