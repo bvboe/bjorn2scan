@@ -55,14 +55,14 @@ async function loadNodeTable() {
         switch(item.scan_status) {
             case "COMPLETE":
                 addCellToRow(newRow, "left", "<a href=\"node.html?nodename=" + item.node_name + "\">" + item.distro_name + " (" + item.distro_id + ")</a>");
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.known_exploits));
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.total_risk));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.critical));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.high));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.medium));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.low));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.negligible));
                 addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.unknown));
+                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.total_risk));
+                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.known_exploits));
                 addCellToRow(newRow, "right", formatNumber(item.number_of_packages));
                 break;
             case "SCANNING":
