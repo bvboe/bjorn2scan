@@ -10,7 +10,7 @@ minikube start
 ```
 Deploy the scanner
 ```
-helm upgrade --install bjorn2scan oci://harbor.cloudnative.biz/k8s-scanner/bjorn2scan --set clusterName="Minikube Cluster" --wait
+helm upgrade --install bjorn2scan oci://registry-1.docker.io/bjornvb/bjorn2scan --set clusterName="Minikube Cluster" --wait
 ```
 See https://github.com/bvboe/bjorn2scan/blob/main/bjorn2scan/values.yaml for more configuration options.
 
