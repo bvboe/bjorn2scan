@@ -96,7 +96,7 @@ async function loadCVEsTable(nodename, scanStatus) {
 
             const vulnRow = document.createElement("tr");
             const vulnCell = document.createElement("td");
-            vulnCell.colSpan = 7;
+            vulnCell.colSpan = 9;
             vulnCell.id = vulnCellId;
             vulnCell.hidden = true;
 
