@@ -92,7 +92,7 @@ async function loadCVEsTable(imageid, scanStatus) {
             vulnCellId = "vulncell"+counter;
             // Create a new row
             const newRow = document.createElement("tr");
-            linkRef = "<a href=\"#\" onclick=\"toggleScanData(\'vulncell" + counter + "\', this.dataset.url); return false;\" data-url=" + item.details_url + ">";
+            linkRef = "<a href=\"#\" onclick=\"toggleDetailsTableRow(\'" + vulnCellId + "\', this.dataset.url); return false;\" data-url=" + item.details_url + ">";
             addCellToRow(newRow, "left", linkRef + item.vulnerability_severity + "</a>");
             addCellToRow(newRow, "left", linkRef + item.vulnerability_id + "</a>");
             addCellToRow(newRow, "left", linkRef + item.artifact_name + "</a>");
@@ -132,7 +132,7 @@ function formatRiskNumber(risk) {
     return risk.toFixed(1);
 }
 
-async function toggleScanData(cellId, scanDataUrl) {
+async function toggleDetailsTableRow(cellId, detailsUrl) {
     const cell = document.querySelector("#" + cellId);
     if (cell.hidden == false) {
         cell.hidden = true;
@@ -140,7 +140,7 @@ async function toggleScanData(cellId, scanDataUrl) {
     } else {
         cell.hidden = false;
         try {
-            const response = await fetch(scanDataUrl);
+            const response = await fetch(detailsUrl);
             if (!response.ok) {
                 throw new Error("Network response was not ok");
             }
@@ -177,23 +177,36 @@ async function loadSBOMTable(imageid, scanStatus) {
 
         // Parse the JSON data from the response
         const data = await response.json();
-
+        counter = 0;
 
         data.forEach(item => {
             //console.log(item)
+            sbomCellId = "sbomcell"+counter;
             // Create a new row
             const newRow = document.createElement("tr");
-            addCellToRow(newRow, "left", item.name);
-            addCellToRow(newRow, "left", item.version);
-            addCellToRow(newRow, "left", item.type);
+            linkRef = "<a href=\"#\" onclick=\"toggleDetailsTableRow(\'" + sbomCellId + "\', this.dataset.url); return false;\" data-url=" + item.details_url + ">";
+            addCellToRow(newRow, "left", linkRef + item.name + "</a>");
+            addCellToRow(newRow, "left", linkRef + item.version + "</a>");
+            addCellToRow(newRow, "left", linkRef + item.type + "</a>");
+            addCellToRow(newRow, "right", linkRef + item.count + "</a>");
 
             // Append the new row to the table body
             tableBody.appendChild(newRow);
+
+            const sbomRow = document.createElement("tr");
+            const sbomCell = document.createElement("td");
+            sbomCell.colSpan = 4;
+            sbomCell.id = sbomCellId;
+            sbomCell.hidden = true;
+
+            sbomRow.appendChild(sbomCell);
+            tableBody.appendChild(sbomRow);
+            counter++;
         });
     } else {
         const newRow = document.createElement("tr");
         const newCell = addCellToRow(newRow, "left", "SBOM missing");
-        newCell.colSpan = 3;
+        newCell.colSpan = 4;
         tableBody.appendChild(newRow);
     }
 }
