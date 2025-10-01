@@ -130,3 +130,34 @@ td.filterBody {
     transform: translateY(-50%);
     right: 5px;
 }
+
+/* Sortable column header styles */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 20px !important;
+}
+
+.sortable:hover {
+    background-color: #f0f0f0;
+}
+
+/* Sort direction indicators */
+.sortable::after {
+    /*content: "⇅";*/
+    position: absolute;
+    right: 5px;
+    opacity: 0.3;
+    font-size: 0.8em;
+}
+
+.sortable.sort-asc::after {
+    content: "▲";
+    opacity: 1;
+}
+
+.sortable.sort-desc::after {
+    content: "▼";
+    opacity: 1;
+}

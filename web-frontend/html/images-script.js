@@ -1,3 +1,7 @@
+// Track current sort state
+let currentSortField = null;
+let currentSortDirection = "asc";
+
 function generateUrl(includeCSVOption) {
     const api = "/api/vulnsummary/image";
     args = "";
@@ -7,6 +11,17 @@ function generateUrl(includeCSVOption) {
     args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
     args = addSelectedItemsToArgument(args, "vulnerabilityStatusFilter", "fixstatus");
     args = addSelectedItemsToArgument(args, "packageTypeFilter", "packagetype");
+
+    // Add sort parameter if a field is selected
+    if (currentSortField && !includeCSVOption) {
+        const sortValue = currentSortDirection === "desc" ? currentSortField + ".desc" : currentSortField;
+        if (args === "") {
+            args = "?sort=" + encodeURIComponent(sortValue);
+        } else {
+            args = args + "&sort=" + encodeURIComponent(sortValue);
+        }
+    }
+
     return api + args;
 }
 
@@ -118,6 +133,38 @@ function toggleFilterVisible() {
 function onFilterChange() {
     loadContainerTable();
     document.getElementById("csvlink").href = generateUrl(true);
+}
+
+function sortByColumn(fieldName) {
+    // If clicking the same column, toggle direction
+    if (currentSortField === fieldName) {
+        currentSortDirection = currentSortDirection === "asc" ? "desc" : "asc";
+    } else {
+        // New column, start with ascending
+        currentSortField = fieldName;
+        currentSortDirection = "asc";
+    }
+
+    // Update visual indicators
+    updateSortIndicators();
+
+    // Reload table with new sort
+    loadContainerTable();
+}
+
+function updateSortIndicators() {
+    // Remove all existing sort indicators
+    document.querySelectorAll(".sortable").forEach(th => {
+        th.classList.remove("sort-asc", "sort-desc");
+    });
+
+    // Add indicator to current sorted column
+    if (currentSortField) {
+        const headerElement = document.querySelector(`[data-sort-field="${currentSortField}"]`);
+        if (headerElement) {
+            headerElement.classList.add(currentSortDirection === "asc" ? "sort-asc" : "sort-desc");
+        }
+    }
 }
 
 $(function(){
