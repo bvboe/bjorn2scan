@@ -56,14 +56,14 @@ async function loadContainerTable() {
         addCellToRow(newRow, "right", formatNumber(item.num_instances));
         switch(item.scan_status) {
             case "COMPLETE":
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.critical));
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.high));
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.medium));
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.low));
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.negligible));
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.unknown));
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.total_risk));
-                addCellToRow(newRow, "right", formatNumber(item.vulnarbility_summary.known_exploits));
+                addCellToRow(newRow, "right", formatNumber(item.cves_critical));
+                addCellToRow(newRow, "right", formatNumber(item.cves_high));
+                addCellToRow(newRow, "right", formatNumber(item.cves_medium));
+                addCellToRow(newRow, "right", formatNumber(item.cves_low));
+                addCellToRow(newRow, "right", formatNumber(item.cves_negligible));
+                addCellToRow(newRow, "right", formatNumber(item.cves_unknown));
+                addCellToRow(newRow, "right", formatNumber(item.total_risk));
+                addCellToRow(newRow, "right", formatNumber(item.known_exploits));
                 addCellToRow(newRow, "right", formatNumber(item.number_of_packages));
                 break;
             case "SCANNING":
