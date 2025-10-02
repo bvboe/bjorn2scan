@@ -222,3 +222,92 @@ async function showNodeScans() {
     property = await getConfigProperty("scanNodes");
     return Boolean(property);
 }
+
+// Shared sorting functionality
+let currentSortField = null;
+let currentSortDirection = "asc";
+
+function addSortParameter(args, includeCSVOption) {
+    // Add sort parameter if a field is selected (but not for CSV export)
+    if (currentSortField && !includeCSVOption) {
+        const sortValue = currentSortDirection === "desc" ? currentSortField + ".desc" : currentSortField;
+        if (args === "") {
+            args = "?sort=" + encodeURIComponent(sortValue);
+        } else {
+            args = args + "&sort=" + encodeURIComponent(sortValue);
+        }
+    }
+    return args;
+}
+
+function sortByColumn(fieldName, reloadFunction) {
+    // If clicking the same column, toggle direction
+    if (currentSortField === fieldName) {
+        currentSortDirection = currentSortDirection === "asc" ? "desc" : "asc";
+    } else {
+        // New column, start with ascending
+        currentSortField = fieldName;
+        currentSortDirection = "asc";
+    }
+
+    // Update visual indicators
+    updateSortIndicators();
+
+    // Reload table with new sort
+    reloadFunction();
+}
+
+function updateSortIndicators() {
+    // Remove all existing sort indicators
+    document.querySelectorAll(".sortable").forEach(th => {
+        th.classList.remove("sort-asc", "sort-desc");
+    });
+
+    // Add indicator to current sorted column
+    if (currentSortField) {
+        const headerElement = document.querySelector(`[data-sort-field="${currentSortField}"]`);
+        if (headerElement) {
+            headerElement.classList.add(currentSortDirection === "asc" ? "sort-asc" : "sort-desc");
+        }
+    }
+}
+
+function addSelectedItemsToArgument(currentArgument, selectId, urlArgument) {
+    selectElement = document.getElementById(selectId);
+    selectedValues = Array.from(selectElement.selectedOptions).map(option => option.value);
+    if (selectedValues.length > 0) {
+        commaSeparatedList = selectedValues.join(",");
+        urlEncodedList = encodeURIComponent(commaSeparatedList);
+        if(currentArgument == "") {
+            return "?" + urlArgument + "=" + urlEncodedList;
+        } else {
+            return currentArgument + "&" + urlArgument + "=" + urlEncodedList;
+        }
+    } else {
+        return currentArgument;
+    }
+}
+
+function addCellToRow(toRow, align, text) {
+    const cell = document.createElement("td");
+    cell.innerHTML = text;
+    cell.style.textAlign=align;
+    toRow.appendChild(cell);
+    return cell;
+}
+
+function toggleFilterVisible() {
+    console.log("Starting");
+    filterCell = document.getElementById("filterCell");
+    console.log(filterCell.className);
+    if (filterCell.className == "filterUnSelected") {
+        // Show filters
+        filterCell.className = "filterSelected";
+        document.getElementById("filterContainer").className = "filterContainerSelected";
+        document.getElementById("filterDetails").style.display = "table-row-group";
+    } else {
+        filterCell.className = "filterUnSelected";
+        document.getElementById("filterContainer").className = "filterContainerUnSelected";
+        document.getElementById("filterDetails").style.display = "none";
+    }
+}

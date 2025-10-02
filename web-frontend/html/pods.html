@@ -58,21 +58,21 @@
                     <table id="podsTable" width="100%" class="listingTable">
                         <thead>
                             <tr>
-                                <th rowspan="2"><b>Namespace</b></th>
-                                <th rowspan="2"><b>Pod</b></th>
-                                <th rowspan="2"><b>Container</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="namespace" onclick="sortByColumn('namespace', loadPodsTable)"><b>Namespace</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="pod_name" onclick="sortByColumn('pod_name', loadPodsTable)"><b>Pod</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="container_name" onclick="sortByColumn('container_name', loadPodsTable)"><b>Container</b></th>
                                 <th colspan="6"><b>Vulnerabilities</b></th>
-                                <th rowspan="2"><b>Risk Score</b></th>
-                                <th rowspan="2"><b>Known Exploits</b></th>
-                                <th rowspan="2"><b># Packages</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="total_risk" onclick="sortByColumn('total_risk', loadPodsTable)"><b>Risk Score</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="known_exploits" onclick="sortByColumn('known_exploits', loadPodsTable)"><b>Known Exploits</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="number_of_packages" onclick="sortByColumn('number_of_packages', loadPodsTable)"><b># Packages</b></th>
                             </tr>
                             <tr>
-                                <th><b>Critical</b></th>
-                                <th><b>High</b></th>
-                                <th><b>Medium</b></th>
-                                <th><b>Low</b></th>
-                                <th><b>Negligible</b></th>
-                                <th><b>Unknown</b></th>
+                                <th class="sortable" data-sort-field="cves_critical" onclick="sortByColumn('cves_critical', loadPodsTable)"><b>Critical</b></th>
+                                <th class="sortable" data-sort-field="cves_high" onclick="sortByColumn('cves_high', loadPodsTable)"><b>High</b></th>
+                                <th class="sortable" data-sort-field="cves_medium" onclick="sortByColumn('cves_medium', loadPodsTable)"><b>Medium</b></th>
+                                <th class="sortable" data-sort-field="cves_low" onclick="sortByColumn('cves_low', loadPodsTable)"><b>Low</b></th>
+                                <th class="sortable" data-sort-field="cves_negligible" onclick="sortByColumn('cves_negligible', loadPodsTable)"><b>Negligible</b></th>
+                                <th class="sortable" data-sort-field="cves_unknown" onclick="sortByColumn('cves_unknown', loadPodsTable)"><b>Unknown</b></th>
                             </tr>
                             </thead>
                             <tbody></tbody>

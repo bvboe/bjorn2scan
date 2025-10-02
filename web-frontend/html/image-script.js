@@ -1,3 +1,9 @@
+// Separate sort state for each table on this page
+let cveSortField = null;
+let cveSortDirection = "asc";
+let sbomSortField = null;
+let sbomSortDirection = "asc";
+
 async function loadImageDetails(imageid) {
     console.log("loadImageDetails(" + imageid + ")");
     if(imageid == null) {
@@ -75,6 +81,11 @@ async function loadCVEsTable(imageid, scanStatus) {
 
     if(scanStatus == "COMPLETE") {
         url = "/api/image/vulnerabilities?imageid=" + imageid;
+        // Add sort parameter
+        if (cveSortField) {
+            const sortValue = cveSortDirection === "desc" ? cveSortField + ".desc" : cveSortField;
+            url += "&sort=" + encodeURIComponent(sortValue);
+        }
         console.log(url);
         const response = await fetch(url);
         console.log("loadCVEsTable() - Got data")
@@ -167,6 +178,11 @@ async function loadSBOMTable(imageid, scanStatus) {
 
     if(scanStatus == "COMPLETE") {
         url = "/api/image/sbom?imageid=" + imageid;
+        // Add sort parameter
+        if (sbomSortField) {
+            const sortValue = sbomSortDirection === "desc" ? sbomSortField + ".desc" : sbomSortField;
+            url += "&sort=" + encodeURIComponent(sortValue);
+        }
         console.log(url);
         const response = await fetch(url);
         console.log("loadSBOMTable() - Got data")
@@ -211,14 +227,6 @@ async function loadSBOMTable(imageid, scanStatus) {
     }
 }
 
-function addCellToRow(toRow, align, text) {
-    const cell = document.createElement("td");
-    cell.innerHTML = text;
-    cell.style.textAlign=align;
-    toRow.appendChild(cell);
-    return cell;
-}
-
 function showVulnerabilityTable() {
     document.querySelector("#cvesSection").style.display = "block";
     document.querySelector("#sbomSection").style.display = "none";
@@ -231,6 +239,74 @@ function showSBOMTable() {
     document.querySelector("#sbomSection").style.display = "block";
     document.querySelector("#cvesHeader").style.textDecoration = "none";
     document.querySelector("#sbomHeader").style.textDecoration = "underline";
+}
+
+function sortCVEsByColumn(fieldName) {
+    // If clicking the same column, toggle direction
+    if (cveSortField === fieldName) {
+        cveSortDirection = cveSortDirection === "asc" ? "desc" : "asc";
+    } else {
+        // New column, start with ascending
+        cveSortField = fieldName;
+        cveSortDirection = "asc";
+    }
+
+    // Update visual indicators
+    updateCVESortIndicators();
+
+    // Reload table with new sort
+    const urlParams = new URLSearchParams(window.location.search);
+    const imageid = urlParams.get('imageid');
+    loadCVEsTable(imageid, "COMPLETE");
+}
+
+function updateCVESortIndicators() {
+    // Remove all existing sort indicators from CVE table
+    document.querySelectorAll("#cvesTable .sortable").forEach(th => {
+        th.classList.remove("sort-asc", "sort-desc");
+    });
+
+    // Add indicator to current sorted column
+    if (cveSortField) {
+        const headerElement = document.querySelector(`#cvesTable [data-sort-field="${cveSortField}"]`);
+        if (headerElement) {
+            headerElement.classList.add(cveSortDirection === "asc" ? "sort-asc" : "sort-desc");
+        }
+    }
+}
+
+function sortSBOMByColumn(fieldName) {
+    // If clicking the same column, toggle direction
+    if (sbomSortField === fieldName) {
+        sbomSortDirection = sbomSortDirection === "asc" ? "desc" : "asc";
+    } else {
+        // New column, start with ascending
+        sbomSortField = fieldName;
+        sbomSortDirection = "asc";
+    }
+
+    // Update visual indicators
+    updateSBOMSortIndicators();
+
+    // Reload table with new sort
+    const urlParams = new URLSearchParams(window.location.search);
+    const imageid = urlParams.get('imageid');
+    loadSBOMTable(imageid, "COMPLETE");
+}
+
+function updateSBOMSortIndicators() {
+    // Remove all existing sort indicators from SBOM table
+    document.querySelectorAll("#sbomTable .sortable").forEach(th => {
+        th.classList.remove("sort-asc", "sort-desc");
+    });
+
+    // Add indicator to current sorted column
+    if (sbomSortField) {
+        const headerElement = document.querySelector(`#sbomTable [data-sort-field="${sbomSortField}"]`);
+        if (headerElement) {
+            headerElement.classList.add(sbomSortDirection === "asc" ? "sort-asc" : "sort-desc");
+        }
+    }
 }
 
 const urlParams = new URLSearchParams(window.location.search);

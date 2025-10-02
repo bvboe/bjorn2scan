@@ -53,15 +53,15 @@
                                     <table id="cvesTable" class="listingTable">
                                         <thead>
                                             <tr>
-                                                <th><b>Severity</b></th>
-                                                <th><b>Vulnerability</b></th>
-                                                <th><b>Name</b></th>
-                                                <th><b>Installed</b></th>
-                                                <th><b>Fixed In</b></th>
-                                                <th><b>Status</b></th>
-                                                <th><b>Type</b></th>
-                                                <th><b>Risk</b></th>
-                                                <th><b>Known Exploits</b></th>
+                                                <th class="sortable" data-sort-field="vulnerability_severity" onclick="sortCVEsByColumn('vulnerability_severity')"><b>Severity</b></th>
+                                                <th class="sortable" data-sort-field="vulnerability_id" onclick="sortCVEsByColumn('vulnerability_id')"><b>Vulnerability</b></th>
+                                                <th class="sortable" data-sort-field="artifact_name" onclick="sortCVEsByColumn('artifact_name')"><b>Name</b></th>
+                                                <th class="sortable" data-sort-field="artifact_version" onclick="sortCVEsByColumn('artifact_version')"><b>Installed</b></th>
+                                                <th class="sortable" data-sort-field="vulnerability_fix_versions" onclick="sortCVEsByColumn('vulnerability_fix_versions')"><b>Fixed In</b></th>
+                                                <th class="sortable" data-sort-field="vulnerability_fix_state" onclick="sortCVEsByColumn('vulnerability_fix_state')"><b>Status</b></th>
+                                                <th class="sortable" data-sort-field="artifact_type" onclick="sortCVEsByColumn('artifact_type')"><b>Type</b></th>
+                                                <th class="sortable" data-sort-field="vulnerability_risk" onclick="sortCVEsByColumn('vulnerability_risk')"><b>Risk</b></th>
+                                                <th class="sortable" data-sort-field="vulnerability_known_exploits" onclick="sortCVEsByColumn('vulnerability_known_exploits')"><b>Known Exploits</b></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -76,10 +76,10 @@
                                     <table id="sbomTable" class="listingTable">
                                         <thead>
                                             <tr>
-                                                <th><b>Name</b></th>
-                                                <th><b>Version</b></th>
-                                                <th><b>Type</b></th>
-                                                <th><b>Count</b></th>
+                                                <th class="sortable" data-sort-field="name" onclick="sortSBOMByColumn('name')"><b>Name</b></th>
+                                                <th class="sortable" data-sort-field="version" onclick="sortSBOMByColumn('version')"><b>Version</b></th>
+                                                <th class="sortable" data-sort-field="type" onclick="sortSBOMByColumn('type')"><b>Type</b></th>
+                                                <th class="sortable" data-sort-field="count" onclick="sortSBOMByColumn('count')"><b>Count</b></th>
                                             </tr>
                                         </thead>
                                         <tbody>

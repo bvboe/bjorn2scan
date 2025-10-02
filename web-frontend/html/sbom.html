@@ -55,10 +55,10 @@
                     <table id="sbomTable" width="100%" class="listingTable">
                         <thead>
                             <tr>
-                                <th><b>Name</b></th>
-                                <th><b>Version</b></th>
-                                <th><b>Type</b></th>
-                                <th><b># Images</b></th>
+                                <th class="sortable" data-sort-field="name" onclick="sortByColumn('name', loadSBOMTable)"><b>Name</b></th>
+                                <th class="sortable" data-sort-field="version" onclick="sortByColumn('version', loadSBOMTable)"><b>Version</b></th>
+                                <th class="sortable" data-sort-field="type" onclick="sortByColumn('type', loadSBOMTable)"><b>Type</b></th>
+                                <th class="sortable" data-sort-field="image_count" onclick="sortByColumn('image_count', loadSBOMTable)"><b># Images</b></th>
                             </tr>
                         </thead>
                         <tbody>

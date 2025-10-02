@@ -61,16 +61,16 @@
                     <table id="cvesTable" width="100%" class="listingTable">
                         <thead>
                             <tr>
-                                <th><b>Severity</b></th>
-                                <th><b>Vulnerability</b></th>
-                                <th><b>Name</b></th>
-                                <th><b>Installed</b></th>
-                                <th><b>Fixed In</b></th>
-                                <th><b>Status</b></th>
-                                <th><b>Type</b></th>
-                                <th><b>Known Exploits</b></th>
-                                <th><b>Risk Score</b></th>
-                                <th><b>Images Affected</b></th>
+                                <th class="sortable" data-sort-field="vulnerability_severity" onclick="sortByColumn('vulnerability_severity', loadCVEsTable)"><b>Severity</b></th>
+                                <th class="sortable" data-sort-field="vulnerability_id" onclick="sortByColumn('vulnerability_id', loadCVEsTable)"><b>Vulnerability</b></th>
+                                <th class="sortable" data-sort-field="artifact_name" onclick="sortByColumn('artifact_name', loadCVEsTable)"><b>Name</b></th>
+                                <th class="sortable" data-sort-field="artifact_version" onclick="sortByColumn('artifact_version', loadCVEsTable)"><b>Installed</b></th>
+                                <th class="sortable" data-sort-field="vulnerability_fix_versions" onclick="sortByColumn('vulnerability_fix_versions', loadCVEsTable)"><b>Fixed In</b></th>
+                                <th class="sortable" data-sort-field="vulnerability_fix_state" onclick="sortByColumn('vulnerability_fix_state', loadCVEsTable)"><b>Status</b></th>
+                                <th class="sortable" data-sort-field="artifact_type" onclick="sortByColumn('artifact_type', loadCVEsTable)"><b>Type</b></th>
+                                <th class="sortable" data-sort-field="vulnerability_known_exploits" onclick="sortByColumn('vulnerability_known_exploits', loadCVEsTable)"><b>Known Exploits</b></th>
+                                <th class="sortable" data-sort-field="vulnerability_risk" onclick="sortByColumn('vulnerability_risk', loadCVEsTable)"><b>Risk Score</b></th>
+                                <th class="sortable" data-sort-field="image_count" onclick="sortByColumn('image_count', loadCVEsTable)"><b>Images Affected</b></th>
                             </tr>
                         </thead>
                         <tbody>

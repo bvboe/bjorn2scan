@@ -58,20 +58,20 @@
                     <table id="vulnerabilityTable" width="100%" class="listingTable">
                         <thead>
                             <tr>
-                                <th rowspan="2" class="sortable" data-sort-field="image" onclick="sortByColumn('image')"><b>Container Image</b></th>
-                                <th rowspan="2" class="sortable" data-sort-field="num_instances" onclick="sortByColumn('num_instances')"><b># Instances</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="image" onclick="sortByColumn('image', loadContainerTable)"><b>Container Image</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="num_instances" onclick="sortByColumn('num_instances', loadContainerTable)"><b># Instances</b></th>
                                 <th colspan="6"><b>Vulnerabilities</b></th>
-                                <th rowspan="2" class="sortable" data-sort-field="total_risk" onclick="sortByColumn('total_risk')"><b>Risk Score</b></th>
-                                <th rowspan="2" class="sortable" data-sort-field="known_exploits" onclick="sortByColumn('known_exploits')"><b>Known Exploits</b></th>
-                                <th rowspan="2" class="sortable" data-sort-field="number_of_packages" onclick="sortByColumn('number_of_packages')"><b># Packages</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="total_risk" onclick="sortByColumn('total_risk', loadContainerTable)"><b>Risk Score</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="known_exploits" onclick="sortByColumn('known_exploits', loadContainerTable)"><b>Known Exploits</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="number_of_packages" onclick="sortByColumn('number_of_packages', loadContainerTable)"><b># Packages</b></th>
                             </tr>
                             <tr>
-                                <th class="sortable" data-sort-field="cves_critical" onclick="sortByColumn('cves_critical')"><b>Critical</b></th>
-                                <th class="sortable" data-sort-field="cves_high" onclick="sortByColumn('cves_high')"><b>High</b></th>
-                                <th class="sortable" data-sort-field="cves_medium" onclick="sortByColumn('cves_medium')"><b>Medium</b></th>
-                                <th class="sortable" data-sort-field="cves_low" onclick="sortByColumn('cves_low')"><b>Low</b></th>
-                                <th class="sortable" data-sort-field="cves_negligible" onclick="sortByColumn('cves_negligible')"><b>Negligible</b></th>
-                                <th class="sortable" data-sort-field="cves_unknown" onclick="sortByColumn('cves_unknown')"><b>Unknown</b></th>
+                                <th class="sortable" data-sort-field="cves_critical" onclick="sortByColumn('cves_critical', loadContainerTable)"><b>Critical</b></th>
+                                <th class="sortable" data-sort-field="cves_high" onclick="sortByColumn('cves_high', loadContainerTable)"><b>High</b></th>
+                                <th class="sortable" data-sort-field="cves_medium" onclick="sortByColumn('cves_medium', loadContainerTable)"><b>Medium</b></th>
+                                <th class="sortable" data-sort-field="cves_low" onclick="sortByColumn('cves_low', loadContainerTable)"><b>Low</b></th>
+                                <th class="sortable" data-sort-field="cves_negligible" onclick="sortByColumn('cves_negligible', loadContainerTable)"><b>Negligible</b></th>
+                                <th class="sortable" data-sort-field="cves_unknown" onclick="sortByColumn('cves_unknown', loadContainerTable)"><b>Unknown</b></th>
                             </tr>
                             </thead>
                             <tbody></tbody>

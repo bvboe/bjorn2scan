@@ -4,26 +4,10 @@ function generateUrl(includeCSVOption) {
     if (includeCSVOption) {
         args = "?output=csv"
     }
-    //args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
     args = addSelectedItemsToArgument(args, "vulnerabilityStatusFilter", "fixstatus");
     args = addSelectedItemsToArgument(args, "packageTypeFilter", "packagetype");
+    args = addSortParameter(args, includeCSVOption);
     return api + args;
-}
-
-function addSelectedItemsToArgument(currentArgument, selectId, urlArgument) {
-    selectElement = document.getElementById(selectId);
-    selectedValues = Array.from(selectElement.selectedOptions).map(option => option.value);
-    if (selectedValues.length > 0) {
-        commaSeparatedList = selectedValues.join(",");
-        urlEncodedList = encodeURIComponent(commaSeparatedList);
-        if(currentArgument == "") {
-            return "?" + urlArgument + "=" + urlEncodedList;
-        } else {
-            return currentArgument + "&" + urlArgument + "=" + urlEncodedList;
-        }
-    } else {
-        return currentArgument;
-    }
 }
 
 async function loadNodeTable() {
@@ -88,30 +72,6 @@ async function loadNodeTable() {
         // Append the new row to the table body
         tableBody.appendChild(newRow);
     });
-}
-
-function addCellToRow(toRow, align, text) {
-    const cell = document.createElement("td");
-    cell.innerHTML = text;
-    cell.style.textAlign=align;
-    toRow.appendChild(cell);
-    return cell;
-}
-
-function toggleFilterVisible() {
-    console.log("Starting");
-    filterCell = document.getElementById("filterCell");
-    console.log(filterCell.className);
-    if (filterCell.className == "filterUnSelected") {
-        // Show filters
-        filterCell.className = "filterSelected";
-        document.getElementById("filterContainer").className = "filterContainerSelected";
-        document.getElementById("filterDetails").style.display = "table-row-group";
-    } else {
-        filterCell.className = "filterUnSelected";
-        document.getElementById("filterContainer").className = "filterContainerUnSelected";
-        document.getElementById("filterDetails").style.display = "none";
-    }
 }
 
 function onFilterChange() {

@@ -56,20 +56,20 @@
                     <table id="vulnerabilityTable" width="100%" class="listingTable">
                         <thead>
                             <tr>
-                                <th rowspan="2"><b>Host Name</b></th>
-                                <th rowspan="2"><b>OS Distribution</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="node_name" onclick="sortByColumn('node_name', loadNodeTable)"><b>Host Name</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="distro_name" onclick="sortByColumn('distro_name', loadNodeTable)"><b>OS Distribution</b></th>
                                 <th colspan="6"><b>Vulnerabilities</b></th>
-                                <th rowspan="2"><b>Risk Score</b></th>
-                                <th rowspan="2"><b>Known Exploits</b></th>
-                                <th rowspan="2"><b># Packages</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="total_risk" onclick="sortByColumn('total_risk', loadNodeTable)"><b>Risk Score</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="known_exploits" onclick="sortByColumn('known_exploits', loadNodeTable)"><b>Known Exploits</b></th>
+                                <th rowspan="2" class="sortable" data-sort-field="number_of_packages" onclick="sortByColumn('number_of_packages', loadNodeTable)"><b># Packages</b></th>
                             </tr>
                             <tr>
-                                <th><b>Critical</b></th>
-                                <th><b>High</b></th>
-                                <th><b>Medium</b></th>
-                                <th><b>Low</b></th>
-                                <th><b>Negligible</b></th>
-                                <th><b>Unknown</b></th>
+                                <th class="sortable" data-sort-field="cves_critical" onclick="sortByColumn('cves_critical', loadNodeTable)"><b>Critical</b></th>
+                                <th class="sortable" data-sort-field="cves_high" onclick="sortByColumn('cves_high', loadNodeTable)"><b>High</b></th>
+                                <th class="sortable" data-sort-field="cves_medium" onclick="sortByColumn('cves_medium', loadNodeTable)"><b>Medium</b></th>
+                                <th class="sortable" data-sort-field="cves_low" onclick="sortByColumn('cves_low', loadNodeTable)"><b>Low</b></th>
+                                <th class="sortable" data-sort-field="cves_negligible" onclick="sortByColumn('cves_negligible', loadNodeTable)"><b>Negligible</b></th>
+                                <th class="sortable" data-sort-field="cves_unknown" onclick="sortByColumn('cves_unknown', loadNodeTable)"><b>Unknown</b></th>
                             </tr>
                             </thead>
                             <tbody></tbody>
