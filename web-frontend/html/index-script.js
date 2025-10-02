@@ -7,6 +7,11 @@ function calculateAveragePerContainer(total, numberOfContainers) {
 }
 
 async function loadNamespaceSummaryTable(selectedNamespace) {
+    // If no selectedNamespace provided, get it from URL parameters
+    if (selectedNamespace === undefined) {
+        const urlParams = new URLSearchParams(window.location.search);
+        selectedNamespace = urlParams.get('namespace');
+    }
     console.log("loadNamespaceSummaryTable(" + selectedNamespace + ")");
     if (!showContainerScans()) {
         return;
@@ -16,6 +21,7 @@ async function loadNamespaceSummaryTable(selectedNamespace) {
         console.log("Namespace is set");
         namespaceString = "?namespace="+selectedNamespace;
     }
+    namespaceString = addSortParameter(namespaceString, false);
     url = "/api/image/summary" + namespaceString;
     console.log(url);
     const response = await fetch(url);
@@ -43,15 +49,15 @@ async function loadNamespaceSummaryTable(selectedNamespace) {
         const scannedContainers = item.scanned_containers;
         addCellToRow(newRow, "left", item.namespace);
         addCellToRow(newRow, "right", formatNumber(scannedContainers));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_critical, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_high, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_medium, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_low, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_negligible, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_unknown, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.risk_total, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.known_exploits, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.number_of_packages, scannedContainers), 0));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
 
         // Append the new row to the table body
         tableBody.appendChild(newRow);
@@ -66,6 +72,11 @@ async function loadNamespaceSummaryTable(selectedNamespace) {
 }
 
 async function loadDistroTable(selectedNamespace) {
+    // If no selectedNamespace provided, get it from URL parameters
+    if (selectedNamespace === undefined) {
+        const urlParams = new URLSearchParams(window.location.search);
+        selectedNamespace = urlParams.get('namespace');
+    }
     if (!showContainerScans()) {
         return;
     }
@@ -75,6 +86,7 @@ async function loadDistroTable(selectedNamespace) {
         console.log("Namespace is set");
         namespaceString = "?namespace="+selectedNamespace;
     }
+    namespaceString = addSortParameter(namespaceString, false);
     url = "/api/distro/container-summary" + namespaceString;
     console.log("/api/distro/container-summary" + namespaceString);
     const response = await fetch(url);
@@ -102,15 +114,15 @@ async function loadDistroTable(selectedNamespace) {
         const scannedContainers = item.scanned_containers;
         addCellToRow(newRow, "left", item.distro_name + " (" + item.distro_id + ")");
         addCellToRow(newRow, "right", formatNumber(scannedContainers));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_critical, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_high, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_medium, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_low, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_negligible, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_unknown, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.risk_total, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.known_exploits, scannedContainers), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.number_of_packages, scannedContainers), 0));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
           
         // Append the new row to the table body
         tableBody.appendChild(newRow);
@@ -129,7 +141,8 @@ async function loadNodeTable() {
         return;
     }
     console.log("loadNodeTable()");
-    url = "/api/distro/node-summary";
+    args = addSortParameter("", false);
+    url = "/api/distro/node-summary" + args;
     console.log(url);
     const response = await fetch(url);
     console.log("loadDistroTable() - Got data")
@@ -156,15 +169,15 @@ async function loadNodeTable() {
         const scannedNodes = item.scanned_nodes;
         addCellToRow(newRow, "left", item.distro_name + " (" + item.distro_id + ")");
         addCellToRow(newRow, "right", formatNumber(scannedNodes));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_critical, scannedNodes), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_high, scannedNodes), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_medium, scannedNodes), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_low, scannedNodes), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_negligible, scannedNodes), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.cves_unknown, scannedNodes), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.risk_total, scannedNodes), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.known_exploits, scannedNodes), 2));
-        addCellToRow(newRow, "right", formatNumber(calculateAveragePerContainer(item.number_of_packages, scannedNodes), 0));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
+        addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
           
         // Append the new row to the table body
         tableBody.appendChild(newRow);

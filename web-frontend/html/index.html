@@ -66,20 +66,20 @@
                         <table id="namespaceSummaryTable" width="100%" class="listingTable">
                             <thead>
                                 <tr>
-                                    <th rowspan="2"><b>Namespace</b></th>
-                                    <th rowspan="2"><b># Instances</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="namespace" onclick="sortByColumn('namespace', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Namespace</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="scanned_containers" onclick="sortByColumn('scanned_containers', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b># Instances</b></th>
                                     <th colspan="6"><b>Average # Vulnerabilities Per Container Instance</b></th>
-                                    <th rowspan="2"><b>Average Risk Score</b></th>
-                                    <th rowspan="2"><b>Average # Known Exploits</b></th>
-                                    <th rowspan="2"><b>Average # Packages</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_risk" onclick="sortByColumn('avg_risk', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Average Risk Score</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_known_exploits" onclick="sortByColumn('avg_known_exploits', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Average # Known Exploits</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_number_of_packages" onclick="sortByColumn('avg_number_of_packages', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Average # Packages</b></th>
                                 </tr>
                                 <tr>
-                                    <th><b>Critical</b></th>
-                                    <th><b>High</b></th>
-                                    <th><b>Medium</b></th>
-                                    <th><b>Low</b></th>
-                                    <th><b>Negligible</b></th>
-                                    <th><b>Unknown</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_critical" onclick="sortByColumn('avg_cves_critical', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Critical</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_high" onclick="sortByColumn('avg_cves_high', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>High</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_medium" onclick="sortByColumn('avg_cves_medium', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Medium</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_low" onclick="sortByColumn('avg_cves_low', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Low</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_negligible" onclick="sortByColumn('avg_cves_negligible', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Negligible</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_unknown" onclick="sortByColumn('avg_cves_unknown', loadNamespaceSummaryTable, 'namespaceSummaryTable')"><b>Unknown</b></th>
                                 </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -92,20 +92,20 @@
                         <table id="distroSummaryTable" width="100%" class="listingTable">
                             <thead>
                                 <tr>
-                                    <th rowspan="2"><b>Container Distribution</b></th>
-                                    <th rowspan="2"><b># Instances</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="distro_name" onclick="sortByColumn('distro_name', loadDistroTable, 'distroSummaryTable')"><b>Container Distribution</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="scanned_containers" onclick="sortByColumn('scanned_containers', loadDistroTable, 'distroSummaryTable')"><b># Instances</b></th>
                                     <th colspan="6"><b>Average # Vulnerabilities Per Container Instance</b></th>
-                                    <th rowspan="2"><b>Average Risk Score</b></th>
-                                    <th rowspan="2"><b>Average # Known Exploits</b></th>
-                                    <th rowspan="2"><b>Average # Packages</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_risk" onclick="sortByColumn('avg_risk', loadDistroTable, 'distroSummaryTable')"><b>Average Risk Score</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_known_exploits" onclick="sortByColumn('avg_known_exploits', loadDistroTable, 'distroSummaryTable')"><b>Average # Known Exploits</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_number_of_packages" onclick="sortByColumn('avg_number_of_packages', loadDistroTable, 'distroSummaryTable')"><b>Average # Packages</b></th>
                                 </tr>
                                 <tr>
-                                    <th><b>Critical</b></th>
-                                    <th><b>High</b></th>
-                                    <th><b>Medium</b></th>
-                                    <th><b>Low</b></th>
-                                    <th><b>Negligible</b></th>
-                                    <th><b>Unknown</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_critical" onclick="sortByColumn('avg_cves_critical', loadDistroTable, 'distroSummaryTable')"><b>Critical</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_high" onclick="sortByColumn('avg_cves_high', loadDistroTable, 'distroSummaryTable')"><b>High</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_medium" onclick="sortByColumn('avg_cves_medium', loadDistroTable, 'distroSummaryTable')"><b>Medium</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_low" onclick="sortByColumn('avg_cves_low', loadDistroTable, 'distroSummaryTable')"><b>Low</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_negligible" onclick="sortByColumn('avg_cves_negligible', loadDistroTable, 'distroSummaryTable')"><b>Negligible</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_unknown" onclick="sortByColumn('avg_cves_unknown', loadDistroTable, 'distroSummaryTable')"><b>Unknown</b></th>
                                 </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -118,20 +118,20 @@
                         <table id="nodeSummaryTable" width="100%" class="listingTable">
                             <thead>
                                 <tr>
-                                    <th rowspan="2"><b>Node Distribution</b></th>
-                                    <th rowspan="2"><b># Nodes</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="distro_name" onclick="sortByColumn('distro_name', loadNodeTable, 'nodeSummaryTable')"><b>Node Distribution</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="scanned_nodes" onclick="sortByColumn('scanned_nodes', loadNodeTable, 'nodeSummaryTable')"><b># Nodes</b></th>
                                     <th colspan="6"><b>Average # Vulnerabilities Per Kubernetes Node</b></th>
-                                    <th rowspan="2"><b>Average Risk Score</b></th>
-                                    <th rowspan="2"><b>Average # Known Exploits</b></th>
-                                    <th rowspan="2"><b>Average # Packages</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_risk" onclick="sortByColumn('avg_risk', loadNodeTable, 'nodeSummaryTable')"><b>Average Risk Score</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_known_exploits" onclick="sortByColumn('avg_known_exploits', loadNodeTable, 'nodeSummaryTable')"><b>Average # Known Exploits</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="avg_number_of_packages" onclick="sortByColumn('avg_number_of_packages', loadNodeTable, 'nodeSummaryTable')"><b>Average # Packages</b></th>
                                 </tr>
                                 <tr>
-                                    <th><b>Critical</b></th>
-                                    <th><b>High</b></th>
-                                    <th><b>Medium</b></th>
-                                    <th><b>Low</b></th>
-                                    <th><b>Negligible</b></th>
-                                    <th><b>Unknown</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_critical" onclick="sortByColumn('avg_cves_critical', loadNodeTable, 'nodeSummaryTable')"><b>Critical</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_high" onclick="sortByColumn('avg_cves_high', loadNodeTable, 'nodeSummaryTable')"><b>High</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_medium" onclick="sortByColumn('avg_cves_medium', loadNodeTable, 'nodeSummaryTable')"><b>Medium</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_low" onclick="sortByColumn('avg_cves_low', loadNodeTable, 'nodeSummaryTable')"><b>Low</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_negligible" onclick="sortByColumn('avg_cves_negligible', loadNodeTable, 'nodeSummaryTable')"><b>Negligible</b></th>
+                                    <th class="sortable" data-sort-field="avg_cves_unknown" onclick="sortByColumn('avg_cves_unknown', loadNodeTable, 'nodeSummaryTable')"><b>Unknown</b></th>
                                 </tr>
                                 </thead>
                                 <tbody></tbody>

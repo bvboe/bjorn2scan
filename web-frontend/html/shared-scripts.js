@@ -240,7 +240,7 @@ function addSortParameter(args, includeCSVOption) {
     return args;
 }
 
-function sortByColumn(fieldName, reloadFunction) {
+function sortByColumn(fieldName, reloadFunction, tableId) {
     // If clicking the same column, toggle direction
     if (currentSortField === fieldName) {
         currentSortDirection = currentSortDirection === "asc" ? "desc" : "asc";
@@ -251,21 +251,24 @@ function sortByColumn(fieldName, reloadFunction) {
     }
 
     // Update visual indicators
-    updateSortIndicators();
+    updateSortIndicators(tableId);
 
     // Reload table with new sort
     reloadFunction();
 }
 
-function updateSortIndicators() {
-    // Remove all existing sort indicators
-    document.querySelectorAll(".sortable").forEach(th => {
+function updateSortIndicators(tableId) {
+    // If tableId is provided, scope to that table only
+    const scopeSelector = tableId ? `#${tableId} ` : "";
+
+    // Remove all existing sort indicators in the specified table
+    document.querySelectorAll(`${scopeSelector}.sortable`).forEach(th => {
         th.classList.remove("sort-asc", "sort-desc");
     });
 
-    // Add indicator to current sorted column
+    // Add indicator to current sorted column in the specified table
     if (currentSortField) {
-        const headerElement = document.querySelector(`[data-sort-field="${currentSortField}"]`);
+        const headerElement = document.querySelector(`${scopeSelector}[data-sort-field="${currentSortField}"]`);
         if (headerElement) {
             headerElement.classList.add(currentSortDirection === "asc" ? "sort-asc" : "sort-desc");
         }
