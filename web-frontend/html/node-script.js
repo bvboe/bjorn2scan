@@ -90,19 +90,23 @@ async function loadCVEsTable(nodename, scanStatus) {
             vulnCellId = "vulncell"+counter;
             // Create a new row
             const newRow = document.createElement("tr");
-            linkRef = "<a href=\"#\" onclick=\"toggleDetailsTableRow(\'" + vulnCellId + "\', this.dataset.url); return false;\" data-url=" + item.details_url + ">";
+            newRow.classList.add("clickable-row");
+            newRow.dataset.detailsUrl = item.details_url;
+            newRow.dataset.detailCellId = vulnCellId;
+            newRow.onclick = function() {
+                toggleDetailsTableRow(this.dataset.detailCellId, this.dataset.detailsUrl);
+            };
 
-            addCellToRow(newRow, "left", linkRef + item.vulnerability_severity + "</a>");
-            addCellToRow(newRow, "left", linkRef + item.vulnerability_id + "</a>");
-            addCellToRow(newRow, "left", linkRef + item.artifact_name + "</a>");
-            addCellToRow(newRow, "left", linkRef + item.artifact_version + "</a>");
-            addCellToRow(newRow, "left", linkRef + item.vulnerability_fix_versions + "</a>");
-            addCellToRow(newRow, "left", linkRef + item.vulnerability_fix_state + "</a>");
-            addCellToRow(newRow, "left", linkRef + item.artifact_type + "</a>");
-            addCellToRow(newRow, "right", linkRef + formatRiskNumber(item.vulnerability_risk) + "</a>");
-            addCellToRow(newRow, "right", linkRef + item.vulnerability_known_exploits + "</a>");
+            addCellToRow(newRow, "left", item.vulnerability_severity);
+            addCellToRow(newRow, "left", item.vulnerability_id);
+            addCellToRow(newRow, "left", item.artifact_name);
+            addCellToRow(newRow, "left", item.artifact_version);
+            addCellToRow(newRow, "left", item.vulnerability_fix_versions);
+            addCellToRow(newRow, "left", item.vulnerability_fix_state);
+            addCellToRow(newRow, "left", item.artifact_type);
+            addCellToRow(newRow, "right", formatRiskNumber(item.vulnerability_risk));
+            addCellToRow(newRow, "right", item.vulnerability_known_exploits);
 
-    
             // Append the new row to the table body
             tableBody.appendChild(newRow);
 
@@ -187,11 +191,17 @@ async function loadSBOMTable(nodename, scanStatus) {
             sbomCellId = "sbomcell"+counter;
             // Create a new row
             const newRow = document.createElement("tr");
-            linkRef = "<a href=\"#\" onclick=\"toggleDetailsTableRow(\'" + sbomCellId + "\', this.dataset.url); return false;\" data-url=" + item.details_url + ">";
-            addCellToRow(newRow, "left", linkRef + item.name + "</a>");
-            addCellToRow(newRow, "left", linkRef + item.version + "</a>");
-            addCellToRow(newRow, "left", linkRef + item.type + "</a>");
-            addCellToRow(newRow, "right", linkRef + item.count + "</a>");
+            newRow.classList.add("clickable-row");
+            newRow.dataset.detailsUrl = item.details_url;
+            newRow.dataset.detailCellId = sbomCellId;
+            newRow.onclick = function() {
+                toggleDetailsTableRow(this.dataset.detailCellId, this.dataset.detailsUrl);
+            };
+
+            addCellToRow(newRow, "left", item.name);
+            addCellToRow(newRow, "left", item.version);
+            addCellToRow(newRow, "left", item.type);
+            addCellToRow(newRow, "right", item.count);
 
             // Append the new row to the table body
             tableBody.appendChild(newRow);

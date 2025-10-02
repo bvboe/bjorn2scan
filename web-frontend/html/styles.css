@@ -161,3 +161,12 @@ td.filterBody {
     content: "▼";
     opacity: 1;
 }
+
+/* Clickable row styles */
+.clickable-row {
+    cursor: pointer;
+}
+
+.clickable-row:hover {
+    background-color: #f0f0f0;
+}

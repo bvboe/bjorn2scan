@@ -34,11 +34,15 @@ async function loadNodeTable() {
         //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
+        newRow.classList.add("clickable-row");
+        newRow.onclick = function() {
+            window.location.href = "node.html?nodename=" + item.node_name;
+        };
 
-        addCellToRow(newRow, "left", "<a href=\"node.html?nodename=" + item.node_name + "\">" + item.node_name + "</a>");
+        addCellToRow(newRow, "left", item.node_name);
         switch(item.scan_status) {
             case "COMPLETE":
-                addCellToRow(newRow, "left", "<a href=\"node.html?nodename=" + item.node_name + "\">" + item.distro_name + " (" + item.distro_id + ")</a>");
+                addCellToRow(newRow, "left", item.distro_name + " (" + item.distro_id + ")");
                 addCellToRow(newRow, "right", formatNumber(item.cves_critical));
                 addCellToRow(newRow, "right", formatNumber(item.cves_high));
                 addCellToRow(newRow, "right", formatNumber(item.cves_medium));
@@ -68,7 +72,7 @@ async function loadNodeTable() {
             default:
               // code block
           }
-          
+
         // Append the new row to the table body
         tableBody.appendChild(newRow);
     });

@@ -35,9 +35,12 @@ async function loadContainerTable() {
         //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
+        newRow.classList.add("clickable-row");
+        newRow.onclick = function() {
+            window.location.href = "image.html?imageid=" + item.image_id;
+        };
 
-        //addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.image + "</br>" + item.image_id + "</a");
-        addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.image + "</a");
+        addCellToRow(newRow, "left", item.image);
         addCellToRow(newRow, "right", formatNumber(item.num_instances));
         switch(item.scan_status) {
             case "COMPLETE":
@@ -70,7 +73,7 @@ async function loadContainerTable() {
             default:
               // code block
           }
-          
+
         // Append the new row to the table body
         tableBody.appendChild(newRow);
     });

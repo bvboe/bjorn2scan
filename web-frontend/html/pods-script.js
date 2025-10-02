@@ -35,9 +35,14 @@ async function loadPodsTable() {
         //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
-        addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.namespace + "</a");
-        addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.pod_name + "</a");
-        addCellToRow(newRow, "left", "<a href=\"image.html?imageid=" + item.image_id + "\">" + item.container_name + "</a");
+        newRow.classList.add("clickable-row");
+        newRow.onclick = function() {
+            window.location.href = "image.html?imageid=" + item.image_id;
+        };
+
+        addCellToRow(newRow, "left", item.namespace);
+        addCellToRow(newRow, "left", item.pod_name);
+        addCellToRow(newRow, "left", item.container_name);
 
         switch(item.scan_status) {
             case "COMPLETE":
