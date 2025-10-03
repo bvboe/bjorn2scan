@@ -112,7 +112,7 @@ async function loadDistroTable(selectedNamespace) {
         // Create a new row
         const newRow = document.createElement("tr");
         const scannedContainers = item.scanned_containers;
-        addCellToRow(newRow, "left", item.distro_name + " (" + item.distro_id + ")");
+        addCellToRow(newRow, "left", item.distro_display_name);
         addCellToRow(newRow, "right", formatNumber(scannedContainers));
         addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
         addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
@@ -167,7 +167,7 @@ async function loadNodeTable() {
         // Create a new row
         const newRow = document.createElement("tr");
         const scannedNodes = item.scanned_nodes;
-        addCellToRow(newRow, "left", item.distro_name + " (" + item.distro_id + ")");
+        addCellToRow(newRow, "left", item.distro_display_name);
         addCellToRow(newRow, "right", formatNumber(scannedNodes));
         addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
         addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));

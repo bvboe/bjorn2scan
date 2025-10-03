@@ -92,7 +92,7 @@
                         <table id="distroSummaryTable" width="100%" class="listingTable">
                             <thead>
                                 <tr>
-                                    <th rowspan="2" class="sortable" data-sort-field="distro_name" onclick="sortByColumn('distro_name', loadDistroTable, 'distroSummaryTable')"><b>Container Distribution</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="distro_display_name" onclick="sortByColumn('distro_display_name', loadDistroTable, 'distroSummaryTable')"><b>Container Distribution</b></th>
                                     <th rowspan="2" class="sortable" data-sort-field="scanned_containers" onclick="sortByColumn('scanned_containers', loadDistroTable, 'distroSummaryTable')"><b># Instances</b></th>
                                     <th colspan="6"><b>Average # Vulnerabilities Per Container Instance</b></th>
                                     <th rowspan="2" class="sortable" data-sort-field="avg_risk" onclick="sortByColumn('avg_risk', loadDistroTable, 'distroSummaryTable')"><b>Average Risk Score</b></th>
@@ -118,7 +118,7 @@
                         <table id="nodeSummaryTable" width="100%" class="listingTable">
                             <thead>
                                 <tr>
-                                    <th rowspan="2" class="sortable" data-sort-field="distro_name" onclick="sortByColumn('distro_name', loadNodeTable, 'nodeSummaryTable')"><b>Node Distribution</b></th>
+                                    <th rowspan="2" class="sortable" data-sort-field="distro_display_name" onclick="sortByColumn('distro_display_name', loadNodeTable, 'nodeSummaryTable')"><b>Node Distribution</b></th>
                                     <th rowspan="2" class="sortable" data-sort-field="scanned_nodes" onclick="sortByColumn('scanned_nodes', loadNodeTable, 'nodeSummaryTable')"><b># Nodes</b></th>
                                     <th colspan="6"><b>Average # Vulnerabilities Per Kubernetes Node</b></th>
                                     <th rowspan="2" class="sortable" data-sort-field="avg_risk" onclick="sortByColumn('avg_risk', loadNodeTable, 'nodeSummaryTable')"><b>Average Risk Score</b></th>

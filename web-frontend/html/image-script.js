@@ -59,8 +59,7 @@ async function loadImageDetails(imageid) {
 
     document.querySelector("#scan_status").innerHTML = scan_status_description;
 
-    distro_name = data.distro_name;
-    document.querySelector("#distro_name").innerHTML = distro_name;
+    document.querySelector("#distro_display_name").innerHTML = data.distro_display_name;;
 
     loadCVEsTable(imageid, data.scan_status);
     loadSBOMTable(imageid, data.scan_status);
