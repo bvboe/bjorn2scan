@@ -100,7 +100,7 @@ async function initPage() {
     await initFilters(urlFilters);
 
     loadContainerTable();
-    renderSectionTable("images.html", null);
+    renderSectionTable("images.html");
     document.getElementById("csvlink").href = generateUrl(true);
     initClusterName("Image Summary");
 }

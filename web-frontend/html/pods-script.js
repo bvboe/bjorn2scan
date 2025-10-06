@@ -101,7 +101,7 @@ async function initPage() {
     await initFilters(urlFilters);
 
     loadPodsTable();
-    renderSectionTable("pods.html", null);
+    renderSectionTable("pods.html");
     document.getElementById("csvlink").href = generateUrl(true);
     initClusterName("Pod Summary");
 }

@@ -80,7 +80,7 @@ async function initPage() {
     await initFilters(urlFilters);
 
     loadCVEsTable();
-    renderSectionTable("cves.html", null);
+    renderSectionTable("cves.html");
     document.getElementById("csvlink").href = generateUrl(true);
     initClusterName("Image CVE Summary");
 }

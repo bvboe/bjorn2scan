@@ -63,7 +63,7 @@ async function initPage() {
     await initFilters(urlFilters);
 
     loadSBOMTable();
-    renderSectionTable("sbom.html", null);
+    renderSectionTable("sbom.html");
     document.getElementById("csvlink").href = generateUrl(true);
     initClusterName("Image Software Bill of Materials");
 }

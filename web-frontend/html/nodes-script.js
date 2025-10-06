@@ -97,7 +97,7 @@ async function initPage() {
     await initFilters(urlFilters);
 
     loadNodeTable();
-    renderSectionTable("nodes.html", null);
+    renderSectionTable("nodes.html");
     document.getElementById("csvlink").href = generateUrl(true);
     initClusterName("Node Summary");
 }

@@ -16,10 +16,15 @@ async function loadNamespaceTable(currentUrl, currentNamespace) {
 
     const select = document.getElementById("namespaceSelect")
 
-    addNamespaceSelect(select, "All Namespaces", currentUrl, currentNamespace, false);
+    // Get current filters except namespace
+    const filters = getCurrentFilters();
+    delete filters.namespace; // Remove namespace as we're setting it explicitly
+
+    addNamespaceSelect(select, "All Namespaces", buildUrlWithFilters(currentUrl, filters), currentNamespace, false);
     addNamespaceSelect(select, "─────", currentUrl, currentNamespace, true);
     data.forEach(item => {
-        addNamespaceSelect(select, item, currentUrl + "?namespace=" + item, currentNamespace, false);
+        const namespaceFilters = {...filters, namespace: item};
+        addNamespaceSelect(select, item, buildUrlWithFilters(currentUrl, namespaceFilters), currentNamespace, false);
     });
 }
 
@@ -39,14 +44,42 @@ function addNamespaceSelect(select, namespace, namespaceUrl, selectedNamespace, 
     select.add(option);
 }
 
-function doRenderHeaderCell(tableBody, title, url, currentUrl, currentNamespace) {
+function getCurrentFilters() {
+    // Get current URL parameters to preserve when navigating
+    const urlParams = new URLSearchParams(window.location.search);
+    const filters = {};
+
+    const filterParams = ['namespace', 'fixstatus', 'packagetype', 'severity', 'distributiondisplayname'];
+    filterParams.forEach(param => {
+        const value = urlParams.get(param);
+        if (value) {
+            filters[param] = value;
+        }
+    });
+
+    return filters;
+}
+
+function buildUrlWithFilters(baseUrl, filters) {
+    if (!filters || Object.keys(filters).length === 0) {
+        return baseUrl;
+    }
+
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+        params.append(key, value);
+    }
+
+    return baseUrl + "?" + params.toString();
+}
+
+function doRenderHeaderCell(tableBody, title, url, currentUrl, currentFilters) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    if(currentNamespace == null) {
-        fullUrl = url;
-    } else {
-        fullUrl = url + "?namespace=" + currentNamespace;
-    }
+
+    // Build URL with current filters
+    const fullUrl = buildUrlWithFilters(url, currentFilters);
+
     if(currentUrl == url) {
         decorationFront="<u>"
         decorationEnd="</u>"
@@ -55,12 +88,11 @@ function doRenderHeaderCell(tableBody, title, url, currentUrl, currentNamespace)
         decorationEnd=""
     }
     cell.innerHTML = "<h2><a href=\"" + fullUrl + "\">" + decorationFront + title + decorationEnd + "</a></h2>";
-    //cell.innerHTML = "<a href=\"" + fullUrl + "\">" + decorationFront + title + decorationEnd + "</a>";
     row.appendChild(cell);
     tableBody.appendChild(row);
 }
 
-async function renderSectionTable(currentUrl, currentNamespace) {
+async function renderSectionTable(currentUrl) {
     const tableBody = document.querySelector("#headerTable tbody");
     tableBody.replaceChildren();
 
@@ -68,18 +100,21 @@ async function renderSectionTable(currentUrl, currentNamespace) {
     const doShowNodeScans = await showNodeScans();
     console.log("container scans - " + doShowContainerScans);
     console.log("node scans - " + doShowNodeScans);
-    
-    doRenderHeaderCell(tableBody, "Summary", "index.html", currentUrl, currentNamespace);
+
+    // Get current filters to preserve when navigating
+    const currentFilters = getCurrentFilters();
+
+    doRenderHeaderCell(tableBody, "Summary", "index.html", currentUrl, currentFilters);
     if (doShowContainerScans) {
-        doRenderHeaderCell(tableBody, "Images", "images.html", currentUrl, currentNamespace);
-        doRenderHeaderCell(tableBody, "Pods", "pods.html", currentUrl, currentNamespace);
+        doRenderHeaderCell(tableBody, "Images", "images.html", currentUrl, currentFilters);
+        doRenderHeaderCell(tableBody, "Pods", "pods.html", currentUrl, currentFilters);
     }
-    if (doShowNodeScans) { 
-        doRenderHeaderCell(tableBody, "Nodes", "nodes.html", currentUrl, currentNamespace);
+    if (doShowNodeScans) {
+        doRenderHeaderCell(tableBody, "Nodes", "nodes.html", currentUrl, currentFilters);
     }
     if (doShowContainerScans) {
-        doRenderHeaderCell(tableBody, "CVEs", "cves.html", currentUrl, currentNamespace);
-        doRenderHeaderCell(tableBody, "SBOM", "sbom.html", currentUrl, currentNamespace);
+        doRenderHeaderCell(tableBody, "CVEs", "cves.html", currentUrl, currentFilters);
+        doRenderHeaderCell(tableBody, "SBOM", "sbom.html", currentUrl, currentFilters);
     }
 }
 

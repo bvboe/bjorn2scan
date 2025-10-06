@@ -317,7 +317,7 @@ async function hideSections() {
 const urlParams = new URLSearchParams(window.location.search);
 const namespace = urlParams.get('namespace');
 
-renderSectionTable("index.html", namespace);
+renderSectionTable("index.html");
 hideSections();
 loadNamespaceSummaryTable(namespace);
 loadDistroTable(namespace);
