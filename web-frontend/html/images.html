@@ -48,6 +48,9 @@
                                         <label for="packageType"><b>Vulnerable Package Type:</b></label>
                                         <select id="packageTypeFilter" name="packageType" multiple onchange="onFilterChange()">
                                         </select>
+                                        <label for="distributionDisplayName"><b>OS Distribution:</b></label>
+                                        <select id="distributionDisplayNameFilter" name="distributionDisplayName" multiple onchange="onFilterChange()">
+                                        </select>
                                     </form>
                                 </td>
                             </tr>
@@ -59,6 +62,9 @@
                         <thead>
                             <tr>
                                 <th rowspan="2" class="sortable" data-sort-field="image" onclick="sortByColumn('image', loadContainerTable, 'vulnerabilityTable')"><b>Container Image</b></th>
+<!--
+                                <th rowspan="2" class="sortable" data-sort-field="distro_id" onclick="sortByColumn('distro_id', loadContainerTable, 'vulnerabilityTable')"><b>Linux Distribution</b></th>
+-->
                                 <th rowspan="2" class="sortable" data-sort-field="num_instances" onclick="sortByColumn('num_instances', loadContainerTable, 'vulnerabilityTable')"><b># Instances</b></th>
                                 <th colspan="6"><b>Vulnerabilities</b></th>
                                 <th rowspan="2" class="sortable" data-sort-field="total_risk" onclick="sortByColumn('total_risk', loadContainerTable, 'vulnerabilityTable')"><b>Risk Score</b></th>

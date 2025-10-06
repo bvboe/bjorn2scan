@@ -7,6 +7,7 @@ function generateUrl(includeCSVOption) {
     args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
     args = addSelectedItemsToArgument(args, "vulnerabilityStatusFilter", "fixstatus");
     args = addSelectedItemsToArgument(args, "packageTypeFilter", "packagetype");
+    args = addSelectedItemsToArgument(args, "distributionDisplayNameFilter", "distributiondisplayname");
     args = addSortParameter(args, includeCSVOption);
     return api + args;
 }
@@ -41,6 +42,7 @@ async function loadContainerTable() {
         };
 
         addCellToRow(newRow, "left", item.image);
+        //addCellToRow(newRow, "left", item.distro_id);
         addCellToRow(newRow, "right", formatNumber(item.num_instances));
         switch(item.scan_status) {
             case "COMPLETE":

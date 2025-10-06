@@ -108,6 +108,8 @@ async function initFilters() {
     initSelect("vulnerabilityStatusFilter", filterData['fix-states']);
     initSelect("packageTypeFilter", filterData['unique-packages']);
     initSelect("vulnerabilitySeverityFilter", filterData['severities']);
+    initSelect("distributionDisplayNameFilter", filterData['distribution-display-names']);
+    
     if ($('#categories').length) {
         $('#categories').multiSelect({
             noneText: 'All categories',
@@ -158,6 +160,17 @@ async function initFilters() {
             presets: [
                 {
                     name: 'All severities',
+                    all: true
+                }
+            ]
+        });
+    }
+    if ($('#distributionDisplayNameFilter').length) {
+        $('#distributionDisplayNameFilter').multiSelect({
+            noneText: 'All operating systems',
+            presets: [
+                {
+                    name: 'All operating systems',
                     all: true
                 }
             ]
