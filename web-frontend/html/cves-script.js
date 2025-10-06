@@ -63,6 +63,7 @@ function formatRiskNumber(risk) {
 function onFilterChange() {
     loadCVEsTable();
     document.getElementById("csvlink").href = generateUrl(true);
+    renderSectionTable("cves.html");
 }
 
 async function initPage() {

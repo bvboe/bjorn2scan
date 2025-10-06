@@ -48,6 +48,7 @@ async function loadSBOMTable() {
 function onFilterChange() {
     loadSBOMTable();
     document.getElementById("csvlink").href = generateUrl(true);
+    renderSectionTable("sbom.html");
 }
 
 async function initPage() {

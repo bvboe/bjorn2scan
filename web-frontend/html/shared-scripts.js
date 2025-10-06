@@ -45,15 +45,24 @@ function addNamespaceSelect(select, namespace, namespaceUrl, selectedNamespace, 
 }
 
 function getCurrentFilters() {
-    // Get current URL parameters to preserve when navigating
-    const urlParams = new URLSearchParams(window.location.search);
+    // Get current filters from dropdown selections, not from URL
     const filters = {};
 
-    const filterParams = ['namespace', 'fixstatus', 'packagetype', 'severity', 'distributiondisplayname'];
-    filterParams.forEach(param => {
-        const value = urlParams.get(param);
-        if (value) {
-            filters[param] = value;
+    const filterMappings = [
+        { param: 'namespace', filterId: 'namespaceFilter' },
+        { param: 'fixstatus', filterId: 'vulnerabilityStatusFilter' },
+        { param: 'packagetype', filterId: 'packageTypeFilter' },
+        { param: 'severity', filterId: 'vulnerabilitySeverityFilter' },
+        { param: 'distributiondisplayname', filterId: 'distributionDisplayNameFilter' }
+    ];
+
+    filterMappings.forEach(mapping => {
+        const filterElement = document.getElementById(mapping.filterId);
+        if (filterElement) {
+            const selectedValues = $('#' + mapping.filterId).val();
+            if (selectedValues && selectedValues.length > 0) {
+                filters[mapping.param] = selectedValues.join(',');
+            }
         }
     });
 

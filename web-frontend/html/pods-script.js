@@ -85,6 +85,7 @@ async function loadPodsTable() {
 function onFilterChange() {
     loadPodsTable();
     document.getElementById("csvlink").href = generateUrl(true);
+    renderSectionTable("pods.html");
 }
 
 async function initPage() {

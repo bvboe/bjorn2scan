@@ -82,6 +82,7 @@ async function loadNodeTable() {
 function onFilterChange() {
     loadNodeTable();
     document.getElementById("csvlink").href = generateUrl(true);
+    renderSectionTable("nodes.html");
 }
 
 async function initPage() {

@@ -84,6 +84,7 @@ async function loadContainerTable() {
 function onFilterChange() {
     loadContainerTable();
     document.getElementById("csvlink").href = generateUrl(true);
+    renderSectionTable("images.html");
 }
 
 async function initPage() {
