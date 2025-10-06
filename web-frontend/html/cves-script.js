@@ -8,6 +8,7 @@ function generateUrl(includeCSVOption) {
     args = addSelectedItemsToArgument(args, "vulnerabilityStatusFilter", "fixstatus");
     args = addSelectedItemsToArgument(args, "packageTypeFilter", "packagetype");
     args = addSelectedItemsToArgument(args, "vulnerabilitySeverityFilter", "severity");
+    args = addSelectedItemsToArgument(args, "distributionDisplayNameFilter", "distributiondisplayname");
     args = addSortParameter(args, includeCSVOption);
     return api + args;
 }

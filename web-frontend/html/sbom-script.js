@@ -6,6 +6,7 @@ function generateUrl(includeCSVOption) {
     }
     args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
     args = addSelectedItemsToArgument(args, "packageTypeFilter", "packagetype");
+    args = addSelectedItemsToArgument(args, "distributionDisplayNameFilter", "distributiondisplayname");
     args = addSortParameter(args, includeCSVOption);
     return api + args;
 }
