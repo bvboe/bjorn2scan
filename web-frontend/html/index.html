@@ -6,7 +6,16 @@
         <title>Vulnerability Dashboard</title>
         <script src="shared-scripts.js" defer></script>
         <script src="index-script.js" defer></script>
+        <script type="text/javascript" src="jquery-3.7.1.js"></script>
+        <script type="text/javascript" src="jquery.multi-select.js"></script>
         <link rel="stylesheet" href="styles.css">
+        <link rel="stylesheet" href="multi-select-styles.css">
+        <style>
+            #namespaceFilter + .multi-select-container .multi-select-menu {
+                right: 0;
+                left: auto;
+            }
+        </style>
     </head>
     <body>
         <table width="100%">
@@ -25,14 +34,22 @@
                             <td>
                                 <h1><div id=clusterName>Cluster Name</div></h1>
                             </td>
-                            <td style="text-align: right">
-                                <div class="namespaceSelectContainer">
-                                    <h1><label for="namespace">Namespace:</label>
-                                    <select name="namespace" id="namespaceSelect" onchange="onNamespaceChange(this.value)">
-                                    </select>
-                                    </h1>
-                                </div>
+                        </tr>
+                        <tr>
+                            <td align="right">
+                                <table>
+                                    <tr>
+                                        <td style="text-align: left">
+                                            <form>
+                                                    <label for="namespaces"><b>Namespace:</b></label>
+                                                    <select id="namespaceFilter" name="namespaces" multiple style="font-size: 1.5em; min-width: 300px;">
+                                                    </select>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                </table>
                             </td>
+
                         </tr>
                     </table>
                     <table>

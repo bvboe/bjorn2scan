@@ -6,23 +6,15 @@ function calculateAveragePerContainer(total, numberOfContainers) {
     }
 }
 
-async function loadNamespaceSummaryTable(selectedNamespace) {
-    // If no selectedNamespace provided, get it from URL parameters
-    if (selectedNamespace === undefined) {
-        const urlParams = new URLSearchParams(window.location.search);
-        selectedNamespace = urlParams.get('namespace');
-    }
-    console.log("loadNamespaceSummaryTable(" + selectedNamespace + ")");
+async function loadNamespaceSummaryTable() {
+    console.log("loadNamespaceSummaryTable()");
     if (!showContainerScans()) {
         return;
     }
-    namespaceString="";
-    if(selectedNamespace !== null) {
-        console.log("Namespace is set");
-        namespaceString = "?namespace="+selectedNamespace;
-    }
-    namespaceString = addSortParameter(namespaceString, false);
-    url = "/api/image/summary" + namespaceString;
+    args = "";
+    args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
+    args = addSortParameter(args, false);
+    url = "/api/image/summary" + args;
     console.log(url);
     const response = await fetch(url);
     console.log("loadNamespaceSummaryTable() - Got data")
@@ -75,24 +67,16 @@ async function loadNamespaceSummaryTable(selectedNamespace) {
     }
 }
 
-async function loadDistroTable(selectedNamespace) {
-    // If no selectedNamespace provided, get it from URL parameters
-    if (selectedNamespace === undefined) {
-        const urlParams = new URLSearchParams(window.location.search);
-        selectedNamespace = urlParams.get('namespace');
-    }
+async function loadDistroTable() {
     if (!showContainerScans()) {
         return;
     }
-    console.log("loadDistroTable(" + selectedNamespace + ")");
-    namespaceString="";
-    if(selectedNamespace !== null) {
-        console.log("Namespace is set");
-        namespaceString = "?namespace="+selectedNamespace;
-    }
-    namespaceString = addSortParameter(namespaceString, false);
-    url = "/api/distro/container-summary" + namespaceString;
-    console.log("/api/distro/container-summary" + namespaceString);
+    console.log("loadDistroTable()");
+    args = "";
+    args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
+    args = addSortParameter(args, false);
+    url = "/api/distro/container-summary" + args;
+    console.log(url);
     const response = await fetch(url);
     console.log("loadDistroTable() - Got data")
     // Check if the response is OK (status code 200)
@@ -117,10 +101,11 @@ async function loadDistroTable(selectedNamespace) {
         const newRow = document.createElement("tr");
         newRow.classList.add("clickable-row");
         newRow.onclick = function() {
-            // Build URL with distribution filter and namespace if one was selected
+            // Build URL with distribution filter and current namespace selections
             let url = "images.html?distributiondisplayname=" + encodeURIComponent(item.distro_display_name);
-            if (selectedNamespace !== null) {
-                url += "&namespace=" + encodeURIComponent(selectedNamespace);
+            const selectedNamespaces = $('#namespaceFilter').val();
+            if (selectedNamespaces && selectedNamespaces.length > 0) {
+                url += "&namespace=" + encodeURIComponent(selectedNamespaces.join(','));
             }
             window.location.href = url;
         };
@@ -208,17 +193,14 @@ async function loadNodeTable() {
     }
 }
 
-async function loadContainerScanStatus(selectedNamespace) {
-    console.log("loadContainerScanStatus(" + selectedNamespace + ")");
+async function loadContainerScanStatus() {
+    console.log("loadContainerScanStatus()");
     if (!showContainerScans()) {
         return;
     }
-    namespaceString="";
-    if(selectedNamespace !== null) {
-        console.log("Namespace is set");
-        namespaceString = "?namespace="+selectedNamespace;
-    }
-    const response = await fetch("/api/image/scanstatus" + namespaceString);
+    args = "";
+    args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
+    const response = await fetch("/api/image/scanstatus" + args);
     console.log("loadContainerScanStatus() - Got data")
     // Check if the response is OK (status code 200)
     if (!response.ok) {
@@ -288,16 +270,15 @@ function addCellToRow(toRow, align, text) {
     return cell;
 }
 
-function initCsvLink(selectedNamespace) {
+function initCsvLink() {
     const namespaceCsvLink = document.getElementById("namespaceCsvlink");
     const distroCsvLink = document.getElementById("distroCsvlink");
-    if(selectedNamespace !== null) {
-        namespaceCsvLink.href = "/api/image/summary?output=csv&namespace=" + selectedNamespace;
-        distroCsvLink.href = "/api/distro/container-summary?output=csv&namespace=" + selectedNamespace;
-    } else {
-        namespaceCsvLink.href = "/api/image/summary?output=csv"
-        distroCsvLink.href = "/api/distro/container-summary?output=csv"
-    }
+
+    let args = "?output=csv";
+    args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
+
+    namespaceCsvLink.href = "/api/image/summary" + args;
+    distroCsvLink.href = "/api/distro/container-summary" + args;
 }
 
 async function hideSections() {
@@ -314,16 +295,40 @@ async function hideSections() {
     }
 }
 
-const urlParams = new URLSearchParams(window.location.search);
-const namespace = urlParams.get('namespace');
+function onFilterChange() {
+    loadNamespaceSummaryTable();
+    loadDistroTable();
+    loadNodeTable();
+    loadContainerScanStatus();
+    loadNodeScanStatus();
+    initCsvLink();
+    renderSectionTable("index.html");
+}
 
-renderSectionTable("index.html");
-hideSections();
-loadNamespaceSummaryTable(namespace);
-loadDistroTable(namespace);
-loadNodeTable();
-loadContainerScanStatus(namespace);
-loadNodeScanStatus();
-loadNamespaceTable("index.html", namespace);
-initCsvLink(namespace);
-initClusterName("Vulnerability Summary");
+async function initPage() {
+    // Check for URL parameters BEFORE initializing filters
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlFilters = {
+        namespaceFilter: urlParams.get('namespace')
+    };
+
+    // Pass URL filters to initFilters so options can be pre-selected
+    await initFilters(urlFilters);
+
+    // Set up onChange handler for namespace filter
+    $('#namespaceFilter').change(onFilterChange);
+
+    hideSections();
+    loadNamespaceSummaryTable();
+    loadDistroTable();
+    loadNodeTable();
+    loadContainerScanStatus();
+    loadNodeScanStatus();
+    initCsvLink();
+    renderSectionTable("index.html");
+    initClusterName("Vulnerability Summary");
+}
+
+$(function(){
+    initPage();
+});
