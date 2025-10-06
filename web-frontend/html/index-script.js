@@ -46,6 +46,10 @@ async function loadNamespaceSummaryTable(selectedNamespace) {
         //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
+        newRow.classList.add("clickable-row");
+        newRow.onclick = function() {
+            window.location.href = "images.html?namespace=" + encodeURIComponent(item.namespace);
+        };
         const scannedContainers = item.scanned_containers;
         addCellToRow(newRow, "left", item.namespace);
         addCellToRow(newRow, "right", formatNumber(scannedContainers));
@@ -111,6 +115,15 @@ async function loadDistroTable(selectedNamespace) {
         //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
+        newRow.classList.add("clickable-row");
+        newRow.onclick = function() {
+            // Build URL with distribution filter and namespace if one was selected
+            let url = "images.html?distributiondisplayname=" + encodeURIComponent(item.distro_display_name);
+            if (selectedNamespace !== null) {
+                url += "&namespace=" + encodeURIComponent(selectedNamespace);
+            }
+            window.location.href = url;
+        };
         const scannedContainers = item.scanned_containers;
         addCellToRow(newRow, "left", item.distro_display_name);
         addCellToRow(newRow, "right", formatNumber(scannedContainers));
@@ -123,7 +136,7 @@ async function loadDistroTable(selectedNamespace) {
         addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
         addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
         addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
-          
+
         // Append the new row to the table body
         tableBody.appendChild(newRow);
     });
@@ -166,6 +179,10 @@ async function loadNodeTable() {
         //console.log(item)
         // Create a new row
         const newRow = document.createElement("tr");
+        newRow.classList.add("clickable-row");
+        newRow.onclick = function() {
+            window.location.href = "nodes.html?distributiondisplayname=" + encodeURIComponent(item.distro_display_name);
+        };
         const scannedNodes = item.scanned_nodes;
         addCellToRow(newRow, "left", item.distro_display_name);
         addCellToRow(newRow, "right", formatNumber(scannedNodes));
@@ -178,7 +195,7 @@ async function loadNodeTable() {
         addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
         addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
         addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
-          
+
         // Append the new row to the table body
         tableBody.appendChild(newRow);
     });

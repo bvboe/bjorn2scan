@@ -84,10 +84,24 @@ function onFilterChange() {
     document.getElementById("csvlink").href = generateUrl(true);
 }
 
-$(function(){
-    initFilters();
+async function initPage() {
+    // Check for URL parameters BEFORE initializing filters
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlFilters = {
+        vulnerabilityStatusFilter: urlParams.get('fixstatus'),
+        packageTypeFilter: urlParams.get('packagetype'),
+        distributionDisplayNameFilter: urlParams.get('distributiondisplayname')
+    };
+
+    // Pass URL filters to initFilters so options can be pre-selected
+    await initFilters(urlFilters);
+
     loadNodeTable();
     renderSectionTable("nodes.html", null);
     document.getElementById("csvlink").href = generateUrl(true);
     initClusterName("Node Summary");
+}
+
+$(function(){
+    initPage();
 });

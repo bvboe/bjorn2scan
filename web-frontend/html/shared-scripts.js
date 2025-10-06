@@ -98,17 +98,17 @@ async function initClusterName(pageTitle) {
     clusternameDiv.innerText = pageTitle + " - " + clusterName;
 }
 
-async function initFilters() {
+async function initFilters(urlFilters = {}) {
     const response = await fetch("/api/filters");
     if (!response.ok) {
         throw new Error("Network response was not ok");
     }
     const filterData = await response.json();
-    initSelect("namespaceFilter", filterData.namespaces);
-    initSelect("vulnerabilityStatusFilter", filterData['fix-states']);
-    initSelect("packageTypeFilter", filterData['unique-packages']);
-    initSelect("vulnerabilitySeverityFilter", filterData['severities']);
-    initSelect("distributionDisplayNameFilter", filterData['distribution-display-names']);
+    initSelect("namespaceFilter", filterData.namespaces, urlFilters.namespaceFilter);
+    initSelect("vulnerabilityStatusFilter", filterData['fix-states'], urlFilters.vulnerabilityStatusFilter);
+    initSelect("packageTypeFilter", filterData['unique-packages'], urlFilters.packageTypeFilter);
+    initSelect("vulnerabilitySeverityFilter", filterData['severities'], urlFilters.vulnerabilitySeverityFilter);
+    initSelect("distributionDisplayNameFilter", filterData['distribution-display-names'], urlFilters.distributionDisplayNameFilter);
     
     if ($('#categories').length) {
         $('#categories').multiSelect({
@@ -178,17 +178,24 @@ async function initFilters() {
     }
 }
 
-function initSelect(selectID, values) {
+function initSelect(selectID, values, preselectedValues) {
     if (values == null) {
         return;
     }
     select = document.getElementById(selectID);
     if (select != null) {
+        // Parse preselected values if provided
+        let preselectedArray = [];
+        if (preselectedValues) {
+            preselectedArray = preselectedValues.split(',').map(v => decodeURIComponent(v.trim()));
+            console.log("Preselecting for " + selectID + ":", preselectedArray);
+        }
+
         values.forEach(item => {
             //console.log(item)
             // Create a new row
             var option = document.createElement("option");
-    
+
             // Set the text and value
             if(item == "") {
                 option.text = "<none>";
@@ -196,7 +203,13 @@ function initSelect(selectID, values) {
                 option.text = item;
             }
             option.value = item;
-        
+
+            // Mark as selected if in preselected array
+            if (preselectedArray.includes(item)) {
+                option.selected = true;
+                console.log("Pre-selected option: " + item);
+            }
+
             // Add the option to the select element
             select.add(option);
         });
