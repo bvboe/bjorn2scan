@@ -2,8 +2,8 @@
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 #Version number that updates chart and images
-CHART_VERSION="0.3.9"
-APP_VERSION="0.3.9"
+CHART_VERSION="0.3.10"
+APP_VERSION="0.3.10"
 POD_SCANNER_REPOSITORY="bjornvb/k8s-pod-scanner"
 VULNERABILITY_COORDINATOR_REPOSITORY="bjornvb/k8s-scanner-vulnerability-coordinator"
 WEB_FRONTEND_REPOSITORY="bjornvb/k8s-scanner-web-frontend"
