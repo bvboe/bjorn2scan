@@ -88,6 +88,33 @@ function onFilterChange() {
     renderSectionTable("pods.html");
 }
 
+let currentRevision = null;
+
+async function checkForUpdates() {
+    try {
+        const response = await fetch("/api/changemetadata?datatype=image");
+        if (!response.ok) {
+            console.error("Failed to fetch change metadata");
+            return;
+        }
+
+        const data = await response.json();
+        const newRevision = data.revision_number;
+
+        if (currentRevision === null) {
+            // First time - just store the revision
+            currentRevision = newRevision;
+        } else if (newRevision !== currentRevision) {
+            // Revision changed - reload data
+            console.log("Data updated, reloading...");
+            currentRevision = newRevision;
+            onFilterChange();
+        }
+    } catch (error) {
+        console.error("Error checking for updates:", error);
+    }
+}
+
 async function initPage() {
     // Check for URL parameters BEFORE initializing filters
     const urlParams = new URLSearchParams(window.location.search);
@@ -105,6 +132,9 @@ async function initPage() {
     renderSectionTable("pods.html");
     document.getElementById("csvlink").href = generateUrl(true);
     initClusterName("Pod Summary");
+
+    // Start polling for updates every 2 seconds
+    setInterval(checkForUpdates, 2000);
 }
 
 $(function(){
