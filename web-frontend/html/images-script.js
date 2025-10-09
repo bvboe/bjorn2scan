@@ -87,26 +87,25 @@ function onFilterChange() {
     renderSectionTable("images.html");
 }
 
-let currentRevision = null;
+let currentTimestamp = null;
 
 async function checkForUpdates() {
     try {
-        const response = await fetch("/api/changemetadata?datatype=image");
+        const response = await fetch("/api/lastupdated?datatype=image");
         if (!response.ok) {
-            console.error("Failed to fetch change metadata");
+            console.error("Failed to fetch last updated timestamp");
             return;
         }
 
-        const data = await response.json();
-        const newRevision = data.revision_number;
+        const newTimestamp = await response.text();
 
-        if (currentRevision === null) {
-            // First time - just store the revision
-            currentRevision = newRevision;
-        } else if (newRevision !== currentRevision) {
-            // Revision changed - reload data
+        if (currentTimestamp === null) {
+            // First time - just store the timestamp
+            currentTimestamp = newTimestamp;
+        } else if (newTimestamp !== currentTimestamp) {
+            // Timestamp changed - reload data
             console.log("Data updated, reloading...");
-            currentRevision = newRevision;
+            currentTimestamp = newTimestamp;
             onFilterChange();
         }
     } catch (error) {
