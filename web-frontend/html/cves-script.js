@@ -15,42 +15,51 @@ function generateUrl(includeCSVOption) {
 
 async function loadCVEsTable() {
     console.log("loadCVEsTable()");
-    url = generateUrl(false);
-    console.log("Use URL: " + url)
-    const response = await fetch(url);
-    console.log("loadCVEsTable() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
-
-    // Parse the JSON data from the response
-    const data = await response.json();
-
-    // Get the table body element where rows will be added
     const tableBody = document.querySelector("#cvesTable tbody");
 
-    //Clear the table
-    tableBody.replaceChildren();
+    try {
+        url = generateUrl(false);
+        console.log("Use URL: " + url)
+        const response = await fetch(url);
+        console.log("loadCVEsTable() - Got data")
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load CVE data: ${response.status} ${response.statusText}`);
+        }
 
-    data.forEach(item => {
-        //console.log(item)
-        // Create a new row
+        // Parse the JSON data from the response
+        const data = await response.json();
+
+        //Clear the table
+        tableBody.replaceChildren();
+
+        data.forEach(item => {
+            //console.log(item)
+            // Create a new row
+            const newRow = document.createElement("tr");
+            addCellToRow(newRow, "left", item.vulnerability_severity);
+            addCellToRow(newRow, "left", item.vulnerability_id);
+            addCellToRow(newRow, "left", item.artifact_name);
+            addCellToRow(newRow, "left", item.artifact_version);
+            addCellToRow(newRow, "left", item.vulnerability_fix_versions);
+            addCellToRow(newRow, "left", item.vulnerability_fix_state);
+            addCellToRow(newRow, "left", item.artifact_type);
+            addCellToRow(newRow, "right", formatNumber(item.vulnerability_known_exploits));
+            addCellToRow(newRow, "right", formatRiskNumber(item.vulnerability_risk));
+            addCellToRow(newRow, "right", formatNumber(item.image_count));
+
+            // Append the new row to the table body
+            tableBody.appendChild(newRow);
+        });
+    } catch (error) {
+        console.error("Error loading CVE data:", error);
+        tableBody.replaceChildren();
         const newRow = document.createElement("tr");
-        addCellToRow(newRow, "left", item.vulnerability_severity);
-        addCellToRow(newRow, "left", item.vulnerability_id);
-        addCellToRow(newRow, "left", item.artifact_name);
-        addCellToRow(newRow, "left", item.artifact_version);
-        addCellToRow(newRow, "left", item.vulnerability_fix_versions);
-        addCellToRow(newRow, "left", item.vulnerability_fix_state);
-        addCellToRow(newRow, "left", item.artifact_type);
-        addCellToRow(newRow, "right", formatNumber(item.vulnerability_known_exploits));
-        addCellToRow(newRow, "right", formatRiskNumber(item.vulnerability_risk));
-        addCellToRow(newRow, "right", formatNumber(item.image_count));
-
-        // Append the new row to the table body
+        const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
+        newCell.colSpan = 10;
+        newCell.style.color = "red";
         tableBody.appendChild(newRow);
-    });
+    }
 }
 
 function formatRiskNumber(risk) {
@@ -87,5 +96,5 @@ async function initPage() {
 }
 
 $(function(){
-    initPage();
+    waitForBackendAndInit(initPage);
 });

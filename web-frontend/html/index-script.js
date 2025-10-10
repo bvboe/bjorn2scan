@@ -11,58 +11,68 @@ async function loadNamespaceSummaryTable() {
     if (!showContainerScans()) {
         return;
     }
-    args = "";
-    args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
-    args = addSortParameter(args, false);
-    url = "/api/image/summary" + args;
-    console.log(url);
-    const response = await fetch(url);
-    console.log("loadNamespaceSummaryTable() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
 
-    // Parse the JSON data from the response
-    const data = await response.json();
-
-    // Get the table body element where rows will be added
     const tableBody = document.querySelector("#namespaceSummaryTable tbody");
 
-    //Clear the table
-    tableBody.replaceChildren();
+    try {
+        args = "";
+        args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
+        args = addSortParameter(args, false);
+        url = "/api/image/summary" + args;
+        console.log(url);
+        const response = await fetch(url);
+        console.log("loadNamespaceSummaryTable() - Got data")
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load namespace summary: ${response.status} ${response.statusText}`);
+        }
 
-    rowCounter = 0;
-    data.forEach(item => {
-        rowCounter++;
-        //console.log(item)
-        // Create a new row
+        // Parse the JSON data from the response
+        const data = await response.json();
+
+        //Clear the table
+        tableBody.replaceChildren();
+
+        rowCounter = 0;
+        data.forEach(item => {
+            rowCounter++;
+            //console.log(item)
+            // Create a new row
+            const newRow = document.createElement("tr");
+            newRow.classList.add("clickable-row");
+            newRow.onclick = function() {
+                window.location.href = "images.html?namespace=" + encodeURIComponent(item.namespace);
+            };
+            const scannedContainers = item.scanned_containers;
+            addCellToRow(newRow, "left", item.namespace);
+            addCellToRow(newRow, "right", formatNumber(scannedContainers));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
+
+            // Append the new row to the table body
+            tableBody.appendChild(newRow);
+        });
+
+        if(rowCounter == 0) {
+            const newRow = document.createElement("tr");
+            const newCell = addCellToRow(newRow, "left", "No Data Available");
+            newCell.colSpan = 11;
+            tableBody.appendChild(newRow);
+        }
+    } catch (error) {
+        console.error("Error loading namespace summary:", error);
+        tableBody.replaceChildren();
         const newRow = document.createElement("tr");
-        newRow.classList.add("clickable-row");
-        newRow.onclick = function() {
-            window.location.href = "images.html?namespace=" + encodeURIComponent(item.namespace);
-        };
-        const scannedContainers = item.scanned_containers;
-        addCellToRow(newRow, "left", item.namespace);
-        addCellToRow(newRow, "right", formatNumber(scannedContainers));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
-
-        // Append the new row to the table body
-        tableBody.appendChild(newRow);
-    });
-
-    if(rowCounter == 0) {
-        const newRow = document.createElement("tr");
-        const newCell = addCellToRow(newRow, "left", "No Data Available");
+        const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
         newCell.colSpan = 11;
+        newCell.style.color = "red";
         tableBody.appendChild(newRow);
     }
 }
@@ -72,64 +82,74 @@ async function loadDistroTable() {
         return;
     }
     console.log("loadDistroTable()");
-    args = "";
-    args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
-    args = addSortParameter(args, false);
-    url = "/api/distro/container-summary" + args;
-    console.log(url);
-    const response = await fetch(url);
-    console.log("loadDistroTable() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
 
-    // Parse the JSON data from the response
-    const data = await response.json();
-
-    // Get the table body element where rows will be added
     const tableBody = document.querySelector("#distroSummaryTable tbody");
 
-    //Clear the table
-    tableBody.replaceChildren();
+    try {
+        args = "";
+        args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
+        args = addSortParameter(args, false);
+        url = "/api/distro/container-summary" + args;
+        console.log(url);
+        const response = await fetch(url);
+        console.log("loadDistroTable() - Got data")
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load container distribution summary: ${response.status} ${response.statusText}`);
+        }
 
-    rowCounter = 0;
-    data.forEach(item => {
-        rowCounter++;
-        //console.log(item)
-        // Create a new row
+        // Parse the JSON data from the response
+        const data = await response.json();
+
+        //Clear the table
+        tableBody.replaceChildren();
+
+        rowCounter = 0;
+        data.forEach(item => {
+            rowCounter++;
+            //console.log(item)
+            // Create a new row
+            const newRow = document.createElement("tr");
+            newRow.classList.add("clickable-row");
+            newRow.onclick = function() {
+                // Build URL with distribution filter and current namespace selections
+                let url = "images.html?distributiondisplayname=" + encodeURIComponent(item.distro_display_name);
+                const selectedNamespaces = $('#namespaceFilter').val();
+                if (selectedNamespaces && selectedNamespaces.length > 0) {
+                    url += "&namespace=" + encodeURIComponent(selectedNamespaces.join(','));
+                }
+                window.location.href = url;
+            };
+            const scannedContainers = item.scanned_containers;
+            addCellToRow(newRow, "left", item.distro_display_name);
+            addCellToRow(newRow, "right", formatNumber(scannedContainers));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
+
+            // Append the new row to the table body
+            tableBody.appendChild(newRow);
+        });
+
+        if(rowCounter == 0) {
+            const newRow = document.createElement("tr");
+            const newCell = addCellToRow(newRow, "left", "No Data Available");
+            newCell.colSpan = 11;
+            tableBody.appendChild(newRow);
+        }
+    } catch (error) {
+        console.error("Error loading container distribution summary:", error);
+        tableBody.replaceChildren();
         const newRow = document.createElement("tr");
-        newRow.classList.add("clickable-row");
-        newRow.onclick = function() {
-            // Build URL with distribution filter and current namespace selections
-            let url = "images.html?distributiondisplayname=" + encodeURIComponent(item.distro_display_name);
-            const selectedNamespaces = $('#namespaceFilter').val();
-            if (selectedNamespaces && selectedNamespaces.length > 0) {
-                url += "&namespace=" + encodeURIComponent(selectedNamespaces.join(','));
-            }
-            window.location.href = url;
-        };
-        const scannedContainers = item.scanned_containers;
-        addCellToRow(newRow, "left", item.distro_display_name);
-        addCellToRow(newRow, "right", formatNumber(scannedContainers));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
-
-        // Append the new row to the table body
-        tableBody.appendChild(newRow);
-    });
-
-    if(rowCounter == 0) {
-        const newRow = document.createElement("tr");
-        const newCell = addCellToRow(newRow, "left", "No Data Available");
+        const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
         newCell.colSpan = 11;
+        newCell.style.color = "red";
         tableBody.appendChild(newRow);
     }
 }
@@ -139,56 +159,66 @@ async function loadNodeTable() {
         return;
     }
     console.log("loadNodeTable()");
-    args = addSortParameter("", false);
-    url = "/api/distro/node-summary" + args;
-    console.log(url);
-    const response = await fetch(url);
-    console.log("loadDistroTable() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
 
-    // Parse the JSON data from the response
-    const data = await response.json();
-
-    // Get the table body element where rows will be added
     const tableBody = document.querySelector("#nodeSummaryTable tbody");
 
-    //Clear the table
-    tableBody.replaceChildren();
+    try {
+        args = addSortParameter("", false);
+        url = "/api/distro/node-summary" + args;
+        console.log(url);
+        const response = await fetch(url);
+        console.log("loadDistroTable() - Got data")
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load node distribution summary: ${response.status} ${response.statusText}`);
+        }
 
-    rowCounter = 0;
-    data.forEach(item => {
-        rowCounter++;
-        //console.log(item)
-        // Create a new row
+        // Parse the JSON data from the response
+        const data = await response.json();
+
+        //Clear the table
+        tableBody.replaceChildren();
+
+        rowCounter = 0;
+        data.forEach(item => {
+            rowCounter++;
+            //console.log(item)
+            // Create a new row
+            const newRow = document.createElement("tr");
+            newRow.classList.add("clickable-row");
+            newRow.onclick = function() {
+                window.location.href = "nodes.html?distributiondisplayname=" + encodeURIComponent(item.distro_display_name);
+            };
+            const scannedNodes = item.scanned_nodes;
+            addCellToRow(newRow, "left", item.distro_display_name);
+            addCellToRow(newRow, "right", formatNumber(scannedNodes));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
+            addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
+
+            // Append the new row to the table body
+            tableBody.appendChild(newRow);
+        });
+
+        if(rowCounter == 0) {
+            const newRow = document.createElement("tr");
+            const newCell = addCellToRow(newRow, "left", "No Data Available");
+            newCell.colSpan = 11;
+            tableBody.appendChild(newRow);
+        }
+    } catch (error) {
+        console.error("Error loading node distribution summary:", error);
+        tableBody.replaceChildren();
         const newRow = document.createElement("tr");
-        newRow.classList.add("clickable-row");
-        newRow.onclick = function() {
-            window.location.href = "nodes.html?distributiondisplayname=" + encodeURIComponent(item.distro_display_name);
-        };
-        const scannedNodes = item.scanned_nodes;
-        addCellToRow(newRow, "left", item.distro_display_name);
-        addCellToRow(newRow, "right", formatNumber(scannedNodes));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_critical, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_high, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_medium, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_low, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_negligible, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_cves_unknown, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_risk, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_known_exploits, 2));
-        addCellToRow(newRow, "right", formatNumber(item.avg_number_of_packages, 0));
-
-        // Append the new row to the table body
-        tableBody.appendChild(newRow);
-    });
-
-    if(rowCounter == 0) {
-        const newRow = document.createElement("tr");
-        const newCell = addCellToRow(newRow, "left", "No Data Available");
+        const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
         newCell.colSpan = 11;
+        newCell.style.color = "red";
         tableBody.appendChild(newRow);
     }
 }
@@ -198,27 +228,38 @@ async function loadContainerScanStatus() {
     if (!showContainerScans()) {
         return;
     }
-    args = "";
-    args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
-    const response = await fetch("/api/image/scanstatus" + args);
-    console.log("loadContainerScanStatus() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
 
-    // Parse the JSON data from the response
-    const data = await response.json();
-
-    // Get the table body element where rows will be added
     const tableBody = document.querySelector("#containerScanStatusTable tbody");
-    tableBody.replaceChildren();
 
-    addStatusTableRow(tableBody, "Scanning", data.SCANNING);
-    addStatusTableRow(tableBody, "To Be Scanned", data.TO_BE_SCANNED);
-    addStatusTableRow(tableBody, "Successfully Scanned", data.COMPLETE);
-    addStatusTableRow(tableBody, "Failed", data.SCAN_FAILED);
-    addStatusTableRow(tableBody, "Missing Scan Information", data.NO_SCAN_AVAILABLE);
+    try {
+        args = "";
+        args = addSelectedItemsToArgument(args, "namespaceFilter", "namespace");
+        const response = await fetch("/api/image/scanstatus" + args);
+        console.log("loadContainerScanStatus() - Got data")
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load container scan status: ${response.status} ${response.statusText}`);
+        }
+
+        // Parse the JSON data from the response
+        const data = await response.json();
+
+        tableBody.replaceChildren();
+
+        addStatusTableRow(tableBody, "Scanning", data.SCANNING);
+        addStatusTableRow(tableBody, "To Be Scanned", data.TO_BE_SCANNED);
+        addStatusTableRow(tableBody, "Successfully Scanned", data.COMPLETE);
+        addStatusTableRow(tableBody, "Failed", data.SCAN_FAILED);
+        addStatusTableRow(tableBody, "Missing Scan Information", data.NO_SCAN_AVAILABLE);
+    } catch (error) {
+        console.error("Error loading container scan status:", error);
+        tableBody.replaceChildren();
+        const newRow = document.createElement("tr");
+        const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
+        newCell.colSpan = 2;
+        newCell.style.color = "red";
+        tableBody.appendChild(newRow);
+    }
 }
 
 async function loadNodeScanStatus() {
@@ -226,25 +267,36 @@ async function loadNodeScanStatus() {
     if (!showNodeScans()) {
         return;
     }
-    const response = await fetch("/api/node/scanstatus");
-    console.log("loadNodeScanStatus() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
 
-    // Parse the JSON data from the response
-    const data = await response.json();
-
-    // Get the table body element where rows will be added
     const tableBody = document.querySelector("#nodeScanStatusTable tbody");
-    tableBody.replaceChildren();
 
-    addStatusTableRow(tableBody, "Scanning", data.SCANNING);
-    addStatusTableRow(tableBody, "To Be Scanned", data.TO_BE_SCANNED);
-    addStatusTableRow(tableBody, "Successfully Scanned", data.COMPLETE);
-    addStatusTableRow(tableBody, "Failed", data.SCAN_FAILED);
-    addStatusTableRow(tableBody, "Missing Scan Information", data.NO_SCAN_AVAILABLE);
+    try {
+        const response = await fetch("/api/node/scanstatus");
+        console.log("loadNodeScanStatus() - Got data")
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load node scan status: ${response.status} ${response.statusText}`);
+        }
+
+        // Parse the JSON data from the response
+        const data = await response.json();
+
+        tableBody.replaceChildren();
+
+        addStatusTableRow(tableBody, "Scanning", data.SCANNING);
+        addStatusTableRow(tableBody, "To Be Scanned", data.TO_BE_SCANNED);
+        addStatusTableRow(tableBody, "Successfully Scanned", data.COMPLETE);
+        addStatusTableRow(tableBody, "Failed", data.SCAN_FAILED);
+        addStatusTableRow(tableBody, "Missing Scan Information", data.NO_SCAN_AVAILABLE);
+    } catch (error) {
+        console.error("Error loading node scan status:", error);
+        tableBody.replaceChildren();
+        const newRow = document.createElement("tr");
+        const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
+        newCell.colSpan = 2;
+        newCell.style.color = "red";
+        tableBody.appendChild(newRow);
+    }
 }
 
 function addStatusTableRow(tableBody, status, count) {
@@ -359,5 +411,5 @@ async function initPage() {
 }
 
 $(function(){
-    initPage();
+    waitForBackendAndInit(initPage);
 });

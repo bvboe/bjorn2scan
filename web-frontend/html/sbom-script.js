@@ -13,36 +13,45 @@ function generateUrl(includeCSVOption) {
 
 async function loadSBOMTable() {
     console.log("loadSBOMTable()");
-    url = generateUrl(false);
-    console.log(url)
-    const response = await fetch(url);
-    console.log("loadSBOMTable() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
-
-    // Parse the JSON data from the response
-    const data = await response.json();
-
-    // Get the table body element where rows will be added
     const tableBody = document.querySelector("#sbomTable tbody");
 
-    //Clear the table
-    tableBody.replaceChildren();
+    try {
+        url = generateUrl(false);
+        console.log(url)
+        const response = await fetch(url);
+        console.log("loadSBOMTable() - Got data")
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load SBOM data: ${response.status} ${response.statusText}`);
+        }
 
-    data.forEach(item => {
-        //console.log(item)
-        // Create a new row
+        // Parse the JSON data from the response
+        const data = await response.json();
+
+        //Clear the table
+        tableBody.replaceChildren();
+
+        data.forEach(item => {
+            //console.log(item)
+            // Create a new row
+            const newRow = document.createElement("tr");
+            addCellToRow(newRow, "left", item.name);
+            addCellToRow(newRow, "left", item.version);
+            addCellToRow(newRow, "left", item.type);
+            addCellToRow(newRow, "right", formatNumber(item.image_count));
+
+            // Append the new row to the table body
+            tableBody.appendChild(newRow);
+        });
+    } catch (error) {
+        console.error("Error loading SBOM data:", error);
+        tableBody.replaceChildren();
         const newRow = document.createElement("tr");
-        addCellToRow(newRow, "left", item.name);
-        addCellToRow(newRow, "left", item.version);
-        addCellToRow(newRow, "left", item.type);
-        addCellToRow(newRow, "right", formatNumber(item.image_count));
-
-        // Append the new row to the table body
+        const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
+        newCell.colSpan = 4;
+        newCell.style.color = "red";
         tableBody.appendChild(newRow);
-    });
+    }
 }
 
 function onFilterChange() {
@@ -70,5 +79,5 @@ async function initPage() {
 }
 
 $(function(){
-    initPage();
+    waitForBackendAndInit(initPage);
 });

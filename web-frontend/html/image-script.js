@@ -11,58 +11,63 @@ async function loadImageDetails(imageid) {
         return;
     }
 
-    console.log("/api/image/details?imageid=" + imageid);
-    const response = await fetch("/api/image/details?imageid=" + imageid);
-    console.log("loadImageSummary() - Got data")
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
+    try {
+        console.log("/api/image/details?imageid=" + imageid);
+        const response = await fetch("/api/image/details?imageid=" + imageid);
+        console.log("loadImageSummary() - Got data")
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load image details: ${response.status} ${response.statusText}`);
+        }
+
+        // Parse the JSON data from the response
+        const data = await response.json();
+        document.querySelector("#image_id").innerHTML = data.image_id;
+
+        repositoryString = "";
+        data.repositories.forEach(item => {
+            repositoryString = repositoryString + item + "</br>";
+        })
+        document.querySelector("#repositories").innerHTML = repositoryString;
+
+        instanceString = "";
+        data.instances.forEach(item => {
+            instanceString = instanceString + item.namespace + "." + item.pod_name + "." + item.container_name + "</br>";
+        })
+        document.querySelector("#instances").innerHTML = instanceString;
+
+        scan_status_description = "";
+        switch(data.scan_status) {
+            case "COMPLETE":
+                scan_status_description = "Complete";
+                break;
+            case "SCANNING":
+                scan_status_description = "Scanning";
+                break;
+            case "TO_BE_SCANNED":
+                scan_status_description = "To be scanned";
+                break;
+            case "NO_SCAN_AVAILABLE":
+                scan_status_description = "No scan information";
+                break;
+            case "SCAN_FAILED":
+                scan_status_description = "Scan failed";
+                break;
+            default:
+                scan_status_description = data.scan_status;
+                // code block
+          }
+
+        document.querySelector("#scan_status").innerHTML = scan_status_description;
+
+        document.querySelector("#distro_display_name").innerHTML = data.distro_display_name;;
+
+        loadCVEsTable(imageid, data.scan_status);
+        loadSBOMTable(imageid, data.scan_status);
+    } catch (error) {
+        console.error("Error loading image details:", error);
+        document.querySelector("#image_id").innerHTML = "<span style='color: red;'>⚠️ Error loading image details: " + error.message + "</span>";
     }
-
-    // Parse the JSON data from the response
-    const data = await response.json();
-    document.querySelector("#image_id").innerHTML = data.image_id;
-
-    repositoryString = "";
-    data.repositories.forEach(item => {
-        repositoryString = repositoryString + item + "</br>";
-    })
-    document.querySelector("#repositories").innerHTML = repositoryString;
-
-    instanceString = "";
-    data.instances.forEach(item => {
-        instanceString = instanceString + item.namespace + "." + item.pod_name + "." + item.container_name + "</br>";
-    })
-    document.querySelector("#instances").innerHTML = instanceString;
-
-    scan_status_description = "";
-    switch(data.scan_status) {
-        case "COMPLETE":
-            scan_status_description = "Complete";
-            break;
-        case "SCANNING":
-            scan_status_description = "Scanning";
-            break;
-        case "TO_BE_SCANNED":
-            scan_status_description = "To be scanned";
-            break;
-        case "NO_SCAN_AVAILABLE":
-            scan_status_description = "No scan information";
-            break;
-        case "SCAN_FAILED":
-            scan_status_description = "Scan failed";
-            break;
-        default:
-            scan_status_description = data.scan_status;
-            // code block
-      }
-
-    document.querySelector("#scan_status").innerHTML = scan_status_description;
-
-    document.querySelector("#distro_display_name").innerHTML = data.distro_display_name;;
-
-    loadCVEsTable(imageid, data.scan_status);
-    loadSBOMTable(imageid, data.scan_status);
 }
 
 async function loadCVEsTable(imageid, scanStatus) {
@@ -79,59 +84,68 @@ async function loadCVEsTable(imageid, scanStatus) {
     tableBody.replaceChildren();
 
     if(scanStatus == "COMPLETE") {
-        url = "/api/image/vulnerabilities?imageid=" + imageid;
-        // Add sort parameter
-        if (cveSortField) {
-            const sortValue = cveSortDirection === "desc" ? cveSortField + ".desc" : cveSortField;
-            url += "&sort=" + encodeURIComponent(sortValue);
-        }
-        console.log(url);
-        const response = await fetch(url);
-        console.log("loadCVEsTable() - Got data")
-        // Check if the response is OK (status code 200)
-        if (!response.ok) {
-            throw new Error("Network response was not ok");
-        }
-    
-        // Parse the JSON data from the response
-        const data = await response.json();
-        counter = 0;
-    
-        data.forEach(item => {
-            //console.log(item)
-            vulnCellId = "vulncell"+counter;
-            // Create a new row
+        try {
+            url = "/api/image/vulnerabilities?imageid=" + imageid;
+            // Add sort parameter
+            if (cveSortField) {
+                const sortValue = cveSortDirection === "desc" ? cveSortField + ".desc" : cveSortField;
+                url += "&sort=" + encodeURIComponent(sortValue);
+            }
+            console.log(url);
+            const response = await fetch(url);
+            console.log("loadCVEsTable() - Got data")
+            // Check if the response is OK (status code 200)
+            if (!response.ok) {
+                throw new Error(`Failed to load vulnerability data: ${response.status} ${response.statusText}`);
+            }
+
+            // Parse the JSON data from the response
+            const data = await response.json();
+            counter = 0;
+
+            data.forEach(item => {
+                //console.log(item)
+                vulnCellId = "vulncell"+counter;
+                // Create a new row
+                const newRow = document.createElement("tr");
+                newRow.classList.add("clickable-row");
+                newRow.dataset.detailsUrl = item.details_url;
+                newRow.dataset.detailCellId = vulnCellId;
+                newRow.onclick = function() {
+                    toggleDetailsTableRow(this.dataset.detailCellId, this.dataset.detailsUrl);
+                };
+
+                addCellToRow(newRow, "left", item.vulnerability_severity);
+                addCellToRow(newRow, "left", item.vulnerability_id);
+                addCellToRow(newRow, "left", item.artifact_name);
+                addCellToRow(newRow, "left", item.artifact_version);
+                addCellToRow(newRow, "left", item.vulnerability_fix_versions);
+                addCellToRow(newRow, "left", item.vulnerability_fix_state);
+                addCellToRow(newRow, "left", item.artifact_type);
+                addCellToRow(newRow, "right", formatRiskNumber(item.vulnerability_risk));
+                addCellToRow(newRow, "right", item.vulnerability_known_exploits);
+
+                // Append the new row to the table body
+                tableBody.appendChild(newRow);
+
+                const vulnRow = document.createElement("tr");
+                const vulnCell = document.createElement("td");
+                vulnCell.colSpan = 9;
+                vulnCell.id = vulnCellId;
+                vulnCell.hidden = true;
+
+                vulnRow.appendChild(vulnCell);
+                tableBody.appendChild(vulnRow);
+                counter++;
+            });
+        } catch (error) {
+            console.error("Error loading vulnerability data:", error);
             const newRow = document.createElement("tr");
-            newRow.classList.add("clickable-row");
-            newRow.dataset.detailsUrl = item.details_url;
-            newRow.dataset.detailCellId = vulnCellId;
-            newRow.onclick = function() {
-                toggleDetailsTableRow(this.dataset.detailCellId, this.dataset.detailsUrl);
-            };
-
-            addCellToRow(newRow, "left", item.vulnerability_severity);
-            addCellToRow(newRow, "left", item.vulnerability_id);
-            addCellToRow(newRow, "left", item.artifact_name);
-            addCellToRow(newRow, "left", item.artifact_version);
-            addCellToRow(newRow, "left", item.vulnerability_fix_versions);
-            addCellToRow(newRow, "left", item.vulnerability_fix_state);
-            addCellToRow(newRow, "left", item.artifact_type);
-            addCellToRow(newRow, "right", formatRiskNumber(item.vulnerability_risk));
-            addCellToRow(newRow, "right", item.vulnerability_known_exploits);
-
-            // Append the new row to the table body
+            const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
+            newCell.colSpan = 9;
+            newCell.style.color = "red";
             tableBody.appendChild(newRow);
-
-            const vulnRow = document.createElement("tr");
-            const vulnCell = document.createElement("td");
-            vulnCell.colSpan = 9;
-            vulnCell.id = vulnCellId;
-            vulnCell.hidden = true;
-
-            vulnRow.appendChild(vulnCell);
-            tableBody.appendChild(vulnRow);
-            counter++;
-        });
+        }
     } else {
         const newRow = document.createElement("tr");
         const newCell = addCellToRow(newRow, "left", "Vulnerability data missing");
@@ -181,54 +195,63 @@ async function loadSBOMTable(imageid, scanStatus) {
     tableBody.replaceChildren();
 
     if(scanStatus == "COMPLETE") {
-        url = "/api/image/sbom?imageid=" + imageid;
-        // Add sort parameter
-        if (sbomSortField) {
-            const sortValue = sbomSortDirection === "desc" ? sbomSortField + ".desc" : sbomSortField;
-            url += "&sort=" + encodeURIComponent(sortValue);
-        }
-        console.log(url);
-        const response = await fetch(url);
-        console.log("loadSBOMTable() - Got data")
-        // Check if the response is OK (status code 200)
-        if (!response.ok) {
-            throw new Error("Network response was not ok");
-        }
+        try {
+            url = "/api/image/sbom?imageid=" + imageid;
+            // Add sort parameter
+            if (sbomSortField) {
+                const sortValue = sbomSortDirection === "desc" ? sbomSortField + ".desc" : sbomSortField;
+                url += "&sort=" + encodeURIComponent(sortValue);
+            }
+            console.log(url);
+            const response = await fetch(url);
+            console.log("loadSBOMTable() - Got data")
+            // Check if the response is OK (status code 200)
+            if (!response.ok) {
+                throw new Error(`Failed to load SBOM data: ${response.status} ${response.statusText}`);
+            }
 
-        // Parse the JSON data from the response
-        const data = await response.json();
-        counter = 0;
+            // Parse the JSON data from the response
+            const data = await response.json();
+            counter = 0;
 
-        data.forEach(item => {
-            //console.log(item)
-            sbomCellId = "sbomcell"+counter;
-            // Create a new row
+            data.forEach(item => {
+                //console.log(item)
+                sbomCellId = "sbomcell"+counter;
+                // Create a new row
+                const newRow = document.createElement("tr");
+                newRow.classList.add("clickable-row");
+                newRow.dataset.detailsUrl = item.details_url;
+                newRow.dataset.detailCellId = sbomCellId;
+                newRow.onclick = function() {
+                    toggleDetailsTableRow(this.dataset.detailCellId, this.dataset.detailsUrl);
+                };
+
+                addCellToRow(newRow, "left", item.name);
+                addCellToRow(newRow, "left", item.version);
+                addCellToRow(newRow, "left", item.type);
+                addCellToRow(newRow, "right", item.count);
+
+                // Append the new row to the table body
+                tableBody.appendChild(newRow);
+
+                const sbomRow = document.createElement("tr");
+                const sbomCell = document.createElement("td");
+                sbomCell.colSpan = 4;
+                sbomCell.id = sbomCellId;
+                sbomCell.hidden = true;
+
+                sbomRow.appendChild(sbomCell);
+                tableBody.appendChild(sbomRow);
+                counter++;
+            });
+        } catch (error) {
+            console.error("Error loading SBOM data:", error);
             const newRow = document.createElement("tr");
-            newRow.classList.add("clickable-row");
-            newRow.dataset.detailsUrl = item.details_url;
-            newRow.dataset.detailCellId = sbomCellId;
-            newRow.onclick = function() {
-                toggleDetailsTableRow(this.dataset.detailCellId, this.dataset.detailsUrl);
-            };
-
-            addCellToRow(newRow, "left", item.name);
-            addCellToRow(newRow, "left", item.version);
-            addCellToRow(newRow, "left", item.type);
-            addCellToRow(newRow, "right", item.count);
-
-            // Append the new row to the table body
+            const newCell = addCellToRow(newRow, "left", "⚠️ Error loading data: " + error.message);
+            newCell.colSpan = 4;
+            newCell.style.color = "red";
             tableBody.appendChild(newRow);
-
-            const sbomRow = document.createElement("tr");
-            const sbomCell = document.createElement("td");
-            sbomCell.colSpan = 4;
-            sbomCell.id = sbomCellId;
-            sbomCell.hidden = true;
-
-            sbomRow.appendChild(sbomCell);
-            tableBody.appendChild(sbomRow);
-            counter++;
-        });
+        }
     } else {
         const newRow = document.createElement("tr");
         const newCell = addCellToRow(newRow, "left", "SBOM missing");
@@ -319,11 +342,18 @@ function updateSBOMSortIndicators() {
     }
 }
 
-const urlParams = new URLSearchParams(window.location.search);
-const imageid = urlParams.get('imageid');
+async function initPage() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const imageid = urlParams.get('imageid');
 
-loadImageDetails(imageid);
-document.getElementById("cvecsvlink").href = "/api/image/vulnerabilities?output=csv&imageid=" + imageid;
-document.getElementById("cvejsonlink").href = "/api/image/vulnerabilities?output=json&imageid=" + imageid;
-document.getElementById("sbomcsvlink").href = "/api/image/sbom?output=csv&imageid=" + imageid;
-document.getElementById("sbomjsonlink").href = "/api/image/sbom?output=json&imageid=" + imageid;
+    loadImageDetails(imageid);
+    document.getElementById("cvecsvlink").href = "/api/image/vulnerabilities?output=csv&imageid=" + imageid;
+    document.getElementById("cvejsonlink").href = "/api/image/vulnerabilities?output=json&imageid=" + imageid;
+    document.getElementById("sbomcsvlink").href = "/api/image/sbom?output=csv&imageid=" + imageid;
+    document.getElementById("sbomjsonlink").href = "/api/image/sbom?output=json&imageid=" + imageid;
+}
+
+// Wait for DOM and backend before initializing
+document.addEventListener('DOMContentLoaded', function() {
+    waitForBackendAndInit(initPage);
+});

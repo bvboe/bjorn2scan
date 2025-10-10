@@ -137,88 +137,99 @@ function onNamespaceChange(selectedNamespace) {
 
 async function initClusterName(pageTitle) {
     console.log("initClusterName()");
-    const clusterName = await getConfigProperty("clusterName")
-    const clusternameDiv = document.getElementById("clusterName");
-    clusternameDiv.innerText = pageTitle + " - " + clusterName;
+    try {
+        const clusterName = await getConfigProperty("clusterName")
+        const clusternameDiv = document.getElementById("clusterName");
+        clusternameDiv.innerText = pageTitle + " - " + clusterName;
+    } catch (error) {
+        console.error("Error initializing cluster name:", error);
+        const clusternameDiv = document.getElementById("clusterName");
+        clusternameDiv.innerText = pageTitle + " - Unknown Cluster";
+    }
 }
 
 async function initFilters(urlFilters = {}) {
-    const response = await fetch("/api/filters");
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
-    }
-    const filterData = await response.json();
-    initSelect("namespaceFilter", filterData.namespaces, urlFilters.namespaceFilter);
-    initSelect("vulnerabilityStatusFilter", filterData['fix-states'], urlFilters.vulnerabilityStatusFilter);
-    initSelect("packageTypeFilter", filterData['unique-packages'], urlFilters.packageTypeFilter);
-    initSelect("vulnerabilitySeverityFilter", filterData['severities'], urlFilters.vulnerabilitySeverityFilter);
-    initSelect("distributionDisplayNameFilter", filterData['distribution-display-names'], urlFilters.distributionDisplayNameFilter);
-    
-    if ($('#categories').length) {
-        $('#categories').multiSelect({
-            noneText: 'All categories',
-            presets: [
-                {
-                    name: 'All categories',
-                    all: true
-                }
-            ]
-        });
-    }
-    if ($('#namespaceFilter').length) {
-        $('#namespaceFilter').multiSelect({
-            noneText: 'All namespaces',
-            presets: [
-                {
-                    name: 'All namespaces',
-                    all: true
-                }
-            ]
-        });
-    }
-    if ($('#vulnerabilityStatusFilter').length) {
-        $('#vulnerabilityStatusFilter').multiSelect({
-            noneText: 'All statuses',
-            presets: [
-                {
-                    name: 'All statuses',
-                    all: true
-                }
-            ]
-        });
-    }
-    if ($('#packageTypeFilter').length) {
-        $('#packageTypeFilter').multiSelect({
-            noneText: 'All package types',
-            presets: [
-                {
-                    name: 'All package types',
-                    all: true
-                }
-            ]
-        });
-    }
-    if ($('#vulnerabilitySeverityFilter').length) {
-        $('#vulnerabilitySeverityFilter').multiSelect({
-            noneText: 'All severities',
-            presets: [
-                {
-                    name: 'All severities',
-                    all: true
-                }
-            ]
-        });
-    }
-    if ($('#distributionDisplayNameFilter').length) {
-        $('#distributionDisplayNameFilter').multiSelect({
-            noneText: 'All operating systems',
-            presets: [
-                {
-                    name: 'All operating systems',
-                    all: true
-                }
-            ]
-        });
+    try {
+        const response = await fetch("/api/filters");
+        if (!response.ok) {
+            throw new Error(`Failed to load filters: ${response.status} ${response.statusText}`);
+        }
+        const filterData = await response.json();
+        initSelect("namespaceFilter", filterData.namespaces, urlFilters.namespaceFilter);
+        initSelect("vulnerabilityStatusFilter", filterData['fix-states'], urlFilters.vulnerabilityStatusFilter);
+        initSelect("packageTypeFilter", filterData['unique-packages'], urlFilters.packageTypeFilter);
+        initSelect("vulnerabilitySeverityFilter", filterData['severities'], urlFilters.vulnerabilitySeverityFilter);
+        initSelect("distributionDisplayNameFilter", filterData['distribution-display-names'], urlFilters.distributionDisplayNameFilter);
+
+        if ($('#categories').length) {
+            $('#categories').multiSelect({
+                noneText: 'All categories',
+                presets: [
+                    {
+                        name: 'All categories',
+                        all: true
+                    }
+                ]
+            });
+        }
+        if ($('#namespaceFilter').length) {
+            $('#namespaceFilter').multiSelect({
+                noneText: 'All namespaces',
+                presets: [
+                    {
+                        name: 'All namespaces',
+                        all: true
+                    }
+                ]
+            });
+        }
+        if ($('#vulnerabilityStatusFilter').length) {
+            $('#vulnerabilityStatusFilter').multiSelect({
+                noneText: 'All statuses',
+                presets: [
+                    {
+                        name: 'All statuses',
+                        all: true
+                    }
+                ]
+            });
+        }
+        if ($('#packageTypeFilter').length) {
+            $('#packageTypeFilter').multiSelect({
+                noneText: 'All package types',
+                presets: [
+                    {
+                        name: 'All package types',
+                        all: true
+                    }
+                ]
+            });
+        }
+        if ($('#vulnerabilitySeverityFilter').length) {
+            $('#vulnerabilitySeverityFilter').multiSelect({
+                noneText: 'All severities',
+                presets: [
+                    {
+                        name: 'All severities',
+                        all: true
+                    }
+                ]
+            });
+        }
+        if ($('#distributionDisplayNameFilter').length) {
+            $('#distributionDisplayNameFilter').multiSelect({
+                noneText: 'All operating systems',
+                presets: [
+                    {
+                        name: 'All operating systems',
+                        all: true
+                    }
+                ]
+            });
+        }
+    } catch (error) {
+        console.error("Error initializing filters:", error);
+        alert("⚠️ Failed to load page filters: " + error.message + "\n\nThe page may not function correctly. Please check your network connection and refresh the page.");
     }
 }
 
@@ -267,20 +278,33 @@ async function getConfigProperty(property) {
         return configCache[property];
     }
 
-    console.log("Fetching configuration from API...");
-    const response = await fetch("/api/scannerconfig");
+    try {
+        console.log("Fetching configuration from API...");
+        const response = await fetch("/api/scannerconfig");
 
-    // Check if the response is OK (status code 200)
-    if (!response.ok) {
-        throw new Error("Network response was not ok");
+        // Check if the response is OK (status code 200)
+        if (!response.ok) {
+            throw new Error(`Failed to load configuration: ${response.status} ${response.statusText}`);
+        }
+
+        // Parse the JSON data from the response
+        const data = await response.json();
+
+        // Cache all the data properties
+        Object.assign(configCache, data);
+        return data[property];
+    } catch (error) {
+        console.error("Error loading configuration:", error);
+        // Return default values for critical properties
+        if (property === "scanContainers" || property === "scanNodes") {
+            console.warn(`Defaulting ${property} to true due to error`);
+            return true;
+        }
+        if (property === "clusterName") {
+            return "Unknown Cluster";
+        }
+        throw error; // Re-throw for other properties
     }
-
-    // Parse the JSON data from the response
-    const data = await response.json();
-
-    // Cache all the data properties
-    Object.assign(configCache, data);
-    return data[property];
 }
 
 async function showContainerScans() {
@@ -382,5 +406,149 @@ function toggleFilterVisible() {
         filterCell.className = "filterUnSelected";
         document.getElementById("filterContainer").className = "filterContainerUnSelected";
         document.getElementById("filterDetails").style.display = "none";
+    }
+}
+
+// ========================================
+// Backend Health Check & Connection Management
+// ========================================
+
+function createConnectionErrorOverlay() {
+    // Check if overlay already exists
+    if (document.getElementById("connectionErrorOverlay")) {
+        return;
+    }
+
+    // Create overlay container
+    const overlay = document.createElement("div");
+    overlay.id = "connectionErrorOverlay";
+    overlay.style.cssText = "display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 10000; justify-content: center; align-items: center;";
+
+    // Create content box
+    const contentBox = document.createElement("div");
+    contentBox.style.cssText = "background-color: white; padding: 40px; border-radius: 0px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); text-align: center; max-width: 500px;";
+
+    // Loading icon
+    const icon = document.createElement("div");
+    icon.style.cssText = "font-size: 48px; margin-bottom: 20px;";
+    icon.textContent = "⏳";
+
+    // Title
+    const title = document.createElement("h2");
+    title.style.cssText = "margin-bottom: 15px;";
+    title.textContent = "Application Starting...";
+
+    // Description
+    const description = document.createElement("p");
+    description.style.cssText = "color: #666; font-size: 16px; margin-bottom: 20px;";
+    description.textContent = "The backend is initializing. This usually takes a few seconds.";
+
+    // Spinner container
+    const spinnerContainer = document.createElement("div");
+    spinnerContainer.style.cssText = "display: flex; align-items: center; justify-content: center; gap: 10px; color: #888;";
+
+    // Spinner
+    const spinner = document.createElement("div");
+    spinner.className = "connection-spinner";
+    spinner.style.cssText = "border: 3px solid #e0e0e0; border-top: 3px solid #333333; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite;";
+
+    // Spinner text
+    const spinnerText = document.createElement("span");
+    spinnerText.textContent = "Please wait...";
+
+    // Assemble components
+    spinnerContainer.appendChild(spinner);
+    spinnerContainer.appendChild(spinnerText);
+    contentBox.appendChild(icon);
+    contentBox.appendChild(title);
+    contentBox.appendChild(description);
+    contentBox.appendChild(spinnerContainer);
+    overlay.appendChild(contentBox);
+
+    // Add CSS animation for spinner
+    const style = document.createElement("style");
+    style.textContent = `
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Add to body
+    document.body.insertBefore(overlay, document.body.firstChild);
+}
+
+async function checkBackendHealth() {
+    try {
+        const response = await fetch("/api/hello", {
+            method: 'GET',
+            cache: 'no-cache'
+        });
+        return response.ok;
+    } catch (error) {
+        console.error("Backend health check failed:", error);
+        return false;
+    }
+}
+
+function showConnectionError() {
+    const overlay = document.getElementById("connectionErrorOverlay");
+    if (overlay) {
+        overlay.style.display = "flex";
+    }
+}
+
+function hideConnectionError() {
+    const overlay = document.getElementById("connectionErrorOverlay");
+    if (overlay) {
+        overlay.style.display = "none";
+    }
+}
+
+async function waitForBackend() {
+    console.log("Checking backend availability...");
+
+    let isHealthy = await checkBackendHealth();
+
+    if (!isHealthy) {
+        showConnectionError();
+
+        // Poll every 2 seconds until backend is healthy
+        return new Promise((resolve) => {
+            const pollInterval = setInterval(async () => {
+                console.log("Retrying backend health check...");
+                isHealthy = await checkBackendHealth();
+
+                if (isHealthy) {
+                    console.log("Backend is now available!");
+                    clearInterval(pollInterval);
+                    hideConnectionError();
+                    resolve();
+                }
+            }, 2000);
+        });
+    } else {
+        console.log("Backend is available!");
+        hideConnectionError();
+    }
+}
+
+/**
+ * Wrapper function to initialize a page with backend health check
+ * Usage: waitForBackendAndInit(yourInitFunction);
+ *
+ * @param {Function} initFunction - The page initialization function to call after backend is ready
+ */
+async function waitForBackendAndInit(initFunction) {
+    // Create the overlay element
+    createConnectionErrorOverlay();
+
+    // Wait for backend to be available
+    await waitForBackend();
+
+    // Call the provided init function
+    if (typeof initFunction === 'function') {
+        await initFunction();
     }
 }
