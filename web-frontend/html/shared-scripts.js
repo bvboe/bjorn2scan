@@ -552,3 +552,28 @@ async function waitForBackendAndInit(initFunction) {
         await initFunction();
     }
 }
+
+// ========================================
+// Footer Initialization
+// ========================================
+
+function initAppFooter() {
+    const footerContainer = document.getElementById("app-footer");
+    if (!footerContainer) {
+        return; // Footer container doesn't exist on this page
+    }
+
+    // Create footer content
+    const version = window.BJORN2SCAN_VERSION || '';
+    const versionText = version ? ` v${version}` : '';
+
+    footerContainer.style.cssText = "text-align: right; text-decoration: underline; font-style: italic;";
+    footerContainer.innerHTML = `<a href="https://github.com/bvboe/bjorn2scan/" target="_blank">Bjorn2Scan</a>${versionText}`;
+}
+
+// Initialize footer when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAppFooter);
+} else {
+    initAppFooter();
+}

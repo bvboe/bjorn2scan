@@ -9,9 +9,9 @@ VULNERABILITY_COORDINATOR_REPOSITORY="bjornvb/k8s-scanner-vulnerability-coordina
 WEB_FRONTEND_REPOSITORY="bjornvb/k8s-scanner-web-frontend"
 
 echo Generate release $APP_VERSION
-./doreleasecontainer.sh "$POD_SCANNER_REPOSITORY:$APP_VERSION" "pod-scanner"
-./doreleasecontainer.sh "$VULNERABILITY_COORDINATOR_REPOSITORY:$APP_VERSION" "vulnerability-coordinator"
-./doreleasecontainer.sh "$WEB_FRONTEND_REPOSITORY:$APP_VERSION" "web-frontend"
+./doreleasecontainer.sh "$POD_SCANNER_REPOSITORY:$APP_VERSION" "pod-scanner" "$APP_VERSION"
+./doreleasecontainer.sh "$VULNERABILITY_COORDINATOR_REPOSITORY:$APP_VERSION" "vulnerability-coordinator" "$APP_VERSION"
+./doreleasecontainer.sh "$WEB_FRONTEND_REPOSITORY:$APP_VERSION" "web-frontend" "$APP_VERSION"
 
 cat bjorn2scan/values.yaml | yq eval ".podScanner.image.tag = \"${APP_VERSION}\" | 
                                             .vulnerabilityCoordinator.image.tag = \"${APP_VERSION}\" 
