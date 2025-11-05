@@ -154,13 +154,6 @@ async function loadCVEsTable(imageid, scanStatus) {
     }
 }
 
-function formatRiskNumber(risk) {
-    if (risk < 0.1) {
-        return "< 0.1";
-    }
-    return risk.toFixed(1);
-}
-
 async function toggleDetailsTableRow(cellId, detailsUrl) {
     const cell = document.querySelector("#" + cellId);
     if (cell.hidden == false) {

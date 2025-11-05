@@ -53,7 +53,7 @@ async function loadPodsTable() {
                     addCellToRow(newRow, "right", formatNumber(item.cves_low));
                     addCellToRow(newRow, "right", formatNumber(item.cves_negligible));
                     addCellToRow(newRow, "right", formatNumber(item.cves_unknown));
-                    addCellToRow(newRow, "right", formatNumber(item.total_risk));
+                    addCellToRow(newRow, "right", formatRiskNumber(item.total_risk));
                     addCellToRow(newRow, "right", formatNumber(item.known_exploits));
                     addCellToRow(newRow, "right", formatNumber(item.number_of_packages));
                     break;

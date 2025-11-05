@@ -131,6 +131,16 @@ function formatNumber(num, digits = 0) {
     return num.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+function formatRiskNumber(risk) {
+    if (risk === 0) {
+        return "0.0";
+    }
+    if (risk < 0.1) {
+        return "< 0.1";
+    }
+    return risk.toFixed(1);
+}
+
 function onNamespaceChange(selectedNamespace) {
     window.location.href = selectedNamespace;
 }
