@@ -1,6 +1,7 @@
 # Bjørn2Scan - The Kubernetes Vulnerability Scanner
 Bjørn2Scan helps track the vulnerabilities in your Kubernetes cluster and help you track it direct in Prometheus/Grafana or wherever you want using OpenTelemetry. Underneath the hood it connects to your container manager (Docker or ContainerD) and scans whatever is running using Syft and Grype, which also means it does not need access to your container registry.
 
+
 <img src="https://github.com/user-attachments/assets/3ec4d350-1cf6-4f2c-a4c6-f19251d70267" width="400" alt="bjorn2scan">
 
 ## Installation
