@@ -13,11 +13,6 @@ echo Generate release $APP_VERSION
 ./doreleasecontainer.sh "$VULNERABILITY_COORDINATOR_REPOSITORY:$APP_VERSION" "vulnerability-coordinator" "$APP_VERSION"
 ./doreleasecontainer.sh "$WEB_FRONTEND_REPOSITORY:$APP_VERSION" "web-frontend" "$APP_VERSION"
 
-cat bjorn2scan/values.yaml | yq eval ".podScanner.image.tag = \"${APP_VERSION}\" | 
-                                            .vulnerabilityCoordinator.image.tag = \"${APP_VERSION}\" 
-                                            | .webFrontend.image.tag = \"${APP_VERSION}\"" > bjorn2scan/newvalues.yaml
-mv bjorn2scan/newvalues.yaml bjorn2scan/values.yaml
-
 cat bjorn2scan/Chart.yaml | yq eval ".appVersion=\"${APP_VERSION}\""  | yq eval ".version=\"${CHART_VERSION}\"" > bjorn2scan/newChart.yaml
 mv bjorn2scan/newChart.yaml bjorn2scan/Chart.yaml
 

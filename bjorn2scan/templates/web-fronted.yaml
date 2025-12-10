@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: {{ .Values.webFrontend.image.repository }}:{{ .Values.webFrontend.image.tag }}
+        image: {{ .Values.webFrontend.image.repository }}:{{ .Values.webFrontend.image.tag | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.webFrontend.image.pullPolicy }}
         resources:
           requests:

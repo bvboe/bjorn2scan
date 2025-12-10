@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: pod-scanner
-        image: {{ .Values.podScanner.image.repository }}:{{ .Values.podScanner.image.tag }}
+        image: {{ .Values.podScanner.image.repository }}:{{ .Values.podScanner.image.tag | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.podScanner.image.pullPolicy }}
 #        resources:
 #          requests:
