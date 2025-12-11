@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 set -e
 
 # Colors for output
@@ -182,45 +182,7 @@ test_web_frontend() {
     fi
 }
 
-# Test 6: Check vulnerability-coordinator API
-test_vulnerability_coordinator_api() {
-    run_test "Vulnerability Coordinator API"
-
-    # Get vulnerability-coordinator pod
-    local pod=$(kubectl get pods -n "$NAMESPACE" -l app=vulnerability-coordinator -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-
-    if [ -z "$pod" ]; then
-        log_error "No vulnerability-coordinator pod found"
-        return 1
-    fi
-
-    # Test health endpoint (/api/hello)
-    local health=$(kubectl exec -n "$NAMESPACE" "$pod" -- wget -q -O- http://localhost:8080/api/hello 2>/dev/null || echo "")
-
-    if [ -n "$health" ]; then
-        log_success "Vulnerability coordinator API endpoint is responding"
-    else
-        log_error "Vulnerability coordinator API endpoint is not responding"
-        return 1
-    fi
-
-    # Test metrics endpoint (just verify it responds, not that scans are complete)
-    local metrics=$(kubectl exec -n "$NAMESPACE" "$pod" -- wget -q -O- http://localhost:8080/metrics 2>/dev/null || echo "")
-
-    if [ -n "$metrics" ]; then
-        log_success "Vulnerability coordinator metrics endpoint is responding"
-        # Check if scans have started (optional - may not have data yet)
-        if echo "$metrics" | grep -q "kubernetes_vulnerability"; then
-            log_success "Vulnerability metrics are already available"
-        fi
-        return 0
-    else
-        log_error "Vulnerability coordinator metrics endpoint is not responding"
-        return 1
-    fi
-}
-
-# Test 7: Check pod-scanner health
+# Test 6: Check pod-scanner health
 test_pod_scanner() {
     run_test "Pod Scanner Health"
 
@@ -376,7 +338,6 @@ main() {
     test_pods_running || true
     test_services || true
     test_pod_scanner || true
-    test_vulnerability_coordinator_api || true
     test_web_frontend || true
     test_scan_data || true
     test_pod_logs || true

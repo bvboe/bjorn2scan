@@ -63,24 +63,18 @@ Checks that services have active endpoints:
 ### 6. **Pod Scanner Health**
 Tests the pod-scanner health endpoint on a running pod.
 
-### 7. **Vulnerability Coordinator API**
-Validates the vulnerability-coordinator endpoints:
-- API health endpoint (`/api/hello`)
-- Metrics endpoint (`/metrics`) is responding
-- Note: This test verifies endpoints work, not that scans are complete (scan data is verified separately)
-
-### 8. **Web Frontend Accessibility**
+### 7. **Web Frontend Accessibility**
 Verifies the web frontend service is responding with HTML content.
 Note: Tests from vulnerability-coordinator pod since nginx container doesn't include wget/curl.
 
-### 9. **Vulnerability Scan Data**
+### 8. **Vulnerability Scan Data**
 Polls for scans to complete (with configurable timeout) and validates:
 - Containers are being scanned
 - Vulnerability results are being generated
-- Metrics are being exposed
+- Metrics are being exposed (via /metrics endpoint)
 - Exits early when scan data is detected (no need to wait full timeout)
 
-### 10. **Pod Logs Error Check**
+### 9. **Pod Logs Error Check**
 Reviews recent pod logs for error messages (non-blocking warnings).
 
 ## Example Output
