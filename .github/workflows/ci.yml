@@ -57,3 +57,10 @@ jobs:
 
       - name: Template Helm chart
         run: helm template test-release bjorn2scan --set clusterName="Test Cluster"
+
+  integration-test:
+    needs: [build-and-test, lint-helm]
+    uses: ./.github/workflows/integration-test.yml
+    with:
+      version: ci-test
+      scan_wait_time: 180

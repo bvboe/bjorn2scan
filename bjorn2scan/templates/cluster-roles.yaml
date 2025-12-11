@@ -1,3 +1,13 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vulnerability-scanner
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: bjorn2scan
+
+---
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -15,7 +25,7 @@ metadata:
   name: {{ .Release.Namespace }}-vulnerability-scanner
 subjects:
 - kind: ServiceAccount
-  name: default
+  name: vulnerability-scanner
   namespace: {{ .Release.Namespace }}
 roleRef:
   kind: ClusterRole
