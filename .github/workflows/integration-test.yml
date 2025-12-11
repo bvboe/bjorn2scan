@@ -32,7 +32,7 @@ jobs:
           wait: 300s
 
       - name: Build pod-scanner image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./pod-scanner
           load: true
@@ -42,7 +42,7 @@ jobs:
           cache-from: type=gha
 
       - name: Build vulnerability-coordinator image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./vulnerability-coordinator
           load: true
@@ -52,7 +52,7 @@ jobs:
           cache-from: type=gha
 
       - name: Build web-frontend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./web-frontend
           load: true
