@@ -66,7 +66,8 @@ Tests the pod-scanner health endpoint on a running pod.
 ### 7. **Vulnerability Coordinator API**
 Validates the vulnerability-coordinator endpoints:
 - API health endpoint (`/api/hello`)
-- Metrics endpoint (`/metrics`)
+- Metrics endpoint (`/metrics`) is responding
+- Note: This test verifies endpoints work, not that scans are complete (scan data is verified separately)
 
 ### 8. **Web Frontend Accessibility**
 Verifies the web frontend service is responding with HTML content.
