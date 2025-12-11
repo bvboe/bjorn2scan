@@ -1,0 +1,45 @@
+version: 2
+updates:
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # Python dependencies - pod-scanner
+  - package-ecosystem: "pip"
+    directory: "/pod-scanner/src/python"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+      - "pod-scanner"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # Python dependencies - vulnerability-coordinator
+  - package-ecosystem: "pip"
+    directory: "/vulnerability-coordinator/src/python"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+      - "vulnerability-coordinator"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
