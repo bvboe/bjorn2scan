@@ -15,6 +15,9 @@ spec:
         app: pod-scanner
     spec:
       serviceAccountName: vulnerability-scanner
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
       containers:
       - name: pod-scanner
         image: {{ .Values.podScanner.image.repository }}:{{ .Values.podScanner.image.tag | default .Chart.AppVersion }}
