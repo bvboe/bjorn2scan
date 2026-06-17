@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Debug Console - bjorn2scan</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            margin: -20px -20px 30px -20px;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .warning-banner {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+
+        .warning-banner strong {
+            font-size: 1.1rem;
+        }
+
+        .warning-banner .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #856404;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .warning-banner .close-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .section-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .section-body {
+            padding: 20px;
+        }
+
+        .query-input {
+            width: 100%;
+            min-height: 360px;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+
+        .query-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            opacity: 0.6;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        .sample-queries {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sample-query {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        .sample-query:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+
+        .results-container {
+            margin-top: 20px;
+        }
+
+        .results-info {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .results-info .count {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .results-info .time {
+            color: #666;
+            font-size: 0.875rem;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.875rem;
+            border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+        }
+
+        td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.85rem;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .error-message strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 SQL Debug Console</h1>
+            <div class="subtitle">Execute SQL queries against the bjorn2scan database</div>
+        </header>
+
+        <div id="warningBanner" class="warning-banner">
+            <span style="font-size: 1.5rem;">⚠️</span>
+            <div>
+                <strong>Debug Mode Only</strong> - This interface is for development and testing purposes only.
+                All SQL statements are allowed (SELECT, INSERT, UPDATE, DELETE, etc.). Do not enable in production.
+            </div>
+            <button class="close-btn" onclick="dismissWarning()" title="Dismiss warning">&times;</button>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>SQL Query Editor</h2>
+            </div>
+            <div class="section-body">
+                <textarea
+                    id="queryInput"
+                    class="query-input"
+                    placeholder="Enter your SQL query here..."
+                >SELECT * FROM images LIMIT 10;</textarea>
+
+                <div class="button-group">
+                    <button class="btn" onclick="executeQuery()">▶ Execute Query</button>
+                    <button class="btn btn-secondary" onclick="clearQuery()">Clear</button>
+                    <button class="btn btn-secondary" onclick="formatQuery()">Format</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="resultsSection" class="section" style="display: none;">
+            <div class="section-header">
+                <h2>Query Results</h2>
+            </div>
+            <div class="section-body">
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Sample Queries</h2>
+            </div>
+            <div class="section-body">
+                <div class="sample-queries">
+                    <div class="sample-query" onclick="loadSampleQuery(0)">
+                        SELECT * FROM images LIMIT 10;
+                    </div>
+                    <div class="sample-query" onclick="loadSampleQuery(1)">
+                        SELECT namespace, pod, name, reference FROM containers ORDER BY created_at DESC LIMIT 20;
+                    </div>
+                    <div class="sample-query" onclick="loadSampleQuery(2)">
+                        SELECT digest, package_count, vulnerability_count, critical_count, high_count FROM images WHERE vulnerability_count > 0 ORDER BY critical_count DESC;
+                    </div>
+                    <div class="sample-query" onclick="loadSampleQuery(3)">
+                        SELECT cve_id, severity, package_name, package_version, fix_status FROM vulnerabilities WHERE severity = 'CRITICAL' LIMIT 50;
+                    </div>
+                    <div class="sample-query" onclick="loadSampleQuery(4)">
+                        SELECT COUNT(*) as total_images, SUM(package_count) as total_packages, SUM(vulnerability_count) as total_vulns FROM images;
+                    </div>
+                    <div class="sample-query" onclick="loadSampleQuery(5)">
+                        PRAGMA table_info(images);
+                    </div>
+                    <div class="sample-query" onclick="loadSampleQuery(6)">
+                        EXPLAIN QUERY PLAN SELECT * FROM vulnerabilities WHERE severity = 'CRITICAL';
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <div>bjorn2scan v2 - SQL Debug Console</div>
+            <div><a href="/">Dashboard</a> | <a href="/health">Health</a> | <a href="/api/debug/metrics">Metrics</a></div>
+        </footer>
+    </div>
+
+    <script>
+        const sampleQueries = [
+            "SELECT * FROM images LIMIT 10;",
+            "SELECT namespace, pod, name, reference\nFROM containers\nORDER BY created_at DESC\nLIMIT 20;",
+            "SELECT digest, package_count, vulnerability_count, critical_count, high_count\nFROM images\nWHERE vulnerability_count > 0\nORDER BY critical_count DESC;",
+            "SELECT cve_id, severity, package_name, package_version, fix_status\nFROM vulnerabilities\nWHERE severity = 'CRITICAL'\nLIMIT 50;",
+            "SELECT COUNT(*) as total_images,\n       SUM(package_count) as total_packages,\n       SUM(vulnerability_count) as total_vulns\nFROM images;",
+            "PRAGMA table_info(images);",
+            "EXPLAIN QUERY PLAN\nSELECT *\nFROM vulnerabilities\nWHERE severity = 'CRITICAL';"
+        ];
+
+        function loadSampleQuery(index) {
+            document.getElementById('queryInput').value = sampleQueries[index];
+        }
+
+        function clearQuery() {
+            document.getElementById('queryInput').value = '';
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+
+        function formatQuery() {
+            const input = document.getElementById('queryInput');
+            let query = input.value.trim();
+
+            // Basic SQL formatting
+            query = query
+                .replace(/\s+/g, ' ')
+                .replace(/\s*,\s*/g, ',\n       ')
+                .replace(/\s+FROM\s+/gi, '\nFROM ')
+                .replace(/\s+WHERE\s+/gi, '\nWHERE ')
+                .replace(/\s+ORDER BY\s+/gi, '\nORDER BY ')
+                .replace(/\s+LIMIT\s+/gi, '\nLIMIT ')
+                .replace(/\s+AND\s+/gi, '\n  AND ');
+
+            input.value = query;
+        }
+
+        async function executeQuery() {
+            const query = document.getElementById('queryInput').value.trim();
+
+            if (!query) {
+                showError('Please enter a SQL query');
+                return;
+            }
+
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContent = document.getElementById('resultsContent');
+
+            // Show loading state
+            resultsSection.style.display = 'block';
+            resultsContent.innerHTML = '<div class="loading"><div class="spinner"></div><div>Executing query...</div></div>';
+
+            const startTime = performance.now();
+
+            try {
+                const response = await fetch('/api/debug/sql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const endTime = performance.now();
+                const executionTime = (endTime - startTime).toFixed(2);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                displayResults(data, executionTime);
+
+            } catch (error) {
+                console.error('Query execution error:', error);
+                showError(error.message);
+            }
+        }
+
+        function displayResults(data, executionTime) {
+            const resultsContent = document.getElementById('resultsContent');
+            const rows = data.rows || [];
+            const rowCount = data.row_count || 0;
+            const columns = data.columns || [];
+
+            if (rowCount === 0) {
+                resultsContent.innerHTML = `
+                    <div class="results-info">
+                        <span class="count">0 rows returned</span>
+                        <span class="time">Execution time: ${executionTime}ms</span>
+                    </div>
+                    <div class="empty-results">
+                        <div style="font-size: 3rem; margin-bottom: 10px;">📭</div>
+                        <div>Query executed successfully but returned no results</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Use columns array from response to preserve database order
+            // (Object.keys would return alphabetically sorted keys)
+
+            // Build table HTML
+            let tableHtml = `
+                <div class="results-info">
+                    <span class="count">${rowCount} row${rowCount !== 1 ? 's' : ''} returned</span>
+                    <span class="time">Execution time: ${executionTime}ms</span>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                ${columns.map(col => `<th>${escapeHtml(col)}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            rows.forEach(row => {
+                tableHtml += '<tr>';
+                columns.forEach(col => {
+                    const value = row[col];
+                    const displayValue = value === null ? '<em style="color: #999;">NULL</em>' : escapeHtml(String(value));
+                    tableHtml += `<td>${displayValue}</td>`;
+                });
+                tableHtml += '</tr>';
+            });
+
+            tableHtml += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            resultsContent.innerHTML = tableHtml;
+        }
+
+        function showError(message) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContent = document.getElementById('resultsContent');
+
+            resultsSection.style.display = 'block';
+            resultsContent.innerHTML = `
+                <div class="error-message">
+                    <strong>❌ Query Error</strong>
+                    <div>${escapeHtml(message)}</div>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        function dismissWarning() {
+            const banner = document.getElementById('warningBanner');
+            banner.style.display = 'none';
+        }
+
+        // Allow Ctrl+Enter to execute query
+        document.getElementById('queryInput').addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                executeQuery();
+            }
+        });
+    </script>
+</body>
+</html>

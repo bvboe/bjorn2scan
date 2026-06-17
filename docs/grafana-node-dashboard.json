@@ -1,0 +1,1280 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "12.3.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum (last_over_time(bjorn2scan_deployment{deployment_uuid=~\"$deployment_uuid\"}[$staleness_window]) >0)",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Number of Deployments",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum (last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "Containers Scanned"
+        }
+      ],
+      "title": "Nodes Scanned",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum (last_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "Vulnerabilities"
+        }
+      ],
+      "title": "Vulnerabilities",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum (last_over_time(bjorn2scan_node_vulnerability_risk{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "Vulnerabilities"
+        }
+      ],
+      "title": "Risk",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum (last_over_time(bjorn2scan_node_vulnerability_exploited{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "Exploits"
+        }
+      ],
+      "title": "Exploits",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "0"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Grype DB Built"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Risk"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(deployment_name, bjorn2scan_version, deployment_type, deployment_console, grype_db_built, deployment_uuid) (last_over_time(bjorn2scan_deployment{deployment_uuid=~\"$deployment_uuid\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Deployment Info"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(deployment_uuid) (last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Scanned Nodes"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "sum by(deployment_uuid) (last_over_time(bjorn2scan_node_scan_status{deployment_uuid=~\"$deployment_uuid\", scan_status!=\"completed\"}[$staleness_window]))",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Failed Scans"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(deployment_uuid) (last_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Vulnerabilities"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(deployment_uuid) (last_over_time(bjorn2scan_node_vulnerability_risk{deployment_uuid=~\"$deployment_uuid\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Risk"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(deployment_uuid) (last_over_time(bjorn2scan_node_vulnerability_exploited{deployment_uuid=~\"$deployment_uuid\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Exploits"
+        }
+      ],
+      "title": "Deployment Overview",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "deployment_uuid",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Value": true,
+              "Value #Deployment Info": true,
+              "__name__": true,
+              "deployment_ip": true,
+              "deployment_uuid": true,
+              "job": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Time": 0,
+              "Value": 10,
+              "__name__": 1,
+              "bjorn2scan_version": 3,
+              "deployment_console": 5,
+              "deployment_ip": 6,
+              "deployment_name": 2,
+              "deployment_type": 4,
+              "deployment_uuid": 7,
+              "grype_db_built": 8,
+              "job": 9
+            },
+            "renameByName": {
+              "Time 1": "",
+              "Time 2": "",
+              "Time 3": "",
+              "Time 4": "",
+              "Time 5": "",
+              "Value #Deployment Info": "",
+              "Value #Exploits": "Exploits",
+              "Value #Failed Scans": "Failed Scans",
+              "Value #Risk": "Risk",
+              "Value #Vulnerabilities": "Vulnerabilities",
+              "bjorn2scan_version": "Bjorn2Scan Version",
+              "deployment_console": "Console URL",
+              "deployment_name": "Name",
+              "deployment_type": "Type",
+              "grype_db_built": "Grype DB Built",
+              "Value #Scanned Nodes": "Scanned Nodes"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "0"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Namespace"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "ContainerSummary"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Critical\"}[$staleness_window]) > 0) / sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Average Critical"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"High\"}[$staleness_window]) > 0) / sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Average High"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Medium\"}[$staleness_window]) > 0) / sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Average Medium"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Low\"}[$staleness_window]) > 0) / sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Average Low"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Negligible\"}[$staleness_window]) > 0) / sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Average Negligible"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Unknown\"}[$staleness_window]) > 0) / sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Average Unknown"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_vulnerability_risk{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0) / sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Average Risk"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (os_release)(last_over_time(bjorn2scan_node_vulnerability_exploited{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0) / sum by (os_release)(last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Average Exploits"
+        }
+      ],
+      "title": "Vulnerabilities by OS",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "os_release",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "Time 9": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "# Nodes",
+              "Value #Average Critical": "Avg. Critical",
+              "Value #Average Exploits": "Avg. Exploits",
+              "Value #Average High": "Avg. High",
+              "Value #Average Low": "Avg. Low",
+              "Value #Average Medium": "Avg. Medium",
+              "Value #Average Negligible": "Avg. Negligible",
+              "Value #Average Risk": "Avg. Risk",
+              "Value #Average Unknown": "Avg. Unknown",
+              "Value #ContainerSummary": "# Nodes",
+              "os_release": "OS"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "0"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "image_reference"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 252
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Image"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node, os_release, architecture) (\n  last_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Image"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node) (\n\tlast_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Critical\"}[$staleness_window]) > 0\n) / sum by(node) (\n\tlast_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Critical"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node) (\n\tlast_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"High\"}[$staleness_window]) > 0\n) / sum by(node) (\n\tlast_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "High"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node) (\n\tlast_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Medium\"}[$staleness_window]) > 0\n) / sum by(node) (\n\tlast_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Medium"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node) (\n\tlast_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Low\"}[$staleness_window]) > 0\n) / sum by(node) (\n\tlast_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Low"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node) (\n\tlast_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Negligible\"}[$staleness_window]) > 0\n) / sum by(node) (\n\tlast_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Negligible"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node) (\n\tlast_over_time(bjorn2scan_node_vulnerability{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\", severity=\"Unknown\"}[$staleness_window]) > 0\n) / sum by(node) (\n\tlast_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Unknown"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node) (\n\tlast_over_time(bjorn2scan_node_vulnerability_risk{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n) / sum by(node) (\n\tlast_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Risk Score"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by(node) (\n\tlast_over_time(bjorn2scan_node_vulnerability_exploited{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n) / sum by(node) (\n\tlast_over_time(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\", node=~\"$node\"}[$staleness_window]) > 0\n)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "Exploited"
+        }
+      ],
+      "title": "Node Vulnerability Summary",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "node",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "Time 9": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Time 4": "",
+              "Value": "Nodes",
+              "Value #Critical": "Critical",
+              "Value #Exploited": "Known Exploits",
+              "Value #High": "High",
+              "Value #Image": "# Nodes",
+              "Value #Low": "Low",
+              "Value #Medium": "Medium",
+              "Value #Negligible": "Negligible",
+              "Value #Risk Score": "Risk Score",
+              "Value #Unknown": "Unknown",
+              "node": "Node",
+              "os_release": "OS",
+              "architecture": "Arch"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 42,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "auto": false,
+        "auto_count": 30,
+        "auto_min": "10s",
+        "current": {
+          "selected": true,
+          "text": "20m",
+          "value": "20m"
+        },
+        "description": "Look-back window for last_over_time(). Set it above the slowest push interval (agents push every 15m, K8s every 5m).",
+        "hide": 0,
+        "label": "Staleness window",
+        "name": "staleness_window",
+        "options": [
+          {
+            "selected": false,
+            "text": "6m",
+            "value": "6m"
+          },
+          {
+            "selected": false,
+            "text": "10m",
+            "value": "10m"
+          },
+          {
+            "selected": false,
+            "text": "16m",
+            "value": "16m"
+          },
+          {
+            "selected": true,
+            "text": "20m",
+            "value": "20m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          },
+          {
+            "selected": false,
+            "text": "1h",
+            "value": "1h"
+          }
+        ],
+        "query": "6m,10m,16m,20m,30m,1h",
+        "refresh": 2,
+        "skipUrlSync": false,
+        "type": "interval"
+      },
+      {
+        "allowCustomValue": false,
+        "current": {},
+        "definition": "label_values(bjorn2scan_deployment,deployment_name)",
+        "includeAll": true,
+        "label": "Deployment",
+        "multi": true,
+        "name": "deployment_name",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(bjorn2scan_deployment,deployment_name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allowCustomValue": false,
+        "current": {},
+        "definition": "label_values(bjorn2scan_deployment{deployment_name=~\"$deployment_name\"},deployment_uuid)",
+        "description": "",
+        "includeAll": true,
+        "label": "Deployment UUID",
+        "multi": true,
+        "name": "deployment_uuid",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(bjorn2scan_deployment{deployment_name=~\"$deployment_name\"},deployment_uuid)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "allowCustomValue": false,
+        "current": {
+          "selected": false,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "definition": "label_values(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\"},node)",
+        "description": "",
+        "includeAll": true,
+        "label": "Node",
+        "multi": true,
+        "name": "node",
+        "options": [],
+        "query": "label_values(bjorn2scan_node_scanned{deployment_uuid=~\"$deployment_uuid\"},node)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Bjorn2Scan Nodes",
+  "uid": "b2s-nodes",
+  "version": 3,
+  "weekStart": "",
+  "id": null
+}

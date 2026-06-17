@@ -1,0 +1,219 @@
+name: Go Binary Build (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      component-name:
+        description: 'Name of the Go component (directory name)'
+        required: true
+        type: string
+      component-path:
+        description: 'Path to the component directory'
+        required: true
+        type: string
+      run-tests:
+        description: 'Whether to run tests'
+        required: false
+        type: boolean
+        default: true
+      run-lint:
+        description: 'Whether to run linting'
+        required: false
+        type: boolean
+        default: true
+      platforms:
+        description: 'Comma-separated list of platforms (e.g., linux/amd64,linux/arm64)'
+        required: false
+        type: string
+        default: 'linux/amd64,linux/arm64'
+
+jobs:
+  test:
+    if: inputs.run-tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./${{ inputs.component-path }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: ${{ inputs.component-path }}/go.sum
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test -v -short -race -coverprofile=coverage.out $(go list ./... | grep -v /integration_test)
+
+    - name: Run go vet
+      run: go vet ./...
+
+  lint:
+    if: inputs.run-lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./${{ inputs.component-path }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: ${{ inputs.component-path }}/go.sum
+
+    # Cache golangci-lint analysis results
+    - name: Cache golangci-lint
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cache/golangci-lint
+          ~/.cache/go-build
+        key: ${{ runner.os }}-golangci-lint-${{ inputs.component-name }}-${{ hashFiles(format('{0}/go.sum', inputs.component-path)) }}
+        restore-keys: |
+          ${{ runner.os }}-golangci-lint-${{ inputs.component-name }}-
+          ${{ runner.os }}-golangci-lint-
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v9
+      with:
+        version: latest
+        working-directory: ${{ inputs.component-path }}
+
+    - name: Run gosec security scanner
+      uses: securego/gosec@master
+      with:
+        args: '-fmt sarif -out gosec-results.sarif ./...'
+      continue-on-error: true
+
+  build-binaries:
+    needs: [test]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./${{ inputs.component-path }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0  # Need full history for git describe
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: ${{ inputs.component-path }}/go.sum
+
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.ref_type }}" = "tag" ]; then
+          VERSION=${GITHUB_REF_NAME#v}
+        else
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Stamp internal module versions for release
+      if: github.ref_type == 'tag'
+      run: |
+        find . -name "go.mod" -not -path "*/vendor/*" | xargs sed -i \
+          -e "s|github.com/bvboe/b2s-go/scanner-core v[^[:space:]]*|github.com/bvboe/b2s-go/scanner-core ${GITHUB_REF_NAME}|" \
+          -e "s|github.com/bvboe/b2s-go/sbom-generator-shared v[^[:space:]]*|github.com/bvboe/b2s-go/sbom-generator-shared ${GITHUB_REF_NAME}|"
+
+    # Cache cosign binary
+    - name: Cache cosign
+      if: github.ref_type == 'tag'
+      uses: actions/cache@v5
+      with:
+        path: ~/.cosign
+        key: ${{ runner.os }}-cosign-${{ hashFiles('.github/workflows/go-binary-reusable.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-cosign-
+
+    - name: Build binaries
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        mkdir -p dist
+
+        # Parse platforms
+        IFS=',' read -ra PLATFORMS <<< "${{ inputs.platforms }}"
+        for platform in "${PLATFORMS[@]}"; do
+          GOOS=${platform%/*}
+          GOARCH=${platform#*/}
+          output="dist/${{ inputs.component-name }}-${GOOS}-${GOARCH}"
+
+          echo "Building for ${GOOS}/${GOARCH}..."
+          GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 go build \
+            -ldflags "-X main.version=${VERSION} -w -s" \
+            -o ${output} .
+
+          # Create tarballs for Linux binaries (for install script)
+          if [ "${GOOS}" = "linux" ]; then
+            tar -czf dist/${{ inputs.component-name }}-${GOOS}-${GOARCH}.tar.gz --transform="s/-${GOOS}-${GOARCH}$//" -C dist ${{ inputs.component-name }}-${GOOS}-${GOARCH}
+            cd dist && sha256sum ${{ inputs.component-name }}-${GOOS}-${GOARCH}.tar.gz > ${{ inputs.component-name }}-${GOOS}-${GOARCH}.tar.gz.sha256 && cd ..
+          fi
+        done
+
+    - name: Prepare version-stamped install script
+      if: github.ref_type == 'tag'
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+
+        # Only create install.sh for bjorn2scan-agent component
+        if [ "${{ inputs.component-name }}" = "bjorn2scan-agent" ] && [ -f "install.sh" ]; then
+          echo "Creating version-stamped install.sh for version ${VERSION}"
+
+          # Replace __VERSION__ placeholder with actual version
+          sed "s/__VERSION__/${VERSION}/g" install.sh > dist/install.sh
+          chmod +x dist/install.sh
+
+          echo "Version-stamped install.sh created"
+        fi
+
+    - name: Install cosign
+      if: github.ref_type == 'tag'
+      uses: sigstore/cosign-installer@v3
+
+    - name: Sign binaries with cosign
+      if: github.ref_type == 'tag'
+      working-directory: ${{ inputs.component-path }}/dist
+      run: |
+        echo "Signing binaries with cosign..."
+        for file in *.tar.gz; do
+          if [ -f "$file" ]; then
+            echo "Signing $file..."
+            # Emit a Sigstore bundle (.sigstore) for programmatic verification by the
+            # auto-updater (sigstore/sigstore-go).  --new-bundle-format is required so
+            # sigstore-go's bundle.LoadJSONFromPath can parse it (the old default format
+            # uses base64Signature which sigstore-go v1.1.4+ does not understand).
+            # The legacy .sig/.cert pair is kept alongside for users who verify manually
+            # with the cosign CLI.
+            cosign sign-blob --yes "$file" \
+              --bundle "${file}.sigstore" \
+              --new-bundle-format \
+              --output-signature "${file}.sig" \
+              --output-certificate "${file}.cert"
+            echo "✓ Signed: $file (bundle: ${file}.sigstore)"
+          fi
+        done
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.component-name }}-binaries
+        path: ${{ inputs.component-path }}/dist/*
+        retention-days: 7
+
+    # Note: Assets are now attached to release in the helm-release job
+    # This ensures atomic release creation with all assets available simultaneously

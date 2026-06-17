@@ -1,0 +1,582 @@
+name: Go Component CI/CD (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      component-name:
+        description: 'Name of the Go component (directory name)'
+        required: true
+        type: string
+      component-path:
+        description: 'Path to the component directory'
+        required: true
+        type: string
+      image-name:
+        description: 'Docker image name (without registry)'
+        required: true
+        type: string
+      run-tests:
+        description: 'Whether to run tests'
+        required: false
+        type: boolean
+        default: true
+      run-lint:
+        description: 'Whether to run linting'
+        required: false
+        type: boolean
+        default: true
+      run-build:
+        description: 'Whether to build the binary'
+        required: false
+        type: boolean
+        default: true
+      run-docker:
+        description: 'Whether to build and scan Docker image'
+        required: false
+        type: boolean
+        default: true
+      docker-push:
+        description: 'Whether to push Docker image (for releases)'
+        required: false
+        type: boolean
+        default: false
+      docker-platforms:
+        description: 'Docker build platforms'
+        required: false
+        type: string
+        default: 'linux/amd64,linux/arm64'
+      parallel-builds:
+        description: 'Build platforms in parallel (faster for multi-arch)'
+        required: false
+        type: boolean
+        default: true
+      image-tag:
+        description: 'Docker image tag'
+        required: false
+        type: string
+        default: 'test'
+    outputs:
+      image-digest:
+        description: 'Docker image digest'
+        value: ${{ jobs.docker-build-push.outputs.digest || jobs.docker-merge-parallel.outputs.digest }}
+      image-tags:
+        description: 'Docker image tags'
+        value: ${{ jobs.docker-build-push.outputs.tags || jobs.docker-merge-parallel.outputs.tags }}
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  test:
+    if: inputs.run-tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./${{ inputs.component-path }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: ${{ inputs.component-path }}/go.sum
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test -v -short -race -coverprofile=coverage.out ./...
+
+    - name: Build binary
+      if: inputs.run-build
+      run: |
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "dev")
+        go build -ldflags "-X main.version=${VERSION} -w -s" -v -o ${{ inputs.component-name }} .
+
+    - name: Run go vet
+      run: go vet ./...
+
+  lint:
+    if: inputs.run-lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./${{ inputs.component-path }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: ${{ inputs.component-path }}/go.sum
+
+    # Cache golangci-lint analysis results
+    - name: Cache golangci-lint
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cache/golangci-lint
+          ~/.cache/go-build
+        key: ${{ runner.os }}-golangci-lint-${{ inputs.component-name }}-${{ hashFiles(format('{0}/go.sum', inputs.component-path)) }}
+        restore-keys: |
+          ${{ runner.os }}-golangci-lint-${{ inputs.component-name }}-
+          ${{ runner.os }}-golangci-lint-
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v9
+      with:
+        version: latest
+        working-directory: ${{ inputs.component-path }}
+
+    - name: Run gosec security scanner
+      uses: securego/gosec@master
+      with:
+        args: '-fmt sarif -out gosec-results.sarif ./...'
+      continue-on-error: true
+
+  docker-build-push:
+    if: inputs.run-docker && (!inputs.parallel-builds || !inputs.docker-push)
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build-and-push.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+    - name: Free Disk Space
+      run: |
+        echo "=== Disk space before cleanup ==="
+        df -h /
+        echo ""
+        echo "Cleaning up Docker resources..."
+        docker system prune -af --volumes 2>/dev/null || true
+        echo ""
+        echo "=== Disk space after cleanup ==="
+        df -h /
+
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    # Cache Grype vulnerability database
+    - name: Cache Grype DB
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/grype
+        key: ${{ runner.os }}-grype-db-${{ hashFiles('.github/workflows/go-component-reusable.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-grype-db-
+
+    # Cache cosign binary
+    - name: Cache cosign
+      if: inputs.docker-push
+      uses: actions/cache@v5
+      with:
+        path: ~/.cosign
+        key: ${{ runner.os }}-cosign-${{ hashFiles('.github/workflows/go-component-reusable.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-cosign-
+
+    - name: Log in to Container Registry
+      if: inputs.docker-push
+      uses: docker/login-action@v4
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata (for push)
+      if: inputs.docker-push
+      id: meta-push
+      uses: docker/metadata-action@v6
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ inputs.image-name }}
+        tags: |
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha
+
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.ref_type }}" = "tag" ]; then
+          VERSION=${GITHUB_REF_NAME#v}
+        else
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "dev")
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Stamp internal module versions for release
+      if: github.ref_type == 'tag'
+      run: |
+        find . -name "go.mod" -not -path "*/vendor/*" | xargs sed -i \
+          -e "s|github.com/bvboe/b2s-go/scanner-core v[^[:space:]]*|github.com/bvboe/b2s-go/scanner-core ${GITHUB_REF_NAME}|" \
+          -e "s|github.com/bvboe/b2s-go/sbom-generator-shared v[^[:space:]]*|github.com/bvboe/b2s-go/sbom-generator-shared ${GITHUB_REF_NAME}|"
+
+    - name: Set image tags
+      id: meta
+      run: |
+        if [ "${{ inputs.docker-push }}" = "true" ]; then
+          {
+            echo "tags<<EOF"
+            echo "${{ steps.meta-push.outputs.tags }}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          {
+            echo "labels<<EOF"
+            echo "${{ steps.meta-push.outputs.labels }}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+        else
+          echo "tags=${{ inputs.image-name }}:${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+          echo "labels=" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build and push Docker image
+      id: build-and-push
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: ./${{ inputs.component-path }}/Dockerfile
+        platforms: ${{ inputs.docker-push && inputs.docker-platforms || 'linux/amd64' }}
+        push: ${{ inputs.docker-push }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          VERSION=${{ steps.version.outputs.version }}
+        # Enhanced caching with fallback chain
+        cache-from: |
+          type=gha,scope=${{ inputs.component-name }}-${{ hashFiles(format('{0}/go.sum', inputs.component-path), 'scanner-core/go.sum') }}
+          type=gha,scope=${{ inputs.component-name }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.component-name }}-${{ hashFiles(format('{0}/go.sum', inputs.component-path), 'scanner-core/go.sum') }}
+        load: ${{ !inputs.docker-push }}
+
+    - name: Scan image with Grype
+      id: scan
+      uses: anchore/scan-action@v7
+      with:
+        image: ${{ inputs.docker-push && format('{0}/{1}/{2}:{3}', env.REGISTRY, github.repository, inputs.image-name, github.ref_name) || format('{0}:{1}', inputs.image-name, inputs.image-tag) }}
+        fail-build: false
+        severity-cutoff: critical
+        only-fixed: true
+        cache-db: true
+
+    - name: Upload Grype results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif }}
+        category: ${{ inputs.component-name }}
+      continue-on-error: true
+
+    - name: Generate SBOM
+      if: inputs.docker-push
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ steps.meta-push.outputs.tags }}
+        format: spdx-json
+        dependency-snapshot: true
+        output-file: ${{ inputs.component-path }}/sbom-${{ inputs.component-name }}.spdx.json
+        artifact-name: sbom-${{ inputs.component-name }}
+
+    - name: Install cosign
+      if: inputs.docker-push
+      uses: sigstore/cosign-installer@v3
+
+    - name: Sign container image
+      if: inputs.docker-push
+      env:
+        DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        TAGS: ${{ steps.meta.outputs.tags }}
+      run: |
+        for tag in ${TAGS}; do
+          cosign sign --yes "${tag}@${DIGEST}"
+        done
+
+    - name: Report Cache Statistics
+      if: always()
+      run: |
+        echo "=== Cache Statistics Report ==="
+        echo "Component: ${{ inputs.component-name }}"
+        echo ""
+        echo "Cache Directories:"
+
+        # Check golangci-lint cache
+        if [ -d ~/.cache/golangci-lint ]; then
+          GOLANGCI_SIZE=$(du -sh ~/.cache/golangci-lint 2>/dev/null | cut -f1 || echo "0")
+          echo "  golangci-lint cache: $GOLANGCI_SIZE"
+        fi
+
+        # Check Grype cache
+        if [ -d ~/.cache/grype ]; then
+          GRYPE_SIZE=$(du -sh ~/.cache/grype 2>/dev/null | cut -f1 || echo "0")
+          echo "  Grype DB cache: $GRYPE_SIZE"
+        fi
+
+        # Check Go build cache
+        if [ -d ~/.cache/go-build ]; then
+          GO_SIZE=$(du -sh ~/.cache/go-build 2>/dev/null | cut -f1 || echo "0")
+          echo "  Go build cache: $GO_SIZE"
+        fi
+
+        # Check cosign cache
+        if [ -d ~/.cosign ]; then
+          COSIGN_SIZE=$(du -sh ~/.cosign 2>/dev/null | cut -f1 || echo "0")
+          echo "  cosign cache: $COSIGN_SIZE"
+        fi
+
+        echo ""
+        echo "Docker cache info:"
+        docker system df 2>/dev/null || echo "  Docker info unavailable"
+
+  # Parallel platform builds (faster for multi-arch releases)
+  docker-prep-parallel:
+    if: inputs.run-docker && inputs.parallel-builds && inputs.docker-push
+    runs-on: ubuntu-latest
+    outputs:
+      platforms-json: ${{ steps.platforms.outputs.json }}
+      version: ${{ steps.version.outputs.version }}
+      tags: ${{ steps.meta.outputs.tags }}
+      labels: ${{ steps.meta.outputs.labels }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+    
+    - name: Convert platforms to JSON array
+      id: platforms
+      run: |
+        PLATFORMS='${{ inputs.docker-platforms }}'
+        JSON_ARRAY=$(echo "$PLATFORMS" | jq -Rc 'split(",") | map(gsub(" "; ""))')
+        echo "json=$JSON_ARRAY" >> $GITHUB_OUTPUT
+    
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.ref_type }}" = "tag" ]; then
+          VERSION=${GITHUB_REF_NAME#v}
+        else
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "dev")
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v6
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ inputs.image-name }}
+        tags: |
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha
+
+  docker-build-parallel:
+    if: inputs.run-docker && inputs.parallel-builds && inputs.docker-push
+    needs: docker-prep-parallel
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: ${{ fromJSON(needs.docker-prep-parallel.outputs.platforms-json) }}
+
+    steps:
+    - name: Free Disk Space
+      run: |
+        echo "=== Disk space before cleanup ==="
+        df -h /
+        echo ""
+        echo "Cleaning up Docker resources..."
+        docker system prune -af --volumes 2>/dev/null || true
+        echo ""
+        echo "=== Disk space after cleanup ==="
+        df -h /
+
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Stamp internal module versions for release
+      if: github.ref_type == 'tag'
+      run: |
+        find . -name "go.mod" -not -path "*/vendor/*" | xargs sed -i \
+          -e "s|github.com/bvboe/b2s-go/scanner-core v[^[:space:]]*|github.com/bvboe/b2s-go/scanner-core ${GITHUB_REF_NAME}|" \
+          -e "s|github.com/bvboe/b2s-go/sbom-generator-shared v[^[:space:]]*|github.com/bvboe/b2s-go/sbom-generator-shared ${GITHUB_REF_NAME}|"
+
+    - name: Prepare platform tag
+      id: platform-tag
+      run: |
+        PLATFORM_PAIR=$(echo "${{ matrix.platform }}" | tr '/' '-')
+        echo "tag=${PLATFORM_PAIR}" >> $GITHUB_OUTPUT
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    # Cache for parallel builds
+    - name: Cache Docker layers
+      uses: actions/cache@v5
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ inputs.component-name }}-${{ matrix.platform }}-${{ hashFiles(format('{0}/go.sum', inputs.component-path)) }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-${{ inputs.component-name }}-${{ matrix.platform }}-
+          ${{ runner.os }}-buildx-${{ inputs.component-name }}-
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v4
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push platform-specific image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: ./${{ inputs.component-path }}/Dockerfile
+        platforms: ${{ matrix.platform }}
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ inputs.image-name }}:${{ needs.docker-prep-parallel.outputs.version }}-${{ steps.platform-tag.outputs.tag }}
+        labels: ${{ needs.docker-prep-parallel.outputs.labels }}
+        build-args: |
+          VERSION=${{ needs.docker-prep-parallel.outputs.version }}
+        # Per-platform caching
+        cache-from: |
+          type=gha,scope=${{ inputs.component-name }}-${{ steps.platform-tag.outputs.tag }}-${{ hashFiles(format('{0}/go.sum', inputs.component-path), 'scanner-core/go.sum') }}
+          type=gha,scope=${{ inputs.component-name }}-${{ steps.platform-tag.outputs.tag }}
+          type=gha,scope=${{ inputs.component-name }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.component-name }}-${{ steps.platform-tag.outputs.tag }}-${{ hashFiles(format('{0}/go.sum', inputs.component-path), 'scanner-core/go.sum') }}
+        provenance: false
+
+  docker-merge-parallel:
+    if: inputs.run-docker && inputs.parallel-builds && inputs.docker-push
+    needs: [docker-prep-parallel, docker-build-parallel]
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.merge.outputs.digest }}
+      tags: ${{ needs.docker-prep-parallel.outputs.tags }}
+
+    steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    # Cache Grype vulnerability database
+    - name: Cache Grype DB
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/grype
+        key: ${{ runner.os }}-grype-db-${{ hashFiles('.github/workflows/go-component-reusable.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-grype-db-
+
+    # Cache cosign binary
+    - name: Cache cosign
+      uses: actions/cache@v5
+      with:
+        path: ~/.cosign
+        key: ${{ runner.os }}-cosign-${{ hashFiles('.github/workflows/go-component-reusable.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-cosign-
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v4
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Merge multi-arch manifest
+      id: merge
+      run: |
+        VERSION="${{ needs.docker-prep-parallel.outputs.version }}"
+        BASE_IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/${{ inputs.image-name }}"
+        
+        # Build list of platform-specific images
+        PLATFORMS='${{ inputs.docker-platforms }}'
+        SOURCE_IMAGES=""
+        for PLATFORM in ${PLATFORMS//,/ }; do
+          PLATFORM_TAG=$(echo "$PLATFORM" | tr '/' '-')
+          SOURCE_IMAGES="$SOURCE_IMAGES ${BASE_IMAGE}:${VERSION}-${PLATFORM_TAG}"
+        done
+        
+        # Read all tags from metadata
+        TAGS="${{ needs.docker-prep-parallel.outputs.tags }}"
+        
+        # Create manifest for each tag
+        for TAG in $TAGS; do
+          docker buildx imagetools create --tag "$TAG" $SOURCE_IMAGES
+        done
+        
+        # Get digest from primary tag
+        DIGEST=$(docker buildx imagetools inspect "${BASE_IMAGE}:${VERSION}" --format '{{json .}}' | jq -r '.manifest.digest')
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+    - name: Checkout code (for SARIF upload)
+      uses: actions/checkout@v6
+
+    - name: Scan merged image with Grype
+      id: scan
+      uses: anchore/scan-action@v7
+      with:
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ inputs.image-name }}:${{ needs.docker-prep-parallel.outputs.version }}
+        fail-build: false
+        severity-cutoff: critical
+        only-fixed: true
+        cache-db: true
+
+    - name: Upload Grype results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif }}
+        category: ${{ inputs.component-name }}
+      continue-on-error: true
+    
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ inputs.image-name }}:${{ needs.docker-prep-parallel.outputs.version }}
+        format: spdx-json
+        dependency-snapshot: true
+        output-file: ${{ inputs.component-path }}/sbom-${{ inputs.component-name }}.spdx.json
+        artifact-name: sbom-${{ inputs.component-name }}
+    
+    - name: Install cosign
+      uses: sigstore/cosign-installer@v3
+    
+    - name: Sign container image
+      env:
+        DIGEST: ${{ steps.merge.outputs.digest }}
+        TAGS: ${{ needs.docker-prep-parallel.outputs.tags }}
+      run: |
+        for tag in ${TAGS}; do
+          cosign sign --yes "${tag}@${DIGEST}"
+        done
+
+    - name: Report Cache Statistics
+      if: always()
+      run: |
+        echo "=== Cache Statistics Report (Parallel Build) ==="
+        echo "Component: ${{ inputs.component-name }}"
+        echo ""
+        echo "Cache Directories:"
+
+        # Check Grype cache
+        if [ -d ~/.cache/grype ]; then
+          GRYPE_SIZE=$(du -sh ~/.cache/grype 2>/dev/null | cut -f1 || echo "0")
+          echo "  Grype DB cache: $GRYPE_SIZE"
+        fi
+
+        # Check cosign cache
+        if [ -d ~/.cosign ]; then
+          COSIGN_SIZE=$(du -sh ~/.cosign 2>/dev/null | cut -f1 || echo "0")
+          echo "  cosign cache: $COSIGN_SIZE"
+        fi
+
+        echo ""
+        echo "Docker cache info:"
+        docker system df 2>/dev/null || echo "  Docker info unavailable"

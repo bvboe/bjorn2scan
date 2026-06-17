@@ -1,0 +1,465 @@
+#!/bin/bash
+# Integration test for K8s Update Controller
+# Tests the complete auto-update workflow in a kind cluster
+
+set -euo pipefail
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Configuration
+CLUSTER_NAME="${CLUSTER_NAME:-bjorn2scan-test}"
+NAMESPACE="${NAMESPACE:-bjorn2scan-test}"
+TEST_VERSION_OLD="${TEST_VERSION_OLD:-0.1.34}"
+TEST_VERSION_NEW="${TEST_VERSION_NEW:-0.1.35}"
+TIMEOUT="${TIMEOUT:-600}" # 10 minutes
+
+# Counters
+TESTS_RUN=0
+TESTS_PASSED=0
+TESTS_FAILED=0
+
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+assert_equals() {
+    local expected="$1"
+    local actual="$2"
+    local message="$3"
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+
+    if [ "$expected" = "$actual" ]; then
+        log_info "✓ PASS: $message"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        return 0
+    else
+        log_error "✗ FAIL: $message"
+        log_error "  Expected: $expected"
+        log_error "  Actual:   $actual"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        return 1
+    fi
+}
+
+assert_not_empty() {
+    local value="$1"
+    local message="$2"
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+
+    if [ -n "$value" ]; then
+        log_info "✓ PASS: $message"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        return 0
+    else
+        log_error "✗ FAIL: $message (value is empty)"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        return 1
+    fi
+}
+
+assert_command_success() {
+    local command="$1"
+    local message="$2"
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+
+    if eval "$command" &>/dev/null; then
+        log_info "✓ PASS: $message"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        return 0
+    else
+        log_error "✗ FAIL: $message"
+        log_error "  Command failed: $command"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        return 1
+    fi
+}
+
+cleanup() {
+    log_info "Cleaning up test environment..."
+
+    # Kill any background processes (port-forward, etc.)
+    jobs -p | xargs -r kill 2>/dev/null || true
+
+    # Delete Helm release
+    helm uninstall bjorn2scan -n "$NAMESPACE" 2>/dev/null || true
+
+    # Delete namespace (suppress errors as cluster may be going down)
+    kubectl delete namespace "$NAMESPACE" --ignore-not-found=true --wait=false 2>/dev/null || true
+
+    # Delete kind cluster
+    if command -v kind &>/dev/null; then
+        kind delete cluster --name "$CLUSTER_NAME" 2>/dev/null || true
+    fi
+}
+
+setup_kind_cluster() {
+    log_info "Setting up kind cluster: $CLUSTER_NAME"
+
+    # Check if kind is installed
+    if ! command -v kind &>/dev/null; then
+        log_error "kind is not installed. Please install kind first."
+        exit 1
+    fi
+
+    # Delete existing cluster if it exists
+    kind delete cluster --name "$CLUSTER_NAME" 2>/dev/null || true
+
+    # Create new cluster
+    cat <<EOF | kind create cluster --name "$CLUSTER_NAME" --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+- role: worker
+EOF
+
+    # Wait for cluster to be ready
+    kubectl wait --for=condition=Ready nodes --all --timeout=300s
+
+    assert_command_success "kubectl cluster-info" "Kind cluster is accessible"
+}
+
+build_test_images() {
+    log_info "Building test images..."
+
+    # Build images with test tags
+    cd "$(dirname "$0")/.."
+
+    log_info "Building k8s-scan-server..."
+    make -C k8s-scan-server docker-build IMAGE_TAG="$TEST_VERSION_OLD"
+
+    log_info "Building pod-scanner..."
+    make -C pod-scanner docker-build IMAGE_TAG="$TEST_VERSION_OLD"
+
+    log_info "Building k8s-update-controller..."
+    make -C k8s-update-controller docker-build IMAGE_TAG="$TEST_VERSION_OLD"
+
+    # Load images into kind
+    log_info "Loading images into kind cluster..."
+    kind load docker-image "k8s-scan-server:$TEST_VERSION_OLD" --name "$CLUSTER_NAME"
+    kind load docker-image "pod-scanner:$TEST_VERSION_OLD" --name "$CLUSTER_NAME"
+    kind load docker-image "k8s-update-controller:$TEST_VERSION_OLD" --name "$CLUSTER_NAME"
+
+    # Verify all images are present
+    assert_command_success "docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^k8s-scan-server:$TEST_VERSION_OLD$'" "k8s-scan-server image built"
+    assert_command_success "docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^pod-scanner:$TEST_VERSION_OLD$'" "pod-scanner image built"
+    assert_command_success "docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^k8s-update-controller:$TEST_VERSION_OLD$'" "k8s-update-controller image built"
+}
+
+install_bjorn2scan() {
+    log_info "Installing bjorn2scan version $TEST_VERSION_OLD..."
+
+    # Create namespace
+    kubectl create namespace "$NAMESPACE"
+
+    # Create values file for test installation
+    cat > /tmp/test-values.yaml <<EOF
+scanServer:
+  image:
+    repository: k8s-scan-server
+    tag: "$TEST_VERSION_OLD"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+
+podScanner:
+  image:
+    repository: pod-scanner
+    tag: "$TEST_VERSION_OLD"
+    pullPolicy: IfNotPresent
+
+updateController:
+  enabled: true
+  image:
+    repository: k8s-update-controller
+    tag: "$TEST_VERSION_OLD"
+    pullPolicy: IfNotPresent
+  schedule: "*/2 * * * *"  # Every 2 minutes for testing
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  config:
+    autoUpdateMinor: true
+    autoUpdateMajor: false
+    rollbackEnabled: true
+    autoRollback: true
+    healthCheckDelay: 1m
+    verificationEnabled: false  # Disable for testing
+EOF
+
+    # Install using Helm (without --wait to avoid CronJob pod issues)
+    helm install bjorn2scan ./helm/bjorn2scan \
+        -n "$NAMESPACE" \
+        -f /tmp/test-values.yaml
+
+    # Wait for main pods to be ready (exclude CronJob pods)
+    kubectl wait --for=condition=ready pod \
+        -l app.kubernetes.io/name=bjorn2scan \
+        -l '!job-name' \
+        -n "$NAMESPACE" \
+        --timeout=300s
+
+    assert_command_success "helm list -n $NAMESPACE | grep -q deployed" "Bjorn2scan installed successfully"
+}
+
+verify_installation() {
+    log_info "Verifying installation..."
+
+    # Check CronJob exists
+    local cronjob_exists=$(kubectl get cronjob bjorn2scan-update-controller -n "$NAMESPACE" -o name 2>/dev/null || echo "")
+    assert_not_empty "$cronjob_exists" "Update controller CronJob exists"
+
+    # Check ConfigMap exists
+    local configmap_exists=$(kubectl get configmap bjorn2scan-update-config -n "$NAMESPACE" -o name 2>/dev/null || echo "")
+    assert_not_empty "$configmap_exists" "Update controller ConfigMap exists"
+
+    # Check CronJob schedule
+    local schedule=$(kubectl get cronjob bjorn2scan-update-controller -n "$NAMESPACE" -o jsonpath='{.spec.schedule}')
+    assert_equals "*/2 * * * *" "$schedule" "CronJob has correct schedule"
+
+    # Check CronJob is not suspended (empty or false both mean not suspended)
+    local suspended=$(kubectl get cronjob bjorn2scan-update-controller -n "$NAMESPACE" -o jsonpath='{.spec.suspend}')
+    if [ "$suspended" != "true" ]; then
+        log_info "✓ PASS: CronJob is not suspended"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    else
+        log_error "✗ FAIL: CronJob is suspended"
+        log_error "  Expected: not suspended (empty or false)"
+        log_error "  Actual:   $suspended"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+    fi
+    TESTS_RUN=$((TESTS_RUN + 1))
+
+    # Check current version
+    local current_version=$(helm list -n "$NAMESPACE" -o json | jq -r '.[0].chart' | sed 's/bjorn2scan-//')
+    log_info "Current chart version: $current_version"
+}
+
+test_manual_trigger() {
+    log_info "Testing manual update trigger..."
+
+    # Trigger update check manually
+    kubectl create job --from=cronjob/bjorn2scan-update-controller \
+        "manual-test-$(date +%s)" \
+        -n "$NAMESPACE"
+
+    # Wait for job to complete
+    sleep 10
+
+    # Check job status
+    local job_name=$(kubectl get jobs -n "$NAMESPACE" -l app.kubernetes.io/component=update-controller --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+    assert_not_empty "$job_name" "Update job was created"
+
+    # Wait for job completion (with timeout)
+    local waited=0
+    while [ $waited -lt 120 ]; do
+        local status=$(kubectl get job "$job_name" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || echo "")
+        local failed=$(kubectl get job "$job_name" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo "")
+        if [ "$status" = "True" ] || [ "$failed" = "True" ]; then
+            break
+        fi
+        sleep 5
+        waited=$((waited + 5))
+    done
+
+    # View job logs for debugging (before assertion)
+    log_info "Update job logs:"
+    kubectl logs -l job-name="$job_name" -n "$NAMESPACE" --tail=100 || true
+
+    # Show job status for debugging
+    log_info "Job status:"
+    kubectl get job "$job_name" -n "$NAMESPACE" -o yaml | grep -A 20 "^status:" || true
+
+    assert_command_success "kubectl get job $job_name -n $NAMESPACE -o jsonpath='{.status.succeeded}' | grep -q 1" "Update job completed successfully"
+}
+
+test_pause_resume() {
+    log_info "Testing pause and resume functionality..."
+
+    # Pause auto-updates
+    kubectl patch cronjob bjorn2scan-update-controller \
+        -p '{"spec":{"suspend":true}}' \
+        -n "$NAMESPACE"
+
+    local suspended=$(kubectl get cronjob bjorn2scan-update-controller -n "$NAMESPACE" -o jsonpath='{.spec.suspend}')
+    assert_equals "true" "$suspended" "CronJob is suspended after pause"
+
+    # Resume auto-updates
+    kubectl patch cronjob bjorn2scan-update-controller \
+        -p '{"spec":{"suspend":false}}' \
+        -n "$NAMESPACE"
+
+    suspended=$(kubectl get cronjob bjorn2scan-update-controller -n "$NAMESPACE" -o jsonpath='{.spec.suspend}')
+    assert_equals "false" "$suspended" "CronJob is active after resume"
+}
+
+test_version_constraints() {
+    log_info "Testing version constraints..."
+
+    # Update ConfigMap to block all updates
+    kubectl patch configmap bjorn2scan-update-config -n "$NAMESPACE" \
+        --type merge \
+        -p '{"data":{"autoUpdateMinor":"false","autoUpdateMajor":"false"}}'
+
+    # Trigger update check
+    kubectl create job --from=cronjob/bjorn2scan-update-controller \
+        "constraint-test-$(date +%s)" \
+        -n "$NAMESPACE"
+
+    sleep 15
+
+    # Verify version hasn't changed
+    local current_version=$(helm list -n "$NAMESPACE" -o json | jq -r '.[0].chart' | sed 's/bjorn2scan-//')
+    log_info "Version after constraint test: $current_version"
+
+    # Restore settings
+    kubectl patch configmap bjorn2scan-update-config -n "$NAMESPACE" \
+        --type merge \
+        -p '{"data":{"autoUpdateMinor":"true","autoUpdateMajor":"false"}}'
+}
+
+test_version_pinning() {
+    log_info "Testing version pinning..."
+
+    # Pin to current version
+    kubectl patch configmap bjorn2scan-update-config -n "$NAMESPACE" \
+        --type merge \
+        -p "{\"data\":{\"pinnedVersion\":\"$TEST_VERSION_OLD\"}}"
+
+    # Trigger update check
+    kubectl create job --from=cronjob/bjorn2scan-update-controller \
+        "pinned-test-$(date +%s)" \
+        -n "$NAMESPACE"
+
+    sleep 15
+
+    # Verify version is still pinned
+    local current_version=$(helm list -n "$NAMESPACE" -o json | jq -r '.[0].chart' | sed 's/bjorn2scan-//')
+    log_info "Version after pinning test: $current_version"
+
+    # Remove pin
+    kubectl patch configmap bjorn2scan-update-config -n "$NAMESPACE" \
+        --type merge \
+        -p '{"data":{"pinnedVersion":""}}'
+}
+
+test_health_check() {
+    log_info "Testing health check endpoints..."
+
+    # Port forward to scan server (service exposes port 80, not 8080)
+    kubectl port-forward -n "$NAMESPACE" svc/bjorn2scan 18080:80 &
+    local pf_pid=$!
+    sleep 5
+
+    # Test health endpoint
+    assert_command_success "curl -sf http://localhost:18080/health" "Scan server health endpoint is accessible"
+
+    # Test info endpoint
+    assert_command_success "curl -sf http://localhost:18080/info" "Scan server info endpoint is accessible"
+
+    # Cleanup port forward
+    kill $pf_pid 2>/dev/null || true
+}
+
+test_job_history() {
+    log_info "Testing job history..."
+
+    # Get all update jobs
+    local job_count=$(kubectl get jobs -n "$NAMESPACE" -l app.kubernetes.io/component=update-controller -o name | wc -l)
+    log_info "Found $job_count update jobs"
+
+    assert_command_success "[ $job_count -gt 0 ]" "At least one update job exists"
+
+    # Check job history limit
+    local history_limit=$(kubectl get cronjob bjorn2scan-update-controller -n "$NAMESPACE" -o jsonpath='{.spec.successfulJobsHistoryLimit}')
+    assert_equals "5" "$history_limit" "Job history limit is configured correctly"
+}
+
+test_rollback_protection() {
+    log_info "Testing rollback protection configuration..."
+
+    # Check rollback settings in ConfigMap (extract from YAML config)
+    local config_yaml=$(kubectl get configmap bjorn2scan-update-config -n "$NAMESPACE" -o jsonpath='{.data.config\.yaml}')
+
+    # Use awk to extract rollback section more precisely
+    local rollback_enabled=$(echo "$config_yaml" | awk '/^rollback:/{flag=1; next} /^[a-z]/ && flag{flag=0} flag && /^  enabled:/{print $2; exit}')
+    assert_equals "true" "$rollback_enabled" "Rollback protection is enabled"
+
+    local auto_rollback=$(echo "$config_yaml" | awk '/^rollback:/{flag=1; next} /^[a-z]/ && flag{flag=0} flag && /^  autoRollback:/{print $2; exit}')
+    assert_equals "true" "$auto_rollback" "Auto-rollback is enabled"
+}
+
+print_summary() {
+    echo ""
+    echo "========================================"
+    echo "Integration Test Summary"
+    echo "========================================"
+    echo "Total Tests:  $TESTS_RUN"
+    echo -e "${GREEN}Passed:       $TESTS_PASSED${NC}"
+    echo -e "${RED}Failed:       $TESTS_FAILED${NC}"
+    echo "========================================"
+
+    if [ $TESTS_FAILED -eq 0 ]; then
+        echo -e "${GREEN}✓ All tests passed!${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ Some tests failed!${NC}"
+        return 1
+    fi
+}
+
+main() {
+    log_info "Starting K8s Update Controller Integration Tests"
+    log_info "Cluster: $CLUSTER_NAME"
+    log_info "Namespace: $NAMESPACE"
+    log_info "Test Version: $TEST_VERSION_OLD"
+    echo ""
+
+    # Setup
+    setup_kind_cluster
+    build_test_images
+    install_bjorn2scan
+
+    # Run tests
+    verify_installation
+    test_health_check
+    test_manual_trigger
+    test_pause_resume
+    test_version_constraints
+    test_version_pinning
+    test_job_history
+    test_rollback_protection
+
+    # Print results
+    print_summary
+    local exit_code=$?
+
+    # Cleanup (optional)
+    if [ "${CLEANUP:-true}" = "true" ]; then
+        cleanup
+    else
+        log_warn "Skipping cleanup (CLEANUP=false)"
+        log_info "To cleanup manually: kind delete cluster --name $CLUSTER_NAME"
+    fi
+
+    exit $exit_code
+}
+
+# Handle interrupts (cleanup on Ctrl+C or kill, but not normal exit since main() handles it)
+trap cleanup INT TERM
+
+# Run main
+main "$@"

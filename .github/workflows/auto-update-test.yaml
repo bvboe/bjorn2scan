@@ -1,0 +1,154 @@
+name: Auto-Update Integration Tests
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+  # Run on pushes to main that touch auto-update code
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'k8s-update-controller/**'
+      - 'bjorn2scan-agent/updater/**'
+      - 'scripts/test-k8s-update-controller'
+      - 'scripts/test-agent-updater'
+      - 'helm/bjorn2scan/templates/update-controller-*'
+
+  # Run on PRs that touch auto-update code
+  pull_request:
+    paths:
+      - 'k8s-update-controller/**'
+      - 'bjorn2scan-agent/updater/**'
+      - 'scripts/test-k8s-update-controller'
+      - 'scripts/test-agent-updater'
+      - 'helm/bjorn2scan/templates/update-controller-*'
+
+concurrency:
+  group: auto-update-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-k8s-update-controller:
+    name: Test K8s Update Controller
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: |
+          k8s-scan-server/go.sum
+          pod-scanner/go.sum
+          k8s-update-controller/go.sum
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Install Helm
+      uses: azure/setup-helm@v5
+      with:
+        version: 'latest'
+
+    - name: Install kind
+      run: |
+        curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/kind
+
+    - name: Install jq
+      run: sudo apt-get update && sudo apt-get install -y jq
+
+    - name: Run K8s Update Controller Integration Tests
+      env:
+        CLUSTER_NAME: bjorn2scan-auto-update-test
+        NAMESPACE: bjorn2scan-test
+        TEST_VERSION_OLD: "0.1.34"
+        TEST_VERSION_NEW: "0.1.999"
+        CLEANUP: "true"
+      run: |
+        chmod +x scripts/test-k8s-update-controller
+        ./scripts/test-k8s-update-controller
+
+    - name: Upload test logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: k8s-update-controller-logs
+        path: |
+          /tmp/bjorn2scan-update-test-*
+        retention-days: 7
+
+  test-agent-updater:
+    name: Test Agent Auto-Updater
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: |
+          bjorn2scan-agent/go.sum
+          scanner-core/go.sum
+
+    - name: Install dependencies
+      run: |
+        # Install jq for JSON parsing
+        sudo apt-get update && sudo apt-get install -y jq
+
+        # Install systemd (already present on ubuntu-latest)
+        echo "systemd version:"
+        systemctl --version
+
+    - name: Run Agent Auto-Updater Integration Tests
+      env:
+        TEST_VERSION_OLD: "0.1.34"
+        TEST_VERSION_NEW: "0.1.999"
+        TEST_PORT: "19999"
+        TEST_DIR: "/tmp/bjorn2scan-agent-test"
+        CLEANUP: "true"
+      run: |
+        chmod +x scripts/test-agent-updater
+        ./scripts/test-agent-updater
+
+    - name: Upload test logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: agent-updater-logs
+        path: |
+          /tmp/bjorn2scan-agent-test-*
+        retention-days: 7
+
+  summary:
+    name: Test Summary
+    needs: [test-k8s-update-controller, test-agent-updater]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Check test results
+      run: |
+        echo "=== Auto-Update Integration Test Results ==="
+        echo "K8s Update Controller: ${{ needs.test-k8s-update-controller.result }}"
+        echo "Agent Auto-Updater: ${{ needs.test-agent-updater.result }}"
+        echo ""
+
+        if [ "${{ needs.test-k8s-update-controller.result }}" != "success" ] || \
+           [ "${{ needs.test-agent-updater.result }}" != "success" ]; then
+          echo "❌ Some auto-update tests failed!"
+          exit 1
+        fi
+
+        echo "✅ All auto-update tests passed!"

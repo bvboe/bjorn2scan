@@ -1,0 +1,396 @@
+#!/usr/bin/env bash
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Helper functions
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1" >&2
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1" >&2
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1" >&2
+}
+
+# Usage
+usage() {
+    cat << EOF
+Usage: $0 <version>
+
+Completely rollback a release by deleting all associated artifacts.
+
+Arguments:
+  version         Version number to rollback (e.g., 0.1.4, 1.0.0)
+                  DO NOT include 'v' prefix - it will be added automatically
+
+Examples:
+  $0 0.1.4              # Rollback v0.1.4 release
+  $0 1.0.0              # Rollback v1.0.0 release
+
+This script will delete:
+  1. GitHub Release (if exists)
+  2. Git tag (local and remote)
+  3. Container image: k8s-scan-server
+  4. Container image: pod-scanner
+  5. Helm chart: bjorn2scan
+
+⚠️  WARNING: This operation is IRREVERSIBLE!
+⚠️  Published artifacts cannot be recovered once deleted!
+
+EOF
+    exit 1
+}
+
+# Check if gh CLI is installed and authenticated
+check_gh_cli() {
+    if ! command -v gh &> /dev/null; then
+        log_error "GitHub CLI (gh) is required but not installed"
+        log_info "Install with: brew install gh"
+        exit 1
+    fi
+
+    # Check if authenticated
+    if ! gh auth status &>/dev/null; then
+        log_error "GitHub CLI is not authenticated"
+        log_info "Run: gh auth login"
+        exit 1
+    fi
+
+    # Check if we have package permissions by testing a simple API call
+    log_info "Checking GitHub CLI permissions..."
+    local test_result=$(gh api /user/packages 2>&1 || echo "FAILED")
+
+    if [[ "$test_result" == *"read:packages"* ]] || [[ "$test_result" == *"FAILED"* ]]; then
+        log_warning "GitHub CLI doesn't have required package permissions"
+        log_warning "Package deletion will be SKIPPED"
+        echo "" >&2
+        log_info "To enable package deletion, re-authenticate with package scopes:"
+        log_info "  gh auth refresh -h github.com -s read:packages -s write:packages -s delete:packages"
+        echo "" >&2
+        SKIP_PACKAGES=true
+    else
+        log_success "GitHub CLI is properly authenticated"
+        SKIP_PACKAGES=false
+    fi
+}
+
+# Validate version format
+validate_version() {
+    local version=$1
+
+    # Check if version is empty
+    if [ -z "$version" ]; then
+        log_error "Version cannot be empty"
+        exit 1
+    fi
+
+    # Check if version starts with 'v'
+    if [[ $version =~ ^v+ ]]; then
+        log_error "Version MUST NOT include 'v' prefix: $version"
+        log_info "❌ WRONG: $0 $version"
+        log_info "✅ CORRECT: $0 ${version#v}"
+        exit 1
+    fi
+
+    # Check if version follows semver format
+    if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+        log_error "Invalid version format: $version"
+        log_info "Expected format: X.Y.Z or X.Y.Z-suffix"
+        exit 1
+    fi
+}
+
+# Check what exists for this version
+check_what_exists() {
+    local version=$1
+    local tag="v$version"
+    local found_anything=false
+
+    echo ""
+    echo "======================================"
+    log_info "Checking what exists for $tag..."
+    echo "======================================"
+    echo ""
+
+    # Check GitHub Release
+    if gh release view "$tag" &>/dev/null; then
+        log_warning "GitHub Release: EXISTS"
+        found_anything=true
+    else
+        log_info "GitHub Release: not found"
+    fi
+
+    # Check local tag
+    if git rev-parse "$tag" &>/dev/null; then
+        log_warning "Local git tag: EXISTS"
+        found_anything=true
+    else
+        log_info "Local git tag: not found"
+    fi
+
+    # Check remote tag
+    if git ls-remote --tags origin | grep -q "refs/tags/$tag"; then
+        log_warning "Remote git tag: EXISTS"
+        found_anything=true
+    else
+        log_info "Remote git tag: not found"
+    fi
+
+    # Check container images and Helm chart
+    if [ "$SKIP_PACKAGES" = true ]; then
+        log_warning "Skipping package check (no permissions)"
+    else
+        local packages=("k8s-scan-server" "pod-scanner" "bjorn2scan")
+        for package in "${packages[@]}"; do
+            local api_response=$(gh api "/user/packages/container/b2s-go%2F${package}/versions" 2>&1)
+
+            # Check if API call failed
+            if [[ "$api_response" == *"message"* ]] || [[ "$api_response" == *"error"* ]]; then
+                log_warning "Failed to check package '$package': API error (will skip)"
+                continue
+            fi
+
+            local version_id=$(echo "$api_response" | jq -r ".[] | select(.metadata.container.tags[]? | contains(\"$version\")) | .id" 2>/dev/null || echo "")
+
+            if [ -n "$version_id" ] && [ "$version_id" != "null" ]; then
+                log_warning "Container/Chart '$package': EXISTS (version ID: $version_id)"
+                found_anything=true
+            else
+                log_info "Container/Chart '$package': not found"
+            fi
+        done
+    fi
+
+    echo ""
+
+    if [ "$found_anything" = false ]; then
+        log_error "No artifacts found for version $version"
+        log_info "Nothing to rollback"
+        exit 1
+    fi
+}
+
+
+# Delete all artifacts
+delete_all_artifacts() {
+    local version=$1
+
+    echo ""
+    echo "======================================"
+    log_info "Deleting all artifacts for v$version..."
+    echo "======================================"
+    echo ""
+
+    # Track what succeeded and failed
+    local deleted=()
+    local failed_items=()
+    local skipped_items=()
+
+    # Delete GitHub release first
+    log_info "Deleting GitHub release v$version..."
+    if gh release view "v$version" &>/dev/null; then
+        if gh release delete "v$version" --yes; then
+            log_success "GitHub release deleted"
+            deleted+=("GitHub release v$version")
+        else
+            log_error "Failed to delete GitHub release"
+            failed_items+=("GitHub release v$version")
+        fi
+    else
+        log_info "GitHub release not found (already deleted or never created)"
+    fi
+
+    # Delete local tag
+    log_info "Deleting local git tag v$version..."
+    if git rev-parse "v$version" &>/dev/null; then
+        if git tag -d "v$version"; then
+            log_success "Local tag deleted"
+            deleted+=("Local git tag v$version")
+        else
+            log_error "Failed to delete local tag"
+            failed_items+=("Local git tag v$version")
+        fi
+    else
+        log_info "Local tag not found (already deleted)"
+    fi
+
+    # Delete remote tag
+    log_info "Deleting remote git tag v$version..."
+    if git ls-remote --tags origin | grep -q "refs/tags/v$version"; then
+        if git push origin ":refs/tags/v$version"; then
+            log_success "Remote tag deleted"
+            deleted+=("Remote git tag v$version")
+        else
+            log_error "Failed to delete remote tag"
+            failed_items+=("Remote git tag v$version")
+        fi
+    else
+        log_info "Remote tag not found (already deleted)"
+    fi
+
+    # Delete container images and Helm chart
+    local packages=("k8s-scan-server" "pod-scanner" "bjorn2scan")
+    for package in "${packages[@]}"; do
+        log_info "Deleting package '$package' version $version..."
+
+        # Skip if no permissions
+        if [ "$SKIP_PACKAGES" = true ]; then
+            log_warning "Skipped (no package permissions)"
+            skipped_items+=("Package $package:$version")
+            continue
+        fi
+
+        # Find version ID
+        local api_response=$(gh api "/user/packages/container/b2s-go%2F${package}/versions" 2>&1)
+
+        # Check if API call failed
+        if [[ "$api_response" == *"message"* ]] || [[ "$api_response" == *"error"* ]]; then
+            log_warning "Failed to get package '$package' versions: API error (skipped)"
+            skipped_items+=("Package $package:$version (API error)")
+            continue
+        fi
+
+        local version_id=$(echo "$api_response" | jq -r ".[] | select(.metadata.container.tags[]? | contains(\"$version\")) | .id" 2>/dev/null || echo "")
+
+        if [ -z "$version_id" ] || [ "$version_id" = "null" ]; then
+            log_info "Package '$package' version $version not found (already deleted or never published)"
+            continue
+        fi
+
+        # Delete the version
+        local delete_result=$(gh api -X DELETE "/user/packages/container/b2s-go%2F${package}/versions/$version_id" 2>&1)
+
+        if [ $? -eq 0 ]; then
+            log_success "Package '$package' version deleted"
+            deleted+=("Package $package:$version")
+        else
+            log_warning "Failed to delete package '$package' (skipped)"
+            skipped_items+=("Package $package:$version (delete failed)")
+        fi
+    done
+
+    # Print summary
+    echo ""
+    echo "======================================"
+    log_info "Deletion Summary"
+    echo "======================================"
+
+    if [ ${#deleted[@]} -gt 0 ]; then
+        echo ""
+        log_success "Successfully deleted (${#deleted[@]}):"
+        for item in "${deleted[@]}"; do
+            echo "  ✓ $item"
+        done
+    fi
+
+    if [ ${#skipped_items[@]} -gt 0 ]; then
+        echo ""
+        log_warning "Skipped (${#skipped_items[@]}):"
+        for item in "${skipped_items[@]}"; do
+            echo "  ⊘ $item"
+        done
+    fi
+
+    if [ ${#failed_items[@]} -gt 0 ]; then
+        echo ""
+        log_error "Failed (${#failed_items[@]}):"
+        for item in "${failed_items[@]}"; do
+            echo "  ✗ $item"
+        done
+    fi
+
+    echo ""
+
+    if [ "$SKIP_PACKAGES" = true ]; then
+        log_info "Manual cleanup needed for packages: https://github.com/bvboe?tab=packages"
+    fi
+
+    if [ ${#failed_items[@]} -gt 0 ]; then
+        return 1
+    fi
+
+    return 0
+}
+
+# Main script
+main() {
+    # Check requirements
+    check_gh_cli
+
+    # Check arguments
+    if [ $# -lt 1 ]; then
+        usage
+    fi
+
+    local version=$1
+
+    echo "======================================"
+    echo "bjorn2scan v2 Release Rollback"
+    echo "======================================"
+    echo ""
+
+    # Validate version
+    validate_version "$version"
+
+    # Check what exists
+    check_what_exists "$version"
+
+    # Show confirmation prompt
+    echo "======================================"
+    log_error "⚠️  DANGER ZONE ⚠️"
+    echo "======================================"
+    echo ""
+    log_warning "This will PERMANENTLY DELETE the following for v$version:"
+    echo ""
+    echo "  • GitHub Release (if exists)"
+    echo "  • Git tag (local and remote)"
+    echo "  • Container image: ghcr.io/bvboe/b2s-go/k8s-scan-server:$version"
+    echo "  • Container image: ghcr.io/bvboe/b2s-go/pod-scanner:$version"
+    echo "  • Helm chart: ghcr.io/bvboe/b2s-go/bjorn2scan:$version"
+    echo ""
+    log_error "⚠️  THIS OPERATION CANNOT BE UNDONE! ⚠️"
+    echo ""
+    read -p "Type 'DELETE' to confirm rollback of v$version: " confirmation
+    echo
+
+    if [ "$confirmation" != "DELETE" ]; then
+        log_error "Rollback cancelled (confirmation did not match)"
+        exit 1
+    fi
+
+    # Perform rollback
+    if delete_all_artifacts "$version"; then
+        echo ""
+        echo "======================================"
+        log_success "Rollback Complete"
+        echo "======================================"
+        log_success "All artifacts for v$version have been deleted"
+        echo ""
+        exit 0
+    else
+        echo ""
+        echo "======================================"
+        log_error "Rollback Failed"
+        echo "======================================"
+        log_error "Some artifacts may still exist"
+        log_info "Check the errors above and try again or clean up manually"
+        echo ""
+        exit 1
+    fi
+}
+
+# Run main
+main "$@"

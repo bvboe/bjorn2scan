@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bjorn2scan - Container Images</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="custom-styles.css">
+</head>
+<body>
+    <nav class="topbar">
+        <span class="brand">Bjørn2Scan</span>
+        <div id="topbarNav" class="topbar-links"></div>
+    </nav>
+    <main class="page-content">
+                <h1><div id="clusterName">bjorn2scan</div></h1>
+
+                <div id="imageSummary" class="stats-strip"></div>
+
+                <div class="inline-filters">
+                    <form>
+                        <label for="namespaceFilter"><b>Namespace:</b></label>
+                        <select id="namespaceFilter" name="namespaces" multiple onchange="onFilterChange()">
+                        </select>
+
+                        <label for="vulnerabilityStatusFilter"><b>Vulnerability Status:</b></label>
+                        <select id="vulnerabilityStatusFilter" name="vulnerabilityStatus" multiple onchange="onFilterChange()">
+                        </select>
+
+                        <label for="packageTypeFilter"><b>Vulnerable Package Type:</b></label>
+                        <select id="packageTypeFilter" name="packageType" multiple onchange="onFilterChange()">
+                        </select>
+
+                        <label for="osNameFilter"><b>OS Distribution:</b></label>
+                        <select id="osNameFilter" name="osName" multiple onchange="onFilterChange()">
+                        </select>
+                    </form>
+                </div>
+
+                <div class="table-wrap">
+                <div class="csv-row"><a href="" id="csvlink">Export to CSV</a></div>
+                <table id="vulnerabilityTable" class="listingTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort-field="image" onclick="sortByColumn('image')"><b>Container Image</b></th>
+                            <th class="sortable" data-sort-field="total_risk" onclick="sortByColumn('total_risk')"><b>Risk Score</b></th>
+                            <th class="sortable" data-sort-field="critical_count" onclick="sortByColumn('critical_count')"><b>Critical</b></th>
+                            <th class="sortable" data-sort-field="high_count" onclick="sortByColumn('high_count')"><b>High</b></th>
+                            <th class="sortable other-col" data-sort-field="medium_count" onclick="sortByColumn('medium_count')" title="Medium + Low + Negligible + Unknown"><b>Other</b></th>
+                            <th class="sortable" data-sort-field="total_cves" onclick="sortByColumn('total_cves')"><b>CVEs (total / unique)</b></th>
+                            <th class="sortable" data-sort-field="exploit_count" onclick="sortByColumn('exploit_count')"><b>Exploits</b></th>
+                            <th class="sortable" data-sort-field="container_count" onclick="sortByColumn('container_count')"><b>Containers</b></th>
+                            <th class="sortable" data-sort-field="package_count" onclick="sortByColumn('package_count')"><b>Packages</b></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <div id="pagination" style="margin: 20px 0; text-align: center;">
+                    <!-- Pagination controls will be inserted here -->
+                </div>
+
+                <div id="app-footer"></div>
+                </div>
+    </main>
+
+    <script src="shared.js"></script>
+    <script>
+        // Page-specific configuration for images.html
+        initSharedPage({
+            apiEndpoint: '/api/images',
+            dataKey: 'images',
+            pageTitle: 'Image Summary',
+            currentPageUrl: 'images.html',
+            defaultSortBy: 'total_risk',
+            defaultSortOrder: 'DESC',
+            columnCount: 9,
+            renderRow: function(row, item) {
+                // Make row clickable to navigate to image detail page
+                row.onclick = function() {
+                    window.location.href = 'image.html?imageid=' + encodeURIComponent(item.digest);
+                };
+                row.style.cursor = 'pointer';
+
+                // Two-line image cell: name on top, :tag/digest muted below.
+                // Split at '@' (digest) or last ':' after the registry segment.
+                const ref = item.image || '';
+                const sepIdx = lastTagSeparator(ref);
+                const namePart = sepIdx > 0 ? ref.substring(0, sepIdx) : ref;
+                const tagPart  = sepIdx > 0 ? ref.substring(sepIdx) : '';
+                addTwoLineCell(row, namePart, tagPart);
+
+                if (isScanComplete(item.status_description)) {
+                    addRiskCell(row, item.total_risk);
+                    addNumOrDash(row, item.critical_count);
+                    addNumOrDash(row, item.high_count);
+                    addOtherCell(row, item.medium_count, item.low_count, item.negligible_count, item.unknown_count);
+                    addCveComboCell(row, item.total_cves, item.unique_cves);
+                    addNumOrDash(row, item.exploit_count);
+                    addCellToRow(row, 'right', formatNumber(item.container_count));
+                    addCellToRow(row, 'right', formatNumber(item.package_count));
+                } else {
+                    const cell = addCellToRow(row, 'left', item.status_description || 'Unknown status');
+                    cell.colSpan = 8;
+                }
+            }
+        });
+
+        // Find the position of ':' or '@' that separates the image name from the
+        // tag/digest. Skips ':' inside "registry:port/..." prefixes.
+        function lastTagSeparator(ref) {
+            const at = ref.indexOf('@');
+            if (at >= 0) return at;
+            const slash = ref.lastIndexOf('/');
+            const colon = ref.lastIndexOf(':');
+            return colon > slash ? colon : -1;
+        }
+
+        // Load page when DOM is ready
+        document.addEventListener('DOMContentLoaded', initPage);
+    </script>
+</body>
+</html>

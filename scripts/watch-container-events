@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# watch-container-events: Stream Kubernetes events related to containers coming and going.
+#
+# Usage:
+#   ./scripts/watch-container-events [NAMESPACE]
+#
+# If NAMESPACE is omitted, watches all namespaces.
+# Set CONTEXT env var or pass --context to override the kube context.
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+GRAY='\033[0;90m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+# Event reasons we care about — container lifecycle events
+LIFECYCLE_REASONS=(
+    Scheduled
+    Pulling
+    Pulled
+    Created
+    Started
+    Killing
+    Stopped
+    BackOff
+    Failed
+    OOMKilling
+    Unhealthy
+    NodeNotReady
+    Evicted
+    Preempting
+)
+
+# Build a grep pattern from the reasons list
+REASON_PATTERN=$(IFS='|'; echo "${LIFECYCLE_REASONS[*]}")
+
+NAMESPACE="${1:-}"
+KUBECTL_ARGS=()
+
+if [[ -n "${CONTEXT:-}" ]]; then
+    KUBECTL_ARGS+=(--context "$CONTEXT")
+fi
+
+if [[ -n "$NAMESPACE" ]]; then
+    KUBECTL_ARGS+=(--namespace "$NAMESPACE")
+    NS_LABEL="namespace=$NAMESPACE"
+else
+    KUBECTL_ARGS+=(--all-namespaces)
+    NS_LABEL="all namespaces"
+fi
+
+echo -e "${BOLD}Watching container lifecycle events (${NS_LABEL})${RESET}"
+echo -e "${GRAY}Filtering for: ${REASON_PATTERN//|/, }${RESET}"
+echo ""
+
+# Color an event line based on type and reason
+colorize() {
+    local type="$1"
+    local reason="$2"
+    local line="$3"
+
+    local color="$RESET"
+
+    if [[ "$type" == "Warning" ]]; then
+        case "$reason" in
+            OOMKilling|Evicted|Preempting)  color="$RED" ;;
+            BackOff|Failed|Unhealthy)       color="$YELLOW" ;;
+            Killing|Stopped|NodeNotReady)   color="$YELLOW" ;;
+            *)                              color="$YELLOW" ;;
+        esac
+    else
+        case "$reason" in
+            Started|Pulled|Created)         color="$GREEN" ;;
+            Scheduled|Pulling)              color="$CYAN" ;;
+            *)                              color="$RESET" ;;
+        esac
+    fi
+
+    echo -e "${color}${line}${RESET}"
+}
+
+# kubectl events --watch outputs tab-separated columns:
+#   LAST SEEN   TYPE   REASON   OBJECT   MESSAGE
+# --all-namespaces adds NAMESPACE as the first column.
+#
+# We parse each line and re-emit with color + a compact format.
+
+kubectl events --watch "${KUBECTL_ARGS[@]}" 2>/dev/null \
+| grep --line-buffered -E "\b(${REASON_PATTERN})\b" \
+| while IFS= read -r line; do
+    # Skip the header line
+    if echo "$line" | grep -qE "^(LAST SEEN|NAMESPACE)"; then
+        continue
+    fi
+
+    # Extract fields. With --all-namespaces the first column is NAMESPACE.
+    if [[ -n "$NAMESPACE" ]]; then
+        # Without --all-namespaces: LAST SEEN  TYPE  REASON  OBJECT  MESSAGE
+        read -r last_seen type reason object message <<< "$line"
+        ns="$NAMESPACE"
+    else
+        # With --all-namespaces: NAMESPACE  LAST SEEN  TYPE  REASON  OBJECT  MESSAGE
+        read -r ns last_seen type reason object rest <<< "$line"
+        message="$rest"
+    fi
+
+    # Compact timestamp: strip trailing seconds precision if present
+    ts="${last_seen}"
+
+    # Build output line
+    out=$(printf "%-6s  %-12s  %-8s  %-35s  %s" \
+        "$ts" "$reason" "$type" "${ns}/${object}" "$message")
+
+    colorize "$type" "$reason" "$out"
+done

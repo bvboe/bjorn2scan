@@ -1,0 +1,80 @@
+#!/bin/bash
+# Lint all Go code in the project
+# Exits with non-zero status if any linting issues are found
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+echo "=================================================="
+echo "Running golangci-lint on all components"
+echo "=================================================="
+echo ""
+
+# Track overall status
+TOTAL_ISSUES=0
+FAILED_COMPONENTS=()
+
+# Components to lint
+COMPONENTS=(
+    "bjorn2scan-agent"
+    "k8s-scan-server"
+    "k8s-update-controller"
+    "pod-scanner"
+    "scanner-core"
+)
+
+# Lint each component
+for component in "${COMPONENTS[@]}"; do
+    component_path="$PROJECT_ROOT/$component"
+
+    if [ ! -d "$component_path" ]; then
+        echo -e "${YELLOW}⚠ Skipping $component (directory not found)${NC}"
+        continue
+    fi
+
+    echo "Linting $component..."
+
+    # Run golangci-lint and capture output
+    if output=$(cd "$component_path" && golangci-lint run 2>&1); then
+        if [ -z "$output" ] || echo "$output" | grep -q "^0 issues"; then
+            echo -e "${GREEN}✓ $component: clean${NC}"
+        else
+            echo -e "${RED}✗ $component: issues found${NC}"
+            echo "$output"
+            TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+            FAILED_COMPONENTS+=("$component")
+        fi
+    else
+        echo -e "${RED}✗ $component: linting failed${NC}"
+        echo "$output"
+        TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+        FAILED_COMPONENTS+=("$component")
+    fi
+
+    echo ""
+done
+
+# Summary
+echo "=================================================="
+echo "Linting Summary"
+echo "=================================================="
+
+if [ $TOTAL_ISSUES -eq 0 ]; then
+    echo -e "${GREEN}✓ All components passed linting!${NC}"
+    exit 0
+else
+    echo -e "${RED}✗ Found issues in $TOTAL_ISSUES component(s):${NC}"
+    for component in "${FAILED_COMPONENTS[@]}"; do
+        echo -e "  ${RED}• $component${NC}"
+    done
+    exit 1
+fi

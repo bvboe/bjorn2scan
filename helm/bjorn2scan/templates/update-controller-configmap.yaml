@@ -1,0 +1,32 @@
+{{- if .Values.updateController.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-update-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: update-controller
+data:
+  config.yaml: |
+    enabled: {{ .Values.updateController.config.enabled }}
+    versionConstraints:
+      autoUpdateMinor: {{ .Values.updateController.config.autoUpdateMinor }}
+      autoUpdateMajor: {{ .Values.updateController.config.autoUpdateMajor }}
+      pinnedVersion: {{ .Values.updateController.config.pinnedVersion | quote }}
+      minVersion: {{ .Values.updateController.config.minVersion | quote }}
+      maxVersion: {{ .Values.updateController.config.maxVersion | quote }}
+    helm:
+      releaseName: {{ .Release.Name }}
+      namespace: {{ .Release.Namespace }}
+      chartRegistry: {{ .Values.updateController.config.chartRegistry | default "oci://ghcr.io/bvboe/b2s-go/bjorn2scan" }}
+    rollback:
+      enabled: {{ .Values.updateController.config.rollbackEnabled }}
+      healthCheckDelay: {{ .Values.updateController.config.healthCheckDelay | default "5m" }}
+      autoRollback: {{ .Values.updateController.config.autoRollback }}
+    verification:
+      enabled: {{ .Values.updateController.config.verificationEnabled }}
+      cosignIdentityRegexp: {{ .Values.updateController.config.cosignIdentityRegexp | default "https://github.com/bvboe/b2s-go/*" }}
+      cosignOIDCIssuer: {{ .Values.updateController.config.cosignOIDCIssuer | default "https://token.actions.githubusercontent.com" }}
+      releaseBaseURL: {{ .Values.updateController.config.releaseBaseURL | default "https://github.com/bvboe/b2s-go/releases/download" }}
+{{- end }}

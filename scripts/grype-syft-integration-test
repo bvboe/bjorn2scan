@@ -1,0 +1,615 @@
+#!/bin/bash
+# deep-scan-test: Validate bjorn2scan results against direct syft/grype execution
+#
+# This script:
+# 1. Deploys test images to Kubernetes
+# 2. Runs syft and grype locally on the same images
+# 3. Waits for bjorn2scan to scan them
+# 4. Compares results (packages and CVEs)
+# 5. Reports any differences
+
+set -euo pipefail
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEST_CASES_FILE="${SCRIPT_DIR}/test-cases.txt"
+NAMESPACE="${NAMESPACE:-$(kubectl config view --minify --output 'jsonpath={..namespace}' 2>/dev/null || echo 'default')}"
+TIMEOUT=600  # 10 minutes
+POLL_INTERVAL=5  # Poll every 5 seconds
+TEMP_DIR=$(mktemp -d)
+PORT_FORWARD_PID=""
+API_PORT=""
+
+# Counters
+TOTAL_TESTS=0
+PASSED_TESTS=0
+FAILED_TESTS=0
+
+# Cleanup function
+cleanup() {
+    echo ""
+    echo "Cleaning up..."
+
+    # Delete all test pods from this run
+    echo "Deleting test pods..."
+    kubectl delete pods -n "$NAMESPACE" -l app=deep-scan-test --wait=false 2>/dev/null || true
+
+    # Kill port-forward if running
+    if [[ -n "$PORT_FORWARD_PID" ]]; then
+        kill "$PORT_FORWARD_PID" 2>/dev/null || true
+        wait "$PORT_FORWARD_PID" 2>/dev/null || true
+    fi
+
+    # Clean up temp directory
+    rm -rf "$TEMP_DIR"
+
+    # Summary
+    echo ""
+    echo "========================================"
+    echo "Deep Scan Test Summary"
+    echo "========================================"
+    echo "Total tests: $TOTAL_TESTS"
+    echo -e "${GREEN}Passed: $PASSED_TESTS${NC}"
+    if [[ $FAILED_TESTS -gt 0 ]]; then
+        echo -e "${RED}Failed: $FAILED_TESTS${NC}"
+    else
+        echo "Failed: 0"
+    fi
+    echo "========================================"
+
+    if [[ $FAILED_TESTS -gt 0 ]]; then
+        exit 1
+    fi
+}
+
+trap cleanup EXIT INT TERM
+
+# Check prerequisites
+check_prerequisites() {
+    echo "Checking prerequisites..."
+
+    local missing=()
+
+    command -v syft >/dev/null 2>&1 || missing+=("syft")
+    command -v grype >/dev/null 2>&1 || missing+=("grype")
+    command -v kubectl >/dev/null 2>&1 || missing+=("kubectl")
+    command -v jq >/dev/null 2>&1 || missing+=("jq")
+    command -v curl >/dev/null 2>&1 || missing+=("curl")
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo -e "${RED}ERROR: Missing required tools: ${missing[*]}${NC}"
+        echo "Please install them and try again."
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ All prerequisites installed${NC}"
+}
+
+# Check if bjorn2scan is deployed
+check_bjorn2scan_deployed() {
+    echo "Checking if bjorn2scan is deployed..."
+
+    if ! kubectl get deployment bjorn2scan-scan-server -n "$NAMESPACE" >/dev/null 2>&1; then
+        echo -e "${RED}ERROR: bjorn2scan-scan-server deployment not found in namespace '$NAMESPACE'${NC}"
+        echo "Please deploy bjorn2scan first."
+        exit 1
+    fi
+
+    # Check if deployment is ready
+    local ready
+    ready=$(kubectl get deployment bjorn2scan-scan-server -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+    if [[ "$ready" == "0" ]]; then
+        echo -e "${RED}ERROR: bjorn2scan-scan-server deployment has no ready replicas${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ bjorn2scan is deployed and ready${NC}"
+}
+
+# Set up port-forward to bjorn2scan
+setup_port_forward() {
+    echo "Setting up port-forward to bjorn2scan..."
+
+    # Find a random available port
+    API_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+
+    # Start port-forward in background
+    kubectl port-forward -n "$NAMESPACE" svc/bjorn2scan "$API_PORT:80" >/dev/null 2>&1 &
+    PORT_FORWARD_PID=$!
+
+    # Wait for port-forward to be ready
+    echo "Waiting for port-forward to be ready (port $API_PORT)..."
+    for i in {1..30}; do
+        if curl -s "http://localhost:$API_PORT/api/config" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ Port-forward ready on port $API_PORT${NC}"
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo -e "${RED}ERROR: Port-forward failed to start${NC}"
+    exit 1
+}
+
+# Read test cases from file
+read_test_cases() {
+    if [[ ! -f "$TEST_CASES_FILE" ]]; then
+        echo -e "${RED}ERROR: Test cases file not found: $TEST_CASES_FILE${NC}"
+        exit 1
+    fi
+
+    # Read file, skip comments and empty lines
+    grep -v '^#' "$TEST_CASES_FILE" | grep -v '^[[:space:]]*$' || true
+}
+
+# Deploy test pod for an image
+deploy_test_pod() {
+    local image=$1
+    local pod_name="deep-scan-test-$(echo "$image" | tr ':/' '--')-$$"
+
+    echo "Deploying pod: $pod_name" >&2
+
+    if ! cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+apiVersion: v1
+kind: Pod
+metadata:
+  name: $pod_name
+  namespace: $NAMESPACE
+  labels:
+    app: deep-scan-test
+    test-run: "$$"
+spec:
+  containers:
+  - name: test-container
+    image: $image
+    imagePullPolicy: IfNotPresent
+  restartPolicy: Always
+EOF
+    then
+        echo -e "${YELLOW}Warning: Failed to create pod${NC}"
+        return 1
+    fi
+
+    echo "$pod_name"
+}
+
+# Wait for pod to be running
+wait_for_pod() {
+    local pod_name=$1
+
+    echo "Waiting for pod to be running..."
+
+    # First wait for pod to exist (it might take a moment after kubectl apply)
+    local waited=0
+    while [[ $waited -lt 30 ]]; do
+        if kubectl get pod "$pod_name" -n "$NAMESPACE" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    if [[ $waited -eq 30 ]]; then
+        echo -e "${YELLOW}Warning: Pod was not created within 30s${NC}"
+        return 1
+    fi
+
+    # Now wait for it to be ready
+    if ! kubectl wait --for=condition=Ready pod/"$pod_name" -n "$NAMESPACE" --timeout=300s; then
+        echo -e "${YELLOW}Warning: Pod did not become ready within timeout${NC}"
+        # Show pod status for debugging
+        kubectl get pod "$pod_name" -n "$NAMESPACE" 2>/dev/null || true
+        return 1
+    fi
+
+    echo -e "${GREEN}✓ Pod is running${NC}"
+    return 0
+}
+
+# Get image digest from pod
+get_image_digest() {
+    local pod_name=$1
+
+    kubectl get pod "$pod_name" -n "$NAMESPACE" -o jsonpath='{.status.containerStatuses[0].imageID}' | sed 's/.*sha256:/sha256:/'
+}
+
+# Run syft locally
+run_syft_local() {
+    local image=$1
+    local output_file=$2
+
+    echo "Running syft locally on $image..."
+    if syft "$image" -o json > "$output_file" 2>/dev/null; then
+        echo -e "${GREEN}✓ Syft completed${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}Warning: Syft failed${NC}"
+        return 1
+    fi
+}
+
+# Run grype locally
+run_grype_local() {
+    local sbom_file=$1
+    local output_file=$2
+
+    echo "Running grype locally..."
+    if grype "sbom:$sbom_file" -o json > "$output_file" 2>/dev/null; then
+        echo -e "${GREEN}✓ Grype completed${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}Warning: Grype failed${NC}"
+        return 1
+    fi
+}
+
+# Wait for bjorn2scan to complete scanning
+wait_for_scan_completion() {
+    local image_digest=$1
+
+    echo "Waiting for bjorn2scan to complete scanning (digest: ${image_digest:0:20}...)..."
+
+    local elapsed=0
+    while [[ $elapsed -lt $TIMEOUT ]]; do
+        # Try to find the image by digest
+        local response
+        response=$(curl -s "http://localhost:$API_PORT/api/images/$image_digest" 2>/dev/null || echo "{}")
+
+        local status
+        status=$(echo "$response" | jq -r '.status_description // empty' 2>/dev/null || echo "")
+
+        if [[ "$status" == "Scan complete" ]]; then
+            echo -e "${GREEN}✓ bjorn2scan scan completed${NC}"
+            return 0
+        elif [[ "$status" == "Scan failed"* ]]; then
+            echo -e "${YELLOW}Warning: bjorn2scan scan failed: $status${NC}"
+            return 1
+        elif [[ -n "$status" ]]; then
+            echo "  Status: $status (elapsed: ${elapsed}s)"
+        fi
+
+        sleep $POLL_INTERVAL
+        elapsed=$((elapsed + POLL_INTERVAL))
+    done
+
+    echo -e "${YELLOW}Warning: Timeout waiting for scan completion${NC}"
+    return 1
+}
+
+# Fetch bjorn2scan SBOM
+fetch_bjorn2scan_sbom() {
+    local image_digest=$1
+    local output_file=$2
+
+    echo "Fetching SBOM from bjorn2scan..."
+
+    # Fetch all packages by iterating through pages if needed
+    local all_packages="[]"
+    local page=1
+    local total_pages=1
+    local total_count=0
+
+    while [[ $page -le $total_pages ]]; do
+        local response
+        response=$(curl -s "http://localhost:$API_PORT/api/images/$image_digest/packages?page=$page&pageSize=1000")
+
+        if [[ -z "$response" ]]; then
+            echo -e "${YELLOW}Warning: Empty response from API${NC}"
+            return 1
+        fi
+
+        # Extract pagination info
+        total_pages=$(echo "$response" | jq -r '.totalPages // 1')
+        total_count=$(echo "$response" | jq -r '.totalCount // 0')
+
+        # Merge packages from this page
+        local page_packages
+        page_packages=$(echo "$response" | jq -r '.packages // []')
+        all_packages=$(echo "$all_packages" "$page_packages" | jq -s 'add')
+
+        page=$((page + 1))
+    done
+
+    # Create final output with all packages
+    echo "{\"packages\": $all_packages, \"totalCount\": $total_count}" > "$output_file"
+
+    if [[ -s "$output_file" ]]; then
+        local fetched_count
+        fetched_count=$(echo "$all_packages" | jq 'length')
+        echo "  Fetched $fetched_count/$total_count packages from API ($(($total_pages)) pages)"
+        echo -e "${GREEN}✓ SBOM fetched${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}Warning: Failed to fetch SBOM${NC}"
+        return 1
+    fi
+}
+
+# Fetch bjorn2scan vulnerabilities
+fetch_bjorn2scan_vulns() {
+    local image_digest=$1
+    local output_file=$2
+
+    echo "Fetching vulnerabilities from bjorn2scan..."
+
+    # Fetch all vulnerabilities by iterating through pages if needed
+    local all_vulns="[]"
+    local page=1
+    local total_pages=1
+    local total_count=0
+
+    while [[ $page -le $total_pages ]]; do
+        local response
+        response=$(curl -s "http://localhost:$API_PORT/api/images/$image_digest/vulnerabilities?page=$page&pageSize=1000")
+
+        if [[ -z "$response" ]]; then
+            echo -e "${YELLOW}Warning: Empty response from API${NC}"
+            return 1
+        fi
+
+        # Extract pagination info
+        total_pages=$(echo "$response" | jq -r '.totalPages // 1')
+        total_count=$(echo "$response" | jq -r '.totalCount // 0')
+
+        # Merge vulnerabilities from this page
+        local page_vulns
+        page_vulns=$(echo "$response" | jq -r '.vulnerabilities // []')
+        all_vulns=$(echo "$all_vulns" "$page_vulns" | jq -s 'add')
+
+        page=$((page + 1))
+    done
+
+    # Create final output with all vulnerabilities
+    echo "{\"vulnerabilities\": $all_vulns, \"totalCount\": $total_count}" > "$output_file"
+
+    if [[ -s "$output_file" ]]; then
+        local fetched_count
+        fetched_count=$(echo "$all_vulns" | jq 'length')
+        echo "  Fetched $fetched_count/$total_count vulnerabilities from API ($(($total_pages)) pages)"
+        echo -e "${GREEN}✓ Vulnerabilities fetched${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}Warning: Failed to fetch vulnerabilities${NC}"
+        return 1
+    fi
+}
+
+# Compare SBOM packages
+compare_sbom() {
+    local syft_file=$1
+    local bjorn2scan_file=$2
+
+    echo "Comparing SBOM packages..."
+
+    # Extract package name+version from syft output
+    local syft_packages
+    syft_packages=$(jq -r '.artifacts[]? | "\(.name)@\(.version)"' "$syft_file" 2>/dev/null | sort -u || echo "")
+
+    # Extract package name+version from bjorn2scan output
+    local b2s_packages
+    b2s_packages=$(jq -r '.packages[]? | "\(.name)@\(.version)"' "$bjorn2scan_file" 2>/dev/null | sort -u || echo "")
+
+    local syft_count
+    syft_count=$(echo "$syft_packages" | grep -c . || echo "0")
+    local b2s_count
+    b2s_count=$(echo "$b2s_packages" | grep -c . || echo "0")
+
+    echo "  Syft packages: $syft_count"
+    echo "  bjorn2scan packages: $b2s_count"
+
+    # Find differences
+    local missing_in_b2s
+    missing_in_b2s=$(comm -23 <(echo "$syft_packages") <(echo "$b2s_packages") | head -10)
+
+    local extra_in_b2s
+    extra_in_b2s=$(comm -13 <(echo "$syft_packages") <(echo "$b2s_packages") | head -10)
+
+    local has_differences=false
+
+    if [[ -n "$missing_in_b2s" ]]; then
+        echo -e "${YELLOW}  ⚠ Packages in syft but missing in bjorn2scan:${NC}"
+        echo "$missing_in_b2s" | head -10 | sed 's/^/    /'
+        has_differences=true
+    fi
+
+    if [[ -n "$extra_in_b2s" ]]; then
+        echo -e "${YELLOW}  ⚠ Extra packages in bjorn2scan not in syft:${NC}"
+        echo "$extra_in_b2s" | head -10 | sed 's/^/    /'
+        has_differences=true
+    fi
+
+    if [[ "$has_differences" == "false" ]]; then
+        echo -e "${GREEN}  ✓ SBOM packages match${NC}"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Compare vulnerabilities
+compare_vulnerabilities() {
+    local grype_file=$1
+    local bjorn2scan_file=$2
+
+    echo "Comparing vulnerabilities..."
+
+    # Extract CVE IDs from grype output
+    local grype_cves
+    grype_cves=$(jq -r '.matches[]?.vulnerability.id // empty' "$grype_file" 2>/dev/null | sort -u || echo "")
+
+    # Extract CVE IDs from bjorn2scan output
+    local b2s_cves
+    b2s_cves=$(jq -r '.vulnerabilities[]?.vulnerability_id // empty' "$bjorn2scan_file" 2>/dev/null | sort -u || echo "")
+
+    local grype_count
+    grype_count=$(echo "$grype_cves" | grep -c . || echo "0")
+    local b2s_count
+    b2s_count=$(echo "$b2s_cves" | grep -c . || echo "0")
+
+    echo "  Grype CVEs: $grype_count"
+    echo "  bjorn2scan CVEs: $b2s_count"
+
+    # Find differences
+    local missing_in_b2s
+    missing_in_b2s=$(comm -23 <(echo "$grype_cves") <(echo "$b2s_cves") | head -10)
+
+    local extra_in_b2s
+    extra_in_b2s=$(comm -13 <(echo "$grype_cves") <(echo "$b2s_cves") | head -10)
+
+    local has_differences=false
+
+    if [[ -n "$missing_in_b2s" ]]; then
+        echo -e "${YELLOW}  ⚠ CVEs in grype but missing in bjorn2scan:${NC}"
+        echo "$missing_in_b2s" | head -10 | sed 's/^/    /'
+        has_differences=true
+    fi
+
+    if [[ -n "$extra_in_b2s" ]]; then
+        echo -e "${YELLOW}  ⚠ Extra CVEs in bjorn2scan not in grype:${NC}"
+        echo "$extra_in_b2s" | head -10 | sed 's/^/    /'
+        has_differences=true
+    fi
+
+    if [[ "$has_differences" == "false" ]]; then
+        echo -e "${GREEN}  ✓ Vulnerabilities match${NC}"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Delete test pod
+delete_test_pod() {
+    local pod_name=$1
+
+    echo "Deleting test pod..."
+    kubectl delete pod "$pod_name" -n "$NAMESPACE" --wait=false >/dev/null 2>&1 || true
+}
+
+# Test a single image
+test_image() {
+    local image=$1
+
+    echo ""
+    echo "========================================"
+    echo "Testing: $image"
+    echo "========================================"
+
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+
+    local test_dir="$TEMP_DIR/$TOTAL_TESTS"
+    mkdir -p "$test_dir"
+
+    local pod_name=""
+    local test_passed=true
+
+    # Deploy pod
+    if ! pod_name=$(deploy_test_pod "$image"); then
+        echo -e "${RED}✗ Failed to deploy pod${NC}"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        return 1
+    fi
+
+    echo "Pod name: $pod_name"
+
+    # Wait for pod to be ready
+    if ! wait_for_pod "$pod_name"; then
+        echo -e "${YELLOW}⚠ Pod not ready, skipping test${NC}"
+        delete_test_pod "$pod_name"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+        return 1
+    fi
+
+    # Get image digest
+    local image_digest
+    image_digest=$(get_image_digest "$pod_name")
+    echo "Image digest: $image_digest"
+
+    # Run syft locally
+    if ! run_syft_local "$image" "$test_dir/syft.json"; then
+        test_passed=false
+    fi
+
+    # Run grype locally
+    if [[ -f "$test_dir/syft.json" ]]; then
+        if ! run_grype_local "$test_dir/syft.json" "$test_dir/grype.json"; then
+            test_passed=false
+        fi
+    fi
+
+    # Wait for bjorn2scan to scan
+    if ! wait_for_scan_completion "$image_digest"; then
+        test_passed=false
+    fi
+
+    # Fetch bjorn2scan results
+    if ! fetch_bjorn2scan_sbom "$image_digest" "$test_dir/b2s-sbom.json"; then
+        test_passed=false
+    fi
+
+    if ! fetch_bjorn2scan_vulns "$image_digest" "$test_dir/b2s-vulns.json"; then
+        test_passed=false
+    fi
+
+    # Compare results
+    if [[ -f "$test_dir/syft.json" ]] && [[ -f "$test_dir/b2s-sbom.json" ]]; then
+        if ! compare_sbom "$test_dir/syft.json" "$test_dir/b2s-sbom.json"; then
+            test_passed=false
+        fi
+    fi
+
+    if [[ -f "$test_dir/grype.json" ]] && [[ -f "$test_dir/b2s-vulns.json" ]]; then
+        if ! compare_vulnerabilities "$test_dir/grype.json" "$test_dir/b2s-vulns.json"; then
+            test_passed=false
+        fi
+    fi
+
+    # Clean up pod
+    delete_test_pod "$pod_name"
+
+    # Update counters
+    if [[ "$test_passed" == "true" ]]; then
+        echo -e "${GREEN}✓ Test PASSED for $image${NC}"
+        PASSED_TESTS=$((PASSED_TESTS + 1))
+    else
+        echo -e "${RED}✗ Test FAILED for $image${NC}"
+        FAILED_TESTS=$((FAILED_TESTS + 1))
+    fi
+}
+
+# Main function
+main() {
+    echo "========================================"
+    echo "bjorn2scan Deep Scan Test"
+    echo "========================================"
+
+    check_prerequisites
+    check_bjorn2scan_deployed
+    setup_port_forward
+
+    # Read test cases
+    local test_cases
+    test_cases=$(read_test_cases)
+
+    if [[ -z "$test_cases" ]]; then
+        echo -e "${RED}ERROR: No test cases found in $TEST_CASES_FILE${NC}"
+        exit 1
+    fi
+
+    echo ""
+    echo "Found $(echo "$test_cases" | wc -l) test case(s)"
+    echo ""
+
+    # Test each image
+    while IFS= read -r image; do
+        test_image "$image"
+    done <<< "$test_cases"
+}
+
+main "$@"

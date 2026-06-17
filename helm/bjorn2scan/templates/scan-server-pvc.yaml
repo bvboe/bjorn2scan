@@ -1,0 +1,18 @@
+{{- if and .Values.scanServer.enabled .Values.scanServer.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-scan-server
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scan-server
+spec:
+  accessModes:
+    - {{ .Values.scanServer.persistence.accessMode }}
+  {{- if .Values.scanServer.persistence.storageClassName }}
+  storageClassName: {{ .Values.scanServer.persistence.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.scanServer.persistence.size }}
+{{- end }}

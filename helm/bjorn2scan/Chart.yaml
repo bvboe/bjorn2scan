@@ -1,0 +1,15 @@
+apiVersion: v2
+name: bjorn2scan
+description: A Helm chart for bjorn2scan v2 - Kubernetes container and workload scanner
+type: application
+version: 0.1.164
+appVersion: "0.1.164"
+keywords:
+  - security
+  - scanning
+  - sbom
+  - vulnerabilities
+  - kubernetes
+maintainers:
+  - name: bjorn
+home: https://github.com/bvboe/bjorn2scan

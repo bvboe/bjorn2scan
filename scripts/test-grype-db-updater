@@ -1,0 +1,217 @@
+#!/bin/bash
+#
+# Test script to verify the DatabaseUpdater properly detects and applies updates
+#
+# This tests the fix for the grype update issue where grype's internal throttling
+# prevented updates even when newer databases were available.
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCANNER_CORE_DIR="$SCRIPT_DIR/../scanner-core"
+
+# Configuration
+PREVIOUS_URL="${GRYPE_PREVIOUS_URL:-https://gomezboe.com/grype/previous.json}"
+LATEST_URL="${GRYPE_LATEST_URL:-https://gomezboe.com/grype/latest.json}"
+TEST_DIR="${TEST_DIR:-/tmp/grype-updater-test-$$}"
+
+echo "=== DatabaseUpdater Test ==="
+echo "Previous URL: $PREVIOUS_URL"
+echo "Latest URL:   $LATEST_URL"
+echo "Test dir:     $TEST_DIR"
+echo ""
+
+# Fetch expected Built timestamps
+echo "=== Fetching expected timestamps ==="
+EXPECTED_PREVIOUS=$(curl -s "$PREVIOUS_URL" | jq -r '.built')
+EXPECTED_LATEST=$(curl -s "$LATEST_URL" | jq -r '.built')
+echo "Expected previous Built: $EXPECTED_PREVIOUS"
+echo "Expected latest Built:   $EXPECTED_LATEST"
+echo ""
+
+if [ "$EXPECTED_PREVIOUS" = "$EXPECTED_LATEST" ]; then
+    echo "ERROR: Previous and latest have same Built timestamp."
+    exit 1
+fi
+
+mkdir -p "$TEST_DIR"
+
+# Create the test program that uses our DatabaseUpdater
+cat > "$TEST_DIR/main.go" << 'GOEOF'
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/bvboe/b2s-go/scanner-core/vulndb"
+)
+
+type Result struct {
+	Built   string `json:"built"`
+	Changed bool   `json:"changed"`
+	Source  string `json:"source,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+func main() {
+	if len(os.Args) < 3 {
+		json.NewEncoder(os.Stdout).Encode(Result{Error: "usage: <test_dir> <feed_url>"})
+		os.Exit(1)
+	}
+
+	testDir := os.Args[1]
+	feedURL := os.Args[2]
+
+	log.Printf("Using feed URL: %s", feedURL)
+	log.Printf("Using test dir: %s", testDir)
+
+	cfg := vulndb.DatabaseUpdaterConfig{
+		LatestURL: feedURL,
+	}
+
+	updater, err := vulndb.NewDatabaseUpdaterWithConfig(testDir, cfg)
+	if err != nil {
+		json.NewEncoder(os.Stdout).Encode(Result{Error: err.Error()})
+		os.Exit(1)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	changed, err := updater.CheckForUpdates(ctx)
+	if err != nil {
+		json.NewEncoder(os.Stdout).Encode(Result{Error: err.Error()})
+		os.Exit(1)
+	}
+
+	// Read the source URL from import.json
+	grypeDir := filepath.Join(testDir, "grype", "6")
+	importPath := filepath.Join(grypeDir, "import.json")
+	var source string
+	if importData, err := os.ReadFile(importPath); err == nil {
+		var imp struct{ Source string `json:"source"` }
+		json.Unmarshal(importData, &imp)
+		source = imp.Source
+	}
+
+	status, err := updater.GetCurrentStatus(ctx)
+	if err != nil {
+		json.NewEncoder(os.Stdout).Encode(Result{Error: err.Error()})
+		os.Exit(1)
+	}
+
+	result := Result{
+		Built:   status.Built.Format(time.RFC3339),
+		Changed: changed,
+		Source:  source,
+	}
+
+	json.NewEncoder(os.Stdout).Encode(result)
+}
+GOEOF
+
+# Create go.mod
+cat > "$TEST_DIR/go.mod" << MODEOF
+module grype-updater-test
+go 1.23
+require github.com/bvboe/b2s-go/scanner-core v0.0.0
+replace github.com/bvboe/b2s-go/scanner-core => $SCANNER_CORE_DIR
+MODEOF
+
+# Build
+echo "Building test binary..."
+cd "$TEST_DIR"
+go mod tidy 2>/dev/null
+go build -o grype-updater-test . 2>&1
+echo ""
+
+DATA_DIR="$TEST_DIR/data"
+
+# Test 1: Download previous database
+echo "=== Test 1: Download previous database ==="
+rm -rf "$DATA_DIR"
+mkdir -p "$DATA_DIR"
+RESULT1=$("$TEST_DIR/grype-updater-test" "$DATA_DIR" "$PREVIOUS_URL" 2>&1 | tail -1)
+BUILT1=$(echo "$RESULT1" | jq -r '.built')
+CHANGED1=$(echo "$RESULT1" | jq -r '.changed')
+SOURCE1=$(echo "$RESULT1" | jq -r '.source' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' | head -1 || echo "")
+echo "Built: $BUILT1"
+echo "Changed: $CHANGED1"
+echo "Source date: $SOURCE1"
+
+if [ "$BUILT1" = "$EXPECTED_PREVIOUS" ]; then
+    echo "PASS: Built timestamp matches expected"
+else
+    echo "FAIL: Expected $EXPECTED_PREVIOUS, got $BUILT1"
+fi
+echo ""
+
+# Test 2: Update to latest (without clearing cache - this is the key test)
+echo "=== Test 2: Update to latest (keeping cache) ==="
+RESULT2=$("$TEST_DIR/grype-updater-test" "$DATA_DIR" "$LATEST_URL" 2>&1 | tail -1)
+BUILT2=$(echo "$RESULT2" | jq -r '.built')
+CHANGED2=$(echo "$RESULT2" | jq -r '.changed')
+SOURCE2=$(echo "$RESULT2" | jq -r '.source' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' | head -1 || echo "")
+echo "Built: $BUILT2"
+echo "Changed: $CHANGED2"
+echo "Source date: $SOURCE2"
+
+if [ "$BUILT2" = "$EXPECTED_LATEST" ]; then
+    echo "PASS: Built timestamp matches expected"
+else
+    echo "FAIL: Expected $EXPECTED_LATEST, got $BUILT2"
+fi
+
+if [ "$CHANGED2" = "true" ]; then
+    echo "PASS: Update was detected"
+else
+    echo "FAIL: Update was not detected (changed=$CHANGED2)"
+fi
+echo ""
+
+# Test 3: Run again (should detect no changes)
+echo "=== Test 3: Run again (should detect no changes) ==="
+RESULT3=$("$TEST_DIR/grype-updater-test" "$DATA_DIR" "$LATEST_URL" 2>&1 | tail -1)
+BUILT3=$(echo "$RESULT3" | jq -r '.built')
+CHANGED3=$(echo "$RESULT3" | jq -r '.changed')
+echo "Built: $BUILT3"
+echo "Changed: $CHANGED3"
+
+if [ "$CHANGED3" = "false" ]; then
+    echo "PASS: No change detected on subsequent run"
+else
+    echo "FAIL: Unexpected change detected"
+fi
+echo ""
+
+# Summary
+echo "=== Summary ==="
+echo "Test 1 (download previous): Built=$BUILT1 (expected $EXPECTED_PREVIOUS)"
+echo "Test 2 (update to latest):  Built=$BUILT2 (expected $EXPECTED_LATEST), Changed=$CHANGED2"
+echo "Test 3 (no change):         Built=$BUILT3, Changed=$CHANGED3"
+echo ""
+
+# Overall result
+ALL_PASS=true
+if [ "$BUILT1" != "$EXPECTED_PREVIOUS" ]; then ALL_PASS=false; fi
+if [ "$BUILT2" != "$EXPECTED_LATEST" ]; then ALL_PASS=false; fi
+if [ "$CHANGED2" != "true" ]; then ALL_PASS=false; fi
+if [ "$CHANGED3" != "false" ]; then ALL_PASS=false; fi
+
+if [ "$ALL_PASS" = "true" ]; then
+    echo "ALL TESTS PASSED"
+else
+    echo "SOME TESTS FAILED"
+fi
+
+# Cleanup
+if [ "${KEEP_TEST_DIR:-}" != "1" ]; then
+    rm -rf "$TEST_DIR"
+    echo ""
+    echo "Test directory cleaned up. Set KEEP_TEST_DIR=1 to preserve."
+fi

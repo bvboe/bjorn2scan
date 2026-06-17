@@ -1,0 +1,382 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  security-events: write
+
+jobs:
+  integration-tests:
+    name: Integration Tests
+    uses: ./.github/workflows/integration-test.yaml
+
+  auto-update-tests:
+    name: Auto-Update Tests
+    uses: ./.github/workflows/auto-update-test.yaml
+
+  # k8s-scan-server component
+  release-k8s-scan-server:
+    name: Release k8s-scan-server
+    needs: [integration-tests, auto-update-tests]
+    uses: ./.github/workflows/go-component-reusable.yaml
+    with:
+      component-name: k8s-scan-server
+      component-path: k8s-scan-server
+      image-name: k8s-scan-server
+      run-tests: true
+      run-lint: false
+      run-build: false
+      run-docker: true
+      docker-push: true
+      docker-platforms: linux/amd64,linux/arm64
+
+  # pod-scanner component
+  release-pod-scanner:
+    name: Release pod-scanner
+    needs: [integration-tests, auto-update-tests]
+    uses: ./.github/workflows/go-component-reusable.yaml
+    with:
+      component-name: pod-scanner
+      component-path: pod-scanner
+      image-name: pod-scanner
+      run-tests: true
+      run-lint: false
+      run-build: false
+      run-docker: true
+      docker-push: true
+      docker-platforms: linux/amd64,linux/arm64
+
+  # k8s-update-controller component
+  release-k8s-update-controller:
+    name: Release k8s-update-controller
+    needs: [integration-tests, auto-update-tests]
+    uses: ./.github/workflows/go-component-reusable.yaml
+    with:
+      component-name: k8s-update-controller
+      component-path: k8s-update-controller
+      image-name: k8s-update-controller
+      run-tests: true
+      run-lint: false
+      run-build: false
+      run-docker: true
+      docker-push: true
+      docker-platforms: linux/amd64,linux/arm64
+
+  # bjorn2scan-agent component (binary release)
+  release-bjorn2scan-agent:
+    name: Release bjorn2scan-agent
+    needs: [integration-tests, auto-update-tests]
+    uses: ./.github/workflows/go-binary-reusable.yaml
+    with:
+      component-name: bjorn2scan-agent
+      component-path: bjorn2scan-agent
+      run-tests: true
+      run-lint: false
+      platforms: linux/amd64,linux/arm64
+      # Note: Binaries are attached to release in helm-release job for atomic release creation
+
+  helm-release:
+    needs: [release-k8s-scan-server, release-pod-scanner, release-k8s-update-controller, release-bjorn2scan-agent]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+
+    - name: Fetch tag annotations
+      run: |
+        # Ensure we have the complete tag with its annotation
+        git fetch --tags --force
+        echo "Current tag: ${GITHUB_REF_NAME}"
+        echo "Tag annotation preview:"
+        git tag -l --format='%(contents:subject)' ${GITHUB_REF_NAME}
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v5
+      with:
+        version: 'latest'
+
+    - name: Update Chart.yaml version
+      run: |
+        # Extract version from tag (remove 'v' prefix)
+        VERSION=${GITHUB_REF_NAME#v}
+
+        # Update Chart.yaml with the release version
+        sed -i "s/^version:.*/version: ${VERSION}/" helm/bjorn2scan/Chart.yaml
+        sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" helm/bjorn2scan/Chart.yaml
+
+        # Commit the version update back to main branch
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        git checkout main
+        git add helm/bjorn2scan/Chart.yaml
+
+        # Only commit if there are changes
+        if ! git diff --cached --quiet; then
+          git commit -m "chore: Update Helm chart version to ${VERSION} [skip ci]"
+          git push origin main
+        fi
+
+    - name: Log in to Container Registry (for digest inspection)
+      uses: docker/login-action@v4
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Inject image digests into chart values
+      run: |
+        VERSION=${GITHUB_REF_NAME#v}
+
+        # Fetch the multi-arch manifest list digest for each image.
+        # These are immutable content-addressable identifiers.
+        # Use --format '{{json .}}' + jq to extract the digest string; the Go template
+        # '{{.Manifest.Digest}}' renders the full manifest object, not just the hash.
+        SCAN_SERVER_DIGEST=$(docker buildx imagetools inspect \
+          --format '{{json .}}' \
+          ${{ env.REGISTRY }}/${{ github.repository }}/k8s-scan-server:${VERSION} | jq -r '.manifest.digest')
+        POD_SCANNER_DIGEST=$(docker buildx imagetools inspect \
+          --format '{{json .}}' \
+          ${{ env.REGISTRY }}/${{ github.repository }}/pod-scanner:${VERSION} | jq -r '.manifest.digest')
+        UPDATE_CONTROLLER_DIGEST=$(docker buildx imagetools inspect \
+          --format '{{json .}}' \
+          ${{ env.REGISTRY }}/${{ github.repository }}/k8s-update-controller:${VERSION} | jq -r '.manifest.digest')
+
+        echo "Injecting digests into chart values:"
+        echo "  k8s-scan-server:        ${SCAN_SERVER_DIGEST}"
+        echo "  pod-scanner:            ${POD_SCANNER_DIGEST}"
+        echo "  k8s-update-controller:  ${UPDATE_CONTROLLER_DIGEST}"
+
+        # Install yq for reliable YAML field injection (preserves comments)
+        sudo curl -sfL -o /usr/local/bin/yq \
+          https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64
+        sudo chmod +x /usr/local/bin/yq
+
+        yq -i ".scanServer.image.digest = \"${SCAN_SERVER_DIGEST}\""         helm/bjorn2scan/values.yaml
+        yq -i ".podScanner.image.digest = \"${POD_SCANNER_DIGEST}\""         helm/bjorn2scan/values.yaml
+        yq -i ".updateController.image.digest = \"${UPDATE_CONTROLLER_DIGEST}\"" helm/bjorn2scan/values.yaml
+
+    - name: Package Helm chart
+      run: |
+        # Extract version from tag (remove 'v' prefix)
+        VERSION=${GITHUB_REF_NAME#v}
+
+        # Package the chart (Chart.yaml updated with version; values.yaml updated with digests)
+        helm package helm/bjorn2scan --destination .
+
+    - name: Push Helm chart as OCI artifact
+      run: |
+        # Extract version from tag (remove 'v' prefix)
+        VERSION=${GITHUB_REF_NAME#v}
+
+        # Push chart to GitHub Container Registry as OCI artifact
+        echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password-stdin
+        helm push bjorn2scan-${VERSION}.tgz oci://${{ env.REGISTRY }}/${{ github.repository }}
+
+    - name: Install cosign
+      uses: sigstore/cosign-installer@v3
+
+    - name: Sign Helm chart OCI artifact and blob
+      run: |
+        VERSION=${GITHUB_REF_NAME#v}
+        CHART_REF="${{ env.REGISTRY }}/${{ github.repository }}/bjorn2scan:${VERSION}"
+        CHART_TGZ="bjorn2scan-${VERSION}.tgz"
+
+        # Sign the OCI artifact (for users verifying manually with cosign CLI)
+        cosign sign --yes "${CHART_REF}"
+
+        # Sign the packaged .tgz as a blob and emit a Sigstore bundle.
+        # The bundle is uploaded to GitHub releases so the k8s-update-controller
+        # can fetch and verify it before applying a chart update.
+        # --new-bundle-format emits the Sigstore bundle spec format (mediaType +
+        # verificationMaterial), which is required by sigstore-go's bundle.LoadJSONFromPath.
+        # The old default format (base64Signature + cert + rekorBundle) is not understood
+        # by sigstore-go v1.1.4+ and will fail with "unknown field base64Signature".
+        cosign sign-blob --yes \
+          --bundle "${CHART_TGZ}.sigstore" \
+          --new-bundle-format \
+          "${CHART_TGZ}"
+
+        echo "OCI artifact signed: ${CHART_REF}"
+        echo "Blob bundle created: ${CHART_TGZ}.sigstore"
+
+    - name: Download SBOM artifacts
+      uses: actions/download-artifact@v8
+      with:
+        pattern: sbom-*
+        path: sboms
+
+    - name: Download agent binaries
+      uses: actions/download-artifact@v8
+      with:
+        name: bjorn2scan-agent-binaries
+        path: agent-binaries
+
+    - name: Extract tag message
+      id: tag-message
+      run: |
+        echo "Extracting annotation for tag: ${GITHUB_REF_NAME}"
+
+        # Extract the tag annotation (body only, without PGP signature)
+        TAG_MESSAGE=$(git tag -l --format='%(contents:body)' "${GITHUB_REF_NAME}")
+
+        # Debug: Show first 200 chars of tag message
+        echo "Tag message preview (first 200 chars):"
+        echo "$TAG_MESSAGE" | head -c 200
+        echo ""
+        echo "..."
+
+        # Verify we got content
+        if [ -z "$TAG_MESSAGE" ]; then
+          echo "ERROR: Failed to extract tag annotation!"
+          echo "Tag info:"
+          git show "${GITHUB_REF_NAME}" --no-patch
+          exit 1
+        fi
+
+        # Output to GitHub Actions
+        {
+          echo "message<<EOF"
+          echo "$TAG_MESSAGE"
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v3
+      with:
+        files: |
+          bjorn2scan-*.tgz
+          bjorn2scan-*.tgz.sigstore
+          agent-binaries/*
+          sboms/**/*.spdx.json
+        body: |
+          ${{ steps.tag-message.outputs.message }}
+
+          ---
+
+          ## ⎈ Helm Chart Installation (Recommended)
+
+          **Install from OCI registry:**
+
+          ```bash
+          helm install bjorn2scan oci://ghcr.io/${{ github.repository_owner }}/b2s-go/bjorn2scan \
+            --version ${GITHUB_REF_NAME#v} \
+            --namespace bjorn2scan \
+            --create-namespace
+          ```
+
+          **Or install from downloaded chart:**
+
+          Download `bjorn2scan-*.tgz` from the assets below, then:
+
+          ```bash
+          helm install bjorn2scan ./bjorn2scan-*.tgz \
+            --namespace bjorn2scan \
+            --create-namespace
+          ```
+
+          ## 🖥️ Agent Binaries (Standalone)
+
+          For standalone deployments outside Kubernetes:
+
+          **One-liner installation (Linux):**
+
+          ```bash
+          # Install latest version
+          curl -sSfL https://github.com/${{ github.repository }}/releases/latest/download/install.sh | sudo sh
+
+          # Install this specific version (${GITHUB_REF_NAME})
+          curl -sSfL https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/install.sh | sudo sh
+          ```
+
+          **Manual installation:**
+
+          Download the appropriate binary for your platform:
+          - **Linux amd64**: `bjorn2scan-agent-linux-amd64.tar.gz`
+          - **Linux arm64**: `bjorn2scan-agent-linux-arm64.tar.gz`
+
+          Extract and install:
+          ```bash
+          tar -xzf bjorn2scan-agent-linux-amd64.tar.gz
+          sudo install -m 755 bjorn2scan-agent /usr/local/bin/bjorn2scan-agent
+          ```
+
+          **Verify installation:**
+          ```bash
+          curl http://localhost:9999/health
+          curl http://localhost:9999/info
+          ```
+
+          ## 🔐 Signature Verification
+
+          All artifacts are signed with [cosign](https://github.com/sigstore/cosign).
+
+          **Verify Helm chart:**
+          ```bash
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            ghcr.io/${{ github.repository_owner }}/b2s-go/bjorn2scan:${GITHUB_REF_NAME#v}
+          ```
+
+          **Verify agent binaries:**
+          ```bash
+          # Download the binary, signature, and certificate from the release
+          # Then verify:
+          cosign verify-blob bjorn2scan-agent-linux-amd64.tar.gz \
+            --certificate bjorn2scan-agent-linux-amd64.tar.gz.cert \
+            --signature bjorn2scan-agent-linux-amd64.tar.gz.sig \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+          ```
+
+          **Verify container images:**
+          ```bash
+          # Scan server
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            ghcr.io/${{ github.repository_owner }}/b2s-go/k8s-scan-server:${GITHUB_REF_NAME#v}
+
+          # Pod scanner
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            ghcr.io/${{ github.repository_owner }}/b2s-go/pod-scanner:${GITHUB_REF_NAME#v}
+
+          # Update controller
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            ghcr.io/${{ github.repository_owner }}/b2s-go/k8s-update-controller:${GITHUB_REF_NAME#v}
+          ```
+
+          ## 📦 Release Assets
+
+          - **install.sh** - Installation script for agent (version-stamped for this release)
+          - **bjorn2scan-*.tgz** - Helm chart package for offline installation
+          - **bjorn2scan-agent-linux-*.tar.gz** - Agent binaries for standalone deployment
+          - **bjorn2scan-agent-linux-*.tar.gz.sig** - Cosign signatures for agent binaries
+          - **bjorn2scan-agent-linux-*.tar.gz.cert** - Cosign certificates for agent binaries
+          - **bjorn2scan-agent-linux-*.tar.gz.sha256** - SHA256 checksums for agent binaries
+          - **sbom-*.spdx.json** - Software Bill of Materials
+
+          ---
+        generate_release_notes: false
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

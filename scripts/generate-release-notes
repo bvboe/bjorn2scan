@@ -1,0 +1,147 @@
+#!/bin/bash
+set -e
+
+# Generate intelligent release notes using Claude API
+# This script analyzes commits since the last release and generates a structured summary
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1" >&2; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1" >&2; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1" >&2; }
+
+# Check if Claude CLI is installed
+if ! command -v claude &> /dev/null; then
+    log_error "Claude CLI is not installed"
+    log_info "Install with: brew install claude-cli (or visit https://claude.ai/download)"
+    exit 1
+fi
+
+# Get current tag from argument or environment
+if [ -n "$1" ]; then
+    CURRENT_TAG="$1"
+elif [ -n "$GITHUB_REF_NAME" ]; then
+    CURRENT_TAG="${GITHUB_REF_NAME}"
+else
+    log_error "Current tag required as argument or GITHUB_REF_NAME environment variable"
+    log_info "Usage: $0 <tag>"
+    exit 1
+fi
+
+log_info "Current release tag: ${CURRENT_TAG}"
+
+# Get the previous release tag (most recent tag from HEAD, since new tag doesn't exist yet)
+PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD 2>/dev/null || echo "")
+
+if [ -z "$PREVIOUS_TAG" ]; then
+    log_warning "No previous tag found, using all commits"
+    COMMIT_RANGE="HEAD"
+else
+    log_info "Previous release tag: ${PREVIOUS_TAG}"
+    COMMIT_RANGE="${PREVIOUS_TAG}..HEAD"
+fi
+
+# Get commits since last release
+log_info "Fetching commits in range: ${COMMIT_RANGE}"
+COMMITS=$(git log "${COMMIT_RANGE}" --pretty=format:"%h | %s | %an | %ar" --no-merges)
+
+if [ -z "$COMMITS" ]; then
+    log_warning "No commits found in range"
+    echo "No changes since last release."
+    exit 0
+fi
+
+COMMIT_COUNT=$(echo "$COMMITS" | wc -l | tr -d ' ')
+log_info "Found ${COMMIT_COUNT} commits to analyze"
+
+# Get file statistics
+if [ -n "$PREVIOUS_TAG" ]; then
+    FILES_CHANGED=$(git diff --stat "${PREVIOUS_TAG}..HEAD" 2>/dev/null | tail -1 || echo "")
+else
+    FILES_CHANGED=$(git diff --stat HEAD 2>/dev/null | tail -1 || echo "")
+fi
+log_info "Changes: ${FILES_CHANGED}"
+
+# Create prompt for Claude
+read -r -d '' PROMPT << EOM || true
+Analyze the following Git commits and generate a concise, well-structured release summary for version ${CURRENT_TAG}.
+
+**Commit History:**
+\`\`\`
+${COMMITS}
+\`\`\`
+
+**Statistics:**
+${FILES_CHANGED}
+
+**Instructions:**
+1. Group changes into categories (Features, Bug Fixes, Performance, Tests, Documentation, etc.)
+2. Highlight the most important changes first, and make sure new features are mentioned.
+3. Be technical but concise - this is for developers/operators
+4. Mention breaking changes if any (look for keywords like "breaking", "remove", "deprecate")
+5. Keep the summary under 400 words
+6. Use bullet points for clarity
+
+**CRITICAL FORMATTING REQUIREMENTS:**
+1. You MUST include ALL markdown headers (## and ###) with emojis
+2. Do NOT output conversational text or explanations
+3. Start your response with exactly: ## 🎯 Highlights
+4. Follow the exact structure shown below
+5. Keep ALL section headers even if empty (just write "None" for empty sections)
+
+**Required Output Structure (copy this exactly):**
+
+## 🎯 Highlights
+
+[Write 2-3 sentences summarizing the key changes]
+
+## What's Changed
+
+### ✨ Features
+- [List new features, or write "None"]
+
+### 🐛 Bug Fixes
+- [List bug fixes, or write "None"]
+
+### 🧪 Testing
+- [List testing improvements, or write "None"]
+
+### 📚 Documentation
+- [List documentation updates, or write "None"]
+
+### 🔧 Internal
+- [List internal changes like refactoring, CI/CD, tooling]
+
+## 📊 Statistics
+- X commits from Y contributors
+- Z files changed
+
+**IMPORTANT:** Your first line MUST be: ## 🎯 Highlights
+EOM
+
+log_info "Calling Claude CLI to analyze commits..."
+
+# Call Claude CLI
+SUMMARY=$(echo "$PROMPT" | claude 2>&1)
+
+# Check for errors
+if [ $? -ne 0 ]; then
+    log_error "Claude CLI error: $SUMMARY"
+    exit 1
+fi
+
+if [ -z "$SUMMARY" ]; then
+    log_error "Failed to get summary from Claude CLI"
+    exit 1
+fi
+
+log_success "Successfully generated release summary"
+
+# Output the summary
+echo "$SUMMARY"

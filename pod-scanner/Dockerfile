@@ -1,32 +1,38 @@
-FROM cgr.dev/chainguard/python:latest-dev AS builder
-ENV LANG=C.UTF-8
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Build stage
+FROM --platform=$BUILDPLATFORM cgr.dev/chainguard/go:latest AS builder
 
-WORKDIR /flask-app
-ENV PATH="/flask-app/venv/bin":$PATH
-RUN python -m venv venv
+ARG TARGETARCH
+ARG VERSION=dev
 
-COPY src/python/requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+WORKDIR /workspace/pod-scanner
 
-FROM cgr.dev/chainguard/glibc-dynamic:latest-dev
+# Copy sbom-generator-shared module (needed for build due to replace directive)
+COPY sbom-generator-shared/ ../sbom-generator-shared/
 
-#Run as root for access to docker / containerd
-USER root
-RUN apk add --no-cache syft ctr docker-cli python-3.14 jq
+# Copy go.mod and go.sum files first for better layer caching
+# This layer will only be invalidated when dependencies change
+COPY pod-scanner/go.mod pod-scanner/go.sum* ./
 
-ENV LANG=C.UTF-8
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PATH="/flask-app/venv/bin":$PATH
+# Download dependencies (cached unless go.mod/go.sum changes)
+# Note: uid=65532 is the nonroot user in Chainguard images
+RUN --mount=type=cache,target=/go/pkg/mod,uid=65532,gid=65532 \
+    go mod download
 
-WORKDIR /flask-app
+# Now copy source code (after dependency layers are cached)
+COPY pod-scanner/main.go ./
+COPY pod-scanner/runtime/ ./runtime/
+COPY pod-scanner/handlers/ ./handlers/
 
-COPY --from=builder /flask-app/venv /flask-app/venv
-COPY src/python/*.py ./
-COPY src/python/*.yaml ./
-COPY src/shell/* ./
+# Build the binary
+RUN --mount=type=cache,target=/go/pkg/mod,uid=65532,gid=65532 \
+    --mount=type=cache,target=/home/nonroot/.cache/go-build,uid=65532,gid=65532 \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "-X main.version=${VERSION} -w -s" -o pod-scanner .
 
-EXPOSE 8080
-ENTRYPOINT ["python", "-m", "gunicorn", "--timeout", "6000", "-b", "0.0.0.0:8080", "web_app:app"]
+# Runtime stage
+FROM cgr.dev/chainguard/static:latest
+
+COPY --from=builder /workspace/pod-scanner/pod-scanner /pod-scanner
+
+EXPOSE 8081
+
+ENTRYPOINT ["/pod-scanner"]

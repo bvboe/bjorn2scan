@@ -1,0 +1,4 @@
+k8s-scan-server
+*.md
+.git
+.gitignore

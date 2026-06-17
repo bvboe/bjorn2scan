@@ -1,0 +1,19 @@
+{{- if .Values.scanServer.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scan-server
+spec:
+  type: {{ .Values.scanServer.service.type }}
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    {{- include "bjorn2scan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scan-server
+{{- end }}

@@ -1,0 +1,19 @@
+{{- if .Values.podScanner.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-pod-scanner
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-scanner
+spec:
+  clusterIP: None  # Headless service for pod discovery
+  selector:
+    {{- include "bjorn2scan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-scanner
+  ports:
+  - name: http
+    port: {{ .Values.podScanner.config.port | int }}
+    targetPort: http
+    protocol: TCP
+{{- end }}

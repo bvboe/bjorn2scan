@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bjorn2scan - Nodes</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="custom-styles.css">
+</head>
+<body>
+    <nav class="topbar">
+        <span class="brand">Bjørn2Scan</span>
+        <div id="topbarNav" class="topbar-links"></div>
+    </nav>
+    <main class="page-content">
+                <h1><div id="clusterName">bjorn2scan</div></h1>
+
+                <div id="imageSummary" class="stats-strip"></div>
+
+                <div class="inline-filters">
+                    <form>
+                        <label for="osNameFilter"><b>OS Distribution:</b></label>
+                        <select id="osNameFilter" name="osName" multiple onchange="onFilterChange()">
+                        </select>
+
+                        <label for="vulnerabilityStatusFilter"><b>Vulnerability Status:</b></label>
+                        <select id="vulnerabilityStatusFilter" name="vulnStatus" multiple onchange="onFilterChange()">
+                        </select>
+
+                        <label for="packageTypeFilter"><b>Vulnerable Package Type:</b></label>
+                        <select id="packageTypeFilter" name="packageType" multiple onchange="onFilterChange()">
+                        </select>
+                    </form>
+                </div>
+
+                <div class="table-wrap">
+                <div class="csv-row"><a href="" id="csvlink">Export to CSV</a></div>
+                <table id="vulnerabilityTable" class="listingTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort-field="node_name" onclick="sortByColumn('node_name')"><b>Node</b></th>
+                            <th class="sortable" data-sort-field="total_risk" onclick="sortByColumn('total_risk')"><b>Risk Score</b></th>
+                            <th class="sortable" data-sort-field="critical" onclick="sortByColumn('critical')"><b>Critical</b></th>
+                            <th class="sortable" data-sort-field="high" onclick="sortByColumn('high')"><b>High</b></th>
+                            <th class="sortable other-col" data-sort-field="medium" onclick="sortByColumn('medium')" title="Medium + Low + Negligible + Unknown"><b>Other</b></th>
+                            <th class="sortable" data-sort-field="total" onclick="sortByColumn('total')"><b>CVEs (total / unique)</b></th>
+                            <th class="sortable" data-sort-field="exploit_count" onclick="sortByColumn('exploit_count')"><b>Exploits</b></th>
+                            <th class="sortable" data-sort-field="package_count" onclick="sortByColumn('package_count')"><b>Packages</b></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <div id="pagination" style="margin: 20px 0; text-align: center;">
+                    <!-- Pagination controls will be inserted here -->
+                </div>
+
+                <div id="app-footer"></div>
+                </div>
+    </main>
+
+    <script src="shared.js"></script>
+    <script>
+        // Builds the node-specific stats strip (Nodes / CVEs / Unique CVEs / Exploits).
+        function nodeSummaryStats(m) {
+            const stats = [
+                ['Nodes', formatNumber(m.total_nodes || 0)],
+                ['CVEs', formatNumber(m.total_cves || 0)],
+                ['Unique CVEs', formatNumber(m.unique_cves || 0)],
+                ['Exploits', formatNumber(m.total_exploits || 0)],
+            ];
+            if (m.nodes_pending) stats.push(['Pending', formatNumber(m.nodes_pending)]);
+            if (m.nodes_failed)  stats.push(['Failed',  formatNumber(m.nodes_failed)]);
+            return stats;
+        }
+
+        initSharedPage({
+            apiEndpoint: '/api/summary/by-node',
+            dataKey: 'nodes',
+            pageTitle: 'Nodes',
+            currentPageUrl: 'nodes.html',
+            defaultSortBy: 'total_risk',
+            defaultSortOrder: 'DESC',
+            columnCount: 8,
+            // /api/summary/by-node returns a bare array — loadDataTable handles
+            // that shape natively (sorts and paginates client-side).
+            filterOptionsEndpoint: '/api/node-filter-options',
+            summaryEndpoint: '/api/summary/node-metrics',
+            summaryStatsBuilder: nodeSummaryStats,
+            renderRow: function(row, item) {
+                row.onclick = function() {
+                    window.location.href = 'node.html?name=' + encodeURIComponent(item.node_name);
+                };
+                row.style.cursor = 'pointer';
+
+                addTwoLineCell(row, item.node_name, item.os_release || '-');
+
+                if (isScanComplete(item.status_description)) {
+                    addRiskCell(row, item.total_risk);
+                    addNumOrDash(row, item.critical);
+                    addNumOrDash(row, item.high);
+                    addOtherCell(row, item.medium, item.low, item.negligible, item.unknown);
+                    addCveComboCell(row, item.total, item.unique_cves);
+                    addNumOrDash(row, item.exploit_count);
+                    addCellToRow(row, 'right', formatNumber(item.package_count));
+                } else {
+                    const cell = addCellToRow(row, 'left', item.status_description || 'Unknown status');
+                    cell.colSpan = 7;
+                }
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', initPage);
+    </script>
+</body>
+</html>

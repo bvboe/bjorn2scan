@@ -1,0 +1,423 @@
+/* Custom multi-select dropdown — minimal "underlined value" treatment.
+   No box, no background. The selected value (or placeholder) gets a thin
+   hyperlink-style underline; an inline chevron sits next to it. */
+.custom-multiselect {
+    position: relative;
+    display: inline-block;
+}
+
+.multiselect-header {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    color: #555;
+    text-decoration: underline;
+    text-decoration-color: #d1d5db;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+}
+
+.multiselect-header:hover {
+    color: #000;
+    text-decoration-color: #000;
+}
+
+/* When at least one value is selected, render the value(s) bold + black */
+.custom-multiselect.has-selection .multiselect-header {
+    color: #000;
+    font-weight: 600;
+    text-decoration-color: #888;
+}
+
+.multiselect-placeholder {
+    /* Inherits header styling — same underline + color */
+}
+
+.multiselect-arrow {
+    width: auto;
+    height: auto;
+    border: 0;
+    color: #888;
+    font-size: 0.75em;
+    text-decoration: none;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.multiselect-arrow::before {
+    content: "▾";
+}
+
+.multiselect-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+
+    /* Grow to fit the longest option; trigger width is the floor, not the cap. */
+    min-width: 100%;
+    width: max-content;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    padding: 4px 0;
+    max-height: 240px;
+    overflow-y: auto;
+    display: none;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+
+.multiselect-dropdown.open {
+    display: block;
+}
+
+.multiselect-option {
+    padding: 5px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.multiselect-option:hover {
+    background: #fafafa;
+}
+
+.multiselect-option input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+    accent-color: #555;
+}
+
+/* === Listing-page redesign (images / pods / nodes / index / image / node) === */
+
+/* Top bar — chrome with brand on the left and inline nav links.
+   Uses h1-equivalent size (matching the page title font scale). */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 10px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #fafafa;
+    font-family: 'Times', "Times New Roman", serif;
+    font-size: 1.5em;
+}
+
+.topbar .brand {
+    font-weight: 700;
+}
+
+.topbar .topbar-links {
+    display: flex;
+    gap: 20px;
+}
+
+.topbar .topbar-links a {
+    color: #555;
+    text-decoration: none;
+}
+
+.topbar .topbar-links a.active {
+    color: #000;
+    font-weight: 700;
+}
+
+.topbar .topbar-links a:hover {
+    color: #000;
+}
+
+/* Page content wrapper — replaces the right-cell of the old table layout */
+.page-content {
+    padding: 16px 24px;
+}
+
+
+/* Stat strip — summary cards on top */
+.stats-strip {
+    display: flex;
+    gap: 36px;
+    margin: 12px 10px 18px;
+    padding: 4px 0 16px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-wrap: wrap;
+}
+
+.stat .stat-label {
+    font-size: 16px;
+    color: #555;
+    margin-bottom: 4px;
+}
+
+.stat .stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Always-visible inline filter row (replaces collapsible filter table) */
+.inline-filters {
+    margin: 0 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.inline-filters form {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 0;
+}
+
+.inline-filters label {
+    white-space: nowrap;
+    font-size: 16px;
+}
+
+.csv-row {
+    text-align: right;
+    margin: 0 10px 8px;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.csv-row a {
+    text-decoration: underline;
+    color: inherit;
+}
+
+/* Two-line image name cell */
+.img-name {
+    font-weight: 500;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.img-tag {
+    color: #555;
+    font-size: 12px;
+    line-height: 1.25;
+    word-break: break-all;
+}
+
+/* Column widths — keep image column from getting blown out by sha256 digests */
+#vulnerabilityTable th:first-child,
+#vulnerabilityTable td:first-child {
+    max-width: 360px;
+    overflow-wrap: anywhere;
+}
+
+/* Containers column is the rightmost one and almost always single digit */
+#vulnerabilityTable th:last-child,
+#vulnerabilityTable td:last-child {
+    width: 1%;
+    white-space: nowrap;
+}
+
+/* Muted "Other" column number */
+.muted-num {
+    color: #555;
+}
+
+/* Zero rendered as a muted dash */
+.zero-dash {
+    color: #c8cbcf;
+}
+
+/* Combined Total / Unique CVEs cell */
+.cve-combo {
+    font-variant-numeric: tabular-nums;
+}
+
+.cve-combo .cve-total {
+    font-weight: 600;
+}
+
+.cve-combo .cve-sep {
+    color: #aaa;
+    margin: 0 4px;
+}
+
+.cve-combo .cve-unique {
+    color: #555;
+}
+
+/* "Other" column header gets a help cursor since it's an aggregate with a tooltip */
+.other-col {
+    cursor: help;
+}
+
+/* Wrapper that ties the CSV link and the listing table together so the link
+   right-aligns to the table's right edge instead of the viewport. */
+.table-wrap {
+    display: inline-block;
+}
+
+/* Top-of-page summary on index.html — a hero metric (total CVE instances
+   across the cluster) plus a breakdown grid that splits image vs node by
+   metric. Pending / Failed columns appear in the grid only when their counts
+   are non-zero, so a clean cluster shows just the steady-state columns. */
+.summary-hero {
+    display: flex;
+    align-items: baseline;
+    gap: 64px;
+    flex-wrap: wrap;
+    margin: 12px 10px 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.hero-metric .hero-value {
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.hero-metric .hero-label {
+    font-size: 13px;
+    color: #555;
+    margin-top: 4px;
+}
+
+.hero-grid {
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    align-self: flex-end;
+}
+
+.hero-grid th, .hero-grid td {
+    padding: 4px 16px 4px 0;
+    text-align: right;
+    font-weight: 400;
+}
+
+.hero-grid thead th {
+    font-size: 12px;
+    color: #555;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.hero-grid tbody td {
+    font-weight: 700;
+}
+
+.hero-grid .row-label {
+    font-weight: 700;
+    text-align: left;
+    padding-right: 24px;
+}
+
+/* Section headings (used on index.html for Namespace / Distribution / Node Distribution Summary).
+   Indented 10px to align with the first column's cell-padded content below. */
+.section-heading {
+    margin: 32px 0 4px;
+    padding-left: 10px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.section-sub {
+    color: #555;
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding-left: 10px;
+}
+
+/* Multi-table container on index.html — sizes to the widest table's natural width
+   so all three tables share that width. */
+.index-tables {
+    display: inline-block;
+}
+
+.index-tables .table-wrap {
+    display: block;
+}
+
+.index-tables .listingTable {
+    width: 100%;
+}
+
+/* Back link (image/node detail pages) */
+.back-link {
+    margin: 0 10px 4px;
+    font-size: 14px;
+}
+
+.back-link a {
+    color: #555;
+    text-decoration: none;
+}
+
+.back-link a:hover {
+    color: #000;
+}
+
+/* Image / Node summary grid — three side-by-side metadata tables.
+   Preserves all the existing summary data; only the layout is updated.
+   align-items: flex-start so a tall right-hand table (long containers list)
+   doesn't stretch the others vertically. */
+.image-summary-grid {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    margin: 12px 10px 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.image-summary-grid .summaryTable {
+    border-collapse: collapse;
+}
+
+.image-summary-grid .summaryTable td {
+    padding: 4px 12px 4px 0;
+    vertical-align: top;
+}
+
+.image-summary-grid .summaryTable td:first-child {
+    color: #555;
+    white-space: nowrap;
+}
+
+.image-summary-grid .summaryTable td:last-child {
+    word-break: break-all;
+}
+
+/* Tabs (image/node detail) */
+.tabs {
+    display: flex;
+    gap: 28px;
+    border-bottom: 1px solid #e5e7eb;
+    margin: 18px 10px 12px;
+    padding-bottom: 6px;
+    font-family: 'Times', "Times New Roman", serif;
+    font-size: 1.3em;
+}
+
+.tabs a {
+    color: #555;
+    text-decoration: none;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.tabs a.active {
+    color: #000;
+    border-bottom: 2px solid #000;
+    padding-bottom: 4px;
+    margin-bottom: -8px;
+}

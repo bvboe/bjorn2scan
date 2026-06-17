@@ -1,0 +1,334 @@
+# Default values for bjorn2scan
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Cluster name displayed in the UI
+clusterName: "kubernetes"
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Scan Server (Singleton Deployment)
+# IMPORTANT: This service must run as a singleton (single replica only)
+scanServer:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/bvboe/b2s-go/k8s-scan-server
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+    # Pinned to exact multi-arch manifest digest by the release pipeline.
+    # When set, the image reference becomes repo@digest (immutable).
+    # Override with "" to use tag-based reference (e.g. for local test builds).
+    digest: ""
+
+  imagePullSecrets: []
+
+  podAnnotations: {}
+
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi  # Node scans require ~2-3GB for Grype vulnerability scanning on large nodes
+    requests:
+      cpu: 200m
+      memory: 1Gi  # Baseline for vulnerability scanning workload
+
+  # Startup probe - waits for DB initialization including WAL checkpoint.
+  # On slow NFS with a large WAL (e.g. post-OOM-kill recovery), the startup WAL
+  # checkpoint can take 5-10 minutes. This probe allows up to 10 minutes before
+  # giving up, after which the livenessProbe takes over.
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    failureThreshold: 60    # 60 × 10s = 10 minutes max startup time
+    periodSeconds: 10
+    timeoutSeconds: 20
+
+  # Liveness probe - activated only after startupProbe succeeds.
+  # Checks if the database is not stuck (PRAGMA wal_checkpoint(PASSIVE) with 15s timeout).
+  # Restart triggered after 2.5 minutes of consecutive failures.
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    periodSeconds: 30
+    failureThreshold: 5
+    timeoutSeconds: 20
+
+  # Readiness probe - /ready returns 200 as soon as the HTTP server is up (~2s)
+  # Grype DB initialization happens in background; DB status is available via /api/db/status
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8080
+    initialDelaySeconds: 2       # Server is up within ~2s
+    periodSeconds: 3             # Check frequently for fast ready state
+    failureThreshold: 10         # Allow up to 30s if startup is slow
+    successThreshold: 1
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  config:
+    port: "8080"
+    debugEnabled: true  # Set to true to enable debug endpoints (/debug/sql, /debug/metrics)
+    webUIEnabled: true  # Set to false to disable the web UI
+    consoleURL: ""  # Custom console URL (e.g., https://bjorn2scan.example.com/). Leave empty for auto-detection
+
+    # OpenTelemetry Metrics Configuration
+    otelMetrics:
+      enabled: false  # Set to true to enable OTLP metrics export
+      endpoint: "prometheus-kube-prometheus-prometheus:9090"  # Service name (will use same namespace)
+      protocol: "http"  # "grpc" for OTEL Collector, "http" for Prometheus native OTLP
+      pushInterval: "15m"
+      insecure: true
+      useDirectExport: true  # Bypass SDK buffering for high-cardinality node metrics (prevents OOM)
+      directBatchSize: 5000  # Number of data points per batch when using direct export
+
+    # Individual Metric Toggles
+    metrics:
+      deploymentEnabled: true  # Enable bjorn2scan_deployment metric
+      scannedInstancesEnabled: true  # Enable bjorn2scan_scanned_instance metric
+      vulnerabilitiesEnabled: true  # Enable bjorn2scan_vulnerability metric
+      vulnerabilityExploitedEnabled: true  # Enable bjorn2scan_vulnerability_exploited metric (known exploited vulnerabilities)
+      vulnerabilityRiskEnabled: true  # Enable bjorn2scan_vulnerability_risk metric (risk scores)
+      imageScanStatusEnabled: true  # Enable bjorn2scan_image_scan_status metric (scan status counts)
+      stalenessWindow: "60m"  # Duration after which metrics are considered stale (e.g., 60m, 1h, 30m)
+      # Node metrics (only applicable when hostScanning.enabled is true)
+      nodeScannedEnabled: true  # Enable bjorn2scan_node_scanned metric
+      nodeVulnerabilitiesEnabled: true  # Enable bjorn2scan_node_vulnerability metric
+      nodeVulnerabilityRiskEnabled: true  # Enable bjorn2scan_node_vulnerability_risk metric
+      nodeVulnerabilityExploitedEnabled: true  # Enable bjorn2scan_node_vulnerability_exploited metric
+
+    # Scheduled Jobs Configuration
+    jobs:
+      # Refresh Images Job - Periodically reconciles running containers with database
+      refreshImages:
+        enabled: true
+        interval: "6h"    # How often to refresh (e.g., 6h, 12h, 24h)
+        timeout: "10m"    # Maximum execution time
+
+      # Cleanup Job - Removes orphaned images and related data
+      cleanup:
+        enabled: true
+        interval: "24h"   # How often to cleanup (e.g., 24h, 7d)
+        timeout: "1h"     # Maximum execution time
+
+      # Rescan Database Job - Monitors vulnerability database for updates
+      # Automatically rescans all images when Grype's database updates
+      # Uses existing SBOMs, only runs vulnerability scanning
+      rescanDatabase:
+        enabled: true
+        interval: "30m"   # How often to check for database updates
+        timeout: "30m"    # Maximum execution time for rescanning all images
+
+    # Host/Node Scanning Configuration
+    # Scans Kubernetes node host filesystems for packages and vulnerabilities
+    hostScanning:
+      enabled: true  # Enable host/node scanning
+      # Auto-detect network filesystem mounts (NFS, CIFS, etc.) and exclude them
+      autoDetectNFS: true
+      # Additional exclusion patterns for host scanning (added to defaults)
+      # Defaults already include: container runtimes, virtual filesystems, /mnt/**, /media/**, /srv/**
+      extraExclusions: []
+        # - "**/home/**"
+        # - "**/backup/**"
+      # Additional network filesystem types to detect (added to defaults)
+      # Defaults include: nfs, nfs4, cifs, smbfs, fuse.sshfs, fuse.rclone, fuse.s3fs, etc.
+      extraNetworkFSTypes: []
+        # - "fuse.gdrive"
+        # - "fuse.dropbox"
+
+  # Data persistence
+  persistence:
+    enabled: true  # Set to false to use emptyDir (for testing only)
+    size: 15Gi
+    storageClassName: ""  # Leave empty to use default storage class
+    accessMode: ReadWriteOnce
+    # Path where data (database, etc.) will be stored
+    mountPath: /var/lib/bjorn2scan
+
+  # Grype vulnerability database storage
+  # The Grype DB is stored on an emptyDir (local container disk) by default.
+  # This avoids failures caused by NFS "silly rename" behavior when Grype replaces
+  # the database file in-place on NFS-backed PVCs. The DB is re-downloaded on each
+  # pod restart (~2 min) which is acceptable given daily update cadence.
+  # Set separateVolume: false to store on the main data PVC instead.
+  grypeStorage:
+    separateVolume: true
+    mountPath: /var/cache/grype
+
+# Pod Scanner (DaemonSet)
+# Runs on every node to scan local pods using the container runtime API
+# Supports standard Kubernetes, K3s, MicroK8s, and custom distributions
+podScanner:
+  enabled: true
+
+  image:
+    repository: ghcr.io/bvboe/b2s-go/pod-scanner
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+    # Pinned to exact multi-arch manifest digest by the release pipeline.
+    # Override with "" to use tag-based reference.
+    digest: ""
+
+  imagePullSecrets: []
+
+  podAnnotations: {}
+
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  # Privileged security context required for container runtime socket access
+  # The pod-scanner needs access to the containerd/Docker socket to:
+  # - List container images on the node
+  # - Extract layer information (DiffIDs, ChainID)
+  # - Mount containerd snapshots for SBOM generation
+  securityContext:
+    privileged: true
+    runAsUser: 0  # Run as root to access container runtime sockets
+
+  # Increased resources for SBOM generation (spikes during scan)
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 100m      # Low baseline when idle
+      memory: 256Mi
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+  nodeSelector: {}
+
+  # Allow pod-scanner to run on all nodes including control plane
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+  affinity: {}
+
+  config:
+    port: "8080"
+
+    # Container Runtime Configuration
+    # ==============================
+    # The pod-scanner auto-detects the containerd socket location by probing:
+    #   1. /run/containerd/containerd.sock          (Standard Kubernetes)
+    #   2. /run/k3s/containerd/containerd.sock      (K3s)
+    #   3. /var/snap/microk8s/common/run/containerd.sock (MicroK8s)
+    #   4. /run/dockershim.sock                     (Legacy)
+    #
+    # Override only if your distribution uses a non-standard path.
+    #
+    # Examples:
+    #   containerdSocket: ""                                    # Auto-detect (recommended)
+    #   containerdSocket: "/run/containerd/containerd.sock"     # Force standard path
+    #   containerdSocket: "/run/k3s/containerd/containerd.sock" # Force K3s path
+    #   containerdSocket: "/custom/path/containerd.sock"        # Custom distribution
+    #
+    # If set to a path that doesn't exist, pod-scanner will fail to start.
+    # Check pod-scanner logs for: "Detected containerd socket: <path>"
+    containerdSocket: ""
+
+# Update Controller (CronJob)
+# Automatically checks for and applies Helm chart updates
+updateController:
+  enabled: true  # Auto-update is enabled by default; set to false to disable
+
+  image:
+    repository: ghcr.io/bvboe/b2s-go/k8s-update-controller
+    pullPolicy: IfNotPresent
+    tag: ""  # Defaults to chart appVersion
+    # Pinned to exact multi-arch manifest digest by the release pipeline.
+    # Override with "" to use tag-based reference.
+    digest: ""
+
+  # Cron schedule (standard Kubernetes CronJob format)
+  # Examples: "0 2 * * *" (daily at 2am), "0 */6 * * *" (every 6 hours), "@daily"
+  #schedule: "0 2 * * *"
+  schedule: "0 * * * *"
+
+  # CronJob settings
+  concurrencyPolicy: Forbid  # Don't run multiple jobs simultaneously
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Update controller configuration
+  config:
+    enabled: true  # Can be disabled without removing CronJob
+
+    # Version constraints
+    autoUpdateMinor: true   # Allow 0.1.x → 0.2.x
+    autoUpdateMajor: false  # Block 0.x.x → 1.x.x
+    pinnedVersion: ""       # Pin to specific version (empty = auto)
+    minVersion: ""          # Minimum version (empty = no limit)
+    maxVersion: ""          # Maximum version (empty = no limit)
+
+    # Helm configuration (auto-populated from release)
+    chartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan"
+
+    # Rollback configuration
+    rollbackEnabled: true
+    healthCheckDelay: "5m"  # Wait before checking if update succeeded
+    autoRollback: true      # Automatically rollback on failure
+
+    # Signature verification
+    # Verifies each downloaded Helm chart against its Sigstore bundle before applying.
+    # The bundle is fetched from releaseBaseURL/v<version>/bjorn2scan-<version>.tgz.sigstore.
+    verificationEnabled: true   # Verify cosign signatures on chart updates
+    cosignIdentityRegexp: "https://github.com/bvboe/b2s-go/*"
+    cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
+    releaseBaseURL: "https://github.com/bvboe/b2s-go/releases/download"

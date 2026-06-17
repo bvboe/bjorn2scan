@@ -1,0 +1,165 @@
+{{- if .Values.scanServer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-scan-server
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scan-server
+spec:
+  # Enforce singleton behavior - only one replica allowed
+  replicas: {{ .Values.scanServer.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "bjorn2scan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scan-server
+  template:
+    metadata:
+      {{- with .Values.scanServer.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "bjorn2scan.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scan-server
+    spec:
+      {{- with .Values.scanServer.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "bjorn2scan.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.scanServer.podSecurityContext | nindent 8 }}
+      containers:
+      - name: scan-server
+        securityContext:
+          {{- toYaml .Values.scanServer.securityContext | nindent 12 }}
+        image: "{{ if .Values.scanServer.image.digest }}{{ .Values.scanServer.image.repository }}@{{ .Values.scanServer.image.digest }}{{ else }}{{ .Values.scanServer.image.repository }}:{{ .Values.scanServer.image.tag | default .Chart.AppVersion }}{{ end }}"
+        imagePullPolicy: {{ .Values.scanServer.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.scanServer.config.port }}
+          protocol: TCP
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CLUSTER_NAME
+          value: {{ .Values.clusterName | quote }}
+        - name: PORT
+          value: {{ .Values.scanServer.config.port | quote }}
+        - name: DB_PATH
+          value: "{{ .Values.scanServer.persistence.mountPath }}/containers.db"
+        - name: DEBUG_ENABLED
+          value: {{ .Values.scanServer.config.debugEnabled | quote }}
+        - name: WEB_UI_ENABLED
+          value: {{ .Values.scanServer.config.webUIEnabled | quote }}
+        - name: CONSOLE_URL
+          value: {{ .Values.scanServer.config.consoleURL | quote }}
+        - name: SERVICE_NAME
+          value: {{ include "bjorn2scan.fullname" . }}
+        - name: SERVICE_PORT
+          value: {{ .Values.scanServer.service.port | quote }}
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_METRICS_ENABLED
+          value: {{ .Values.scanServer.config.otelMetrics.enabled | quote }}
+        - name: OTEL_METRICS_ENDPOINT
+          value: {{ .Values.scanServer.config.otelMetrics.endpoint | quote }}
+        - name: OTEL_METRICS_PROTOCOL
+          value: {{ .Values.scanServer.config.otelMetrics.protocol | quote }}
+        - name: OTEL_METRICS_PUSH_INTERVAL
+          value: {{ .Values.scanServer.config.otelMetrics.pushInterval | quote }}
+        - name: OTEL_METRICS_INSECURE
+          value: {{ .Values.scanServer.config.otelMetrics.insecure | quote }}
+        - name: OTEL_USE_DIRECT_EXPORT
+          value: {{ .Values.scanServer.config.otelMetrics.useDirectExport | quote }}
+        - name: OTEL_DIRECT_BATCH_SIZE
+          value: {{ .Values.scanServer.config.otelMetrics.directBatchSize | quote }}
+        - name: METRICS_DEPLOYMENT_ENABLED
+          value: {{ .Values.scanServer.config.metrics.deploymentEnabled | quote }}
+        - name: METRICS_SCANNED_INSTANCES_ENABLED
+          value: {{ .Values.scanServer.config.metrics.scannedInstancesEnabled | quote }}
+        - name: METRICS_VULNERABILITIES_ENABLED
+          value: {{ .Values.scanServer.config.metrics.vulnerabilitiesEnabled | quote }}
+        - name: METRICS_VULNERABILITY_EXPLOITED_ENABLED
+          value: {{ .Values.scanServer.config.metrics.vulnerabilityExploitedEnabled | quote }}
+        - name: METRICS_VULNERABILITY_RISK_ENABLED
+          value: {{ .Values.scanServer.config.metrics.vulnerabilityRiskEnabled | quote }}
+        - name: METRICS_IMAGE_SCAN_STATUS_ENABLED
+          value: {{ .Values.scanServer.config.metrics.imageScanStatusEnabled | quote }}
+        - name: METRICS_STALENESS_WINDOW
+          value: {{ .Values.scanServer.config.metrics.stalenessWindow | quote }}
+        - name: METRICS_NODE_SCANNED_ENABLED
+          value: {{ .Values.scanServer.config.metrics.nodeScannedEnabled | quote }}
+        - name: METRICS_NODE_VULNERABILITIES_ENABLED
+          value: {{ .Values.scanServer.config.metrics.nodeVulnerabilitiesEnabled | quote }}
+        - name: METRICS_NODE_VULNERABILITY_RISK_ENABLED
+          value: {{ .Values.scanServer.config.metrics.nodeVulnerabilityRiskEnabled | quote }}
+        - name: METRICS_NODE_VULNERABILITY_EXPLOITED_ENABLED
+          value: {{ .Values.scanServer.config.metrics.nodeVulnerabilityExploitedEnabled | quote }}
+        - name: JOBS_RESCAN_DATABASE_ENABLED
+          value: {{ .Values.scanServer.config.jobs.rescanDatabase.enabled | quote }}
+        - name: JOBS_RESCAN_DATABASE_INTERVAL
+          value: {{ .Values.scanServer.config.jobs.rescanDatabase.interval | quote }}
+        - name: JOBS_RESCAN_DATABASE_TIMEOUT
+          value: {{ .Values.scanServer.config.jobs.rescanDatabase.timeout | quote }}
+        - name: HOST_SCANNING_ENABLED
+          value: {{ .Values.scanServer.config.hostScanning.enabled | quote }}
+        - name: SCAN_NODES
+          value: {{ .Values.scanServer.config.hostScanning.enabled | quote }}
+        {{- if .Values.scanServer.grypeStorage.separateVolume }}
+        - name: GRYPE_DB_PATH
+          value: {{ .Values.scanServer.grypeStorage.mountPath | quote }}
+        {{- end }}
+        volumeMounts:
+        - name: data
+          mountPath: {{ .Values.scanServer.persistence.mountPath }}
+        - name: tmp
+          mountPath: /tmp
+        {{- if .Values.scanServer.grypeStorage.separateVolume }}
+        - name: grype-cache
+          mountPath: {{ .Values.scanServer.grypeStorage.mountPath }}
+        {{- end }}
+        {{- if .Values.scanServer.startupProbe }}
+        startupProbe:
+          {{- toYaml .Values.scanServer.startupProbe | nindent 10 }}
+        {{- end }}
+        livenessProbe:
+          {{- toYaml .Values.scanServer.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.scanServer.readinessProbe | nindent 10 }}
+        resources:
+          {{- toYaml .Values.scanServer.resources | nindent 10 }}
+      volumes:
+      - name: data
+        {{- if .Values.scanServer.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "bjorn2scan.fullname" . }}-scan-server
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- if .Values.scanServer.grypeStorage.separateVolume }}
+      - name: grype-cache
+        emptyDir: {}
+      {{- end }}
+      - name: tmp
+        emptyDir: {}
+      {{- with .Values.scanServer.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scanServer.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scanServer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

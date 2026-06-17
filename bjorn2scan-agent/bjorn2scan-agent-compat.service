@@ -1,0 +1,31 @@
+[Unit]
+Description=Bjorn2Scan Agent - Host-level security scanning agent
+Documentation=https://github.com/bvboe/b2s-go
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/var/lib/bjorn2scan/bin/bjorn2scan-agent
+Restart=always
+RestartSec=5s
+
+# Basic security hardening (compatible with systemd v219+)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bjorn2scan-agent
+
+# Resource limits
+LimitNOFILE=65536
+TasksMax=4096
+
+[Install]
+WantedBy=multi-user.target

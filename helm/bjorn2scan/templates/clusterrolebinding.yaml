@@ -1,0 +1,17 @@
+{{- if .Values.scanServer.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-{{ .Release.Namespace }}-scan-server
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scan-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "bjorn2scan.fullname" . }}-{{ .Release.Namespace }}-scan-server
+subjects:
+- kind: ServiceAccount
+  name: {{ include "bjorn2scan.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

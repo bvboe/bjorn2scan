@@ -1,0 +1,91 @@
+name: Go Library CI (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      component-name:
+        description: 'Name of the Go library component (directory name)'
+        required: true
+        type: string
+      component-path:
+        description: 'Path to the component directory'
+        required: true
+        type: string
+      run-tests:
+        description: 'Whether to run tests'
+        required: false
+        type: boolean
+        default: true
+      run-lint:
+        description: 'Whether to run linting'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  test:
+    if: inputs.run-tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./${{ inputs.component-path }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: ${{ inputs.component-path }}/go.mod
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test -v -short -race -coverprofile=coverage.out ./...
+
+    - name: Run go vet
+      run: go vet ./...
+
+  lint:
+    if: inputs.run-lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./${{ inputs.component-path }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: ${{ inputs.component-path }}/go.mod
+
+    # Cache golangci-lint analysis results
+    - name: Cache golangci-lint
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cache/golangci-lint
+          ~/.cache/go-build
+        key: ${{ runner.os }}-golangci-lint-${{ inputs.component-name }}-${{ hashFiles(format('{0}/go.mod', inputs.component-path)) }}
+        restore-keys: |
+          ${{ runner.os }}-golangci-lint-${{ inputs.component-name }}-
+          ${{ runner.os }}-golangci-lint-
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v9
+      with:
+        version: latest
+        working-directory: ${{ inputs.component-path }}
+
+    - name: Run gosec security scanner
+      uses: securego/gosec@master
+      with:
+        args: '-fmt sarif -out gosec-results.sarif ./...'
+      continue-on-error: true

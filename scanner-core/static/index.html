@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bjorn2scan - Summary</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="custom-styles.css">
+</head>
+<body>
+    <nav class="topbar">
+        <span class="brand">Bjørn2Scan</span>
+        <div id="topbarNav" class="topbar-links"></div>
+    </nav>
+    <main class="page-content">
+        <h1><div id="clusterName">bjorn2scan</div></h1>
+
+        <div id="summaryHero" class="summary-hero"></div>
+
+        <div class="index-tables">
+        <h2 class="section-heading">Namespace Summary</h2>
+        <div class="section-sub">Average vulnerability counts per container, grouped by namespace.</div>
+        <div class="table-wrap">
+            <div class="csv-row"><a href="" id="namespaceCSVLink">Export to CSV</a></div>
+            <table id="namespaceTable" class="listingTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort-field="namespace" onclick="sortNamespaceTable('namespace')"><b>Namespace</b></th>
+                        <th class="sortable" data-sort-field="container_count" onclick="sortNamespaceTable('container_count')"><b>Containers</b></th>
+                        <th class="sortable" data-sort-field="avg_risk" onclick="sortNamespaceTable('avg_risk')"><b>Avg Risk</b></th>
+                        <th class="sortable" data-sort-field="avg_critical" onclick="sortNamespaceTable('avg_critical')"><b>Avg Critical</b></th>
+                        <th class="sortable" data-sort-field="avg_high" onclick="sortNamespaceTable('avg_high')"><b>Avg High</b></th>
+                        <th class="sortable other-col" data-sort-field="avg_medium" onclick="sortNamespaceTable('avg_medium')" title="Medium + Low + Negligible + Unknown"><b>Avg Other</b></th>
+                        <th><b>Avg CVEs</b></th>
+                        <th class="sortable" data-sort-field="avg_exploits" onclick="sortNamespaceTable('avg_exploits')"><b>Avg Exploits</b></th>
+                        <th class="sortable" data-sort-field="avg_packages" onclick="sortNamespaceTable('avg_packages')"><b>Avg Packages</b></th>
+                    </tr>
+                </thead>
+                <tbody id="namespaceTableBody"></tbody>
+            </table>
+            <div id="namespacePagination" style="margin: 16px 0; text-align: center;"></div>
+        </div>
+
+        <h2 class="section-heading">Container Distribution Summary</h2>
+        <div class="section-sub">Average vulnerability counts per container, grouped by OS distribution.</div>
+        <div class="table-wrap">
+            <div class="csv-row"><a href="" id="distributionCSVLink">Export to CSV</a></div>
+            <table id="distributionTable" class="listingTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort-field="os_name" onclick="sortDistributionTable('os_name')"><b>OS Distribution</b></th>
+                        <th class="sortable" data-sort-field="container_count" onclick="sortDistributionTable('container_count')"><b>Containers</b></th>
+                        <th class="sortable" data-sort-field="avg_risk" onclick="sortDistributionTable('avg_risk')"><b>Avg Risk</b></th>
+                        <th class="sortable" data-sort-field="avg_critical" onclick="sortDistributionTable('avg_critical')"><b>Avg Critical</b></th>
+                        <th class="sortable" data-sort-field="avg_high" onclick="sortDistributionTable('avg_high')"><b>Avg High</b></th>
+                        <th class="sortable other-col" data-sort-field="avg_medium" onclick="sortDistributionTable('avg_medium')" title="Medium + Low + Negligible + Unknown"><b>Avg Other</b></th>
+                        <th><b>Avg CVEs</b></th>
+                        <th class="sortable" data-sort-field="avg_exploits" onclick="sortDistributionTable('avg_exploits')"><b>Avg Exploits</b></th>
+                        <th class="sortable" data-sort-field="avg_packages" onclick="sortDistributionTable('avg_packages')"><b>Avg Packages</b></th>
+                    </tr>
+                </thead>
+                <tbody id="distributionTableBody"></tbody>
+            </table>
+            <div id="distributionPagination" style="margin: 16px 0; text-align: center;"></div>
+        </div>
+
+        <div id="nodeDistroSummary">
+            <h2 class="section-heading">Node Distribution Summary</h2>
+            <div class="section-sub">Average vulnerability counts per node, grouped by OS distribution.</div>
+            <div class="table-wrap">
+                <div class="csv-row"><a href="/api/summary/by-node-distro?format=csv" id="nodeDistributionCSVLink">Export to CSV</a></div>
+                <table id="nodeDistributionTable" class="listingTable">
+                    <thead>
+                        <tr>
+                            <th><b>OS Distribution</b></th>
+                            <th><b>Nodes</b></th>
+                            <th><b>Avg Risk</b></th>
+                            <th><b>Avg Critical</b></th>
+                            <th><b>Avg High</b></th>
+                            <th class="other-col" title="Medium + Low + Negligible + Unknown"><b>Avg Other</b></th>
+                            <th><b>Avg CVEs</b></th>
+                            <th><b>Avg Exploits</b></th>
+                            <th><b>Avg Packages</b></th>
+                        </tr>
+                    </thead>
+                    <tbody id="nodeDistributionTableBody"></tbody>
+                </table>
+                <div id="app-footer"></div>
+            </div>
+        </div>
+        </div>
+    </main>
+
+    <script src="shared.js"></script>
+    <script>
+        const pageTitle = 'Summary';
+
+        // Each paginated avg-table on this page (Namespace, Distribution) has the same
+        // shape: identical state, identical column layout, an endpoint, a data key, and
+        // a per-row click handler. setupAvgTable wires up load / sort / goToPage as
+        // closures over a shared state object.
+        function setupAvgTable(cfg) {
+            const state = {
+                page: 1, sortBy: cfg.defaultSortBy || 'avg_risk', sortOrder: 'DESC',
+                totalPages: 1, totalItems: 0, pageSize: 100
+            };
+
+            async function load() {
+                try {
+                    const params = buildIndexQueryParams({
+                        page: state.page, sortBy: state.sortBy, sortOrder: state.sortOrder, pageSize: 100
+                    });
+                    const response = await fetch(cfg.endpoint + params);
+                    if (!response.ok) throw new Error('Failed to load ' + cfg.endpoint);
+
+                    const data = await response.json();
+                    state.totalPages = data.totalPages || 1;
+                    state.totalItems = data.totalCount || 0;
+
+                    const items = data[cfg.dataKey] || [];
+                    const tbody = document.getElementById(cfg.tbodyId);
+                    tbody.innerHTML = '';
+                    if (items.length === 0) { showEmpty(tbody, 9); return; }
+
+                    items.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.classList.add('clickable-row');
+                        tr.onclick = () => { window.location.href = cfg.rowHref(item); };
+                        renderAvgRow(tr, cfg.mapItem(item));
+                        tbody.appendChild(tr);
+                    });
+
+                    renderPaginationFor(cfg.paginationId, state, cfg.goToPageFn);
+                    document.getElementById(cfg.csvLinkId).href = cfg.endpoint + params + '&format=csv';
+                } catch (error) {
+                    console.error('Error loading:', error);
+                    showError(cfg.tbodyId, error.message, 9);
+                }
+            }
+
+            function sort(column) {
+                if (state.sortBy === column) {
+                    state.sortOrder = state.sortOrder === 'ASC' ? 'DESC' : 'ASC';
+                } else {
+                    state.sortBy = column;
+                    state.sortOrder = 'DESC';
+                }
+                state.page = 1;
+                updateSortIndicatorsFor(cfg.tableId, state);
+                load();
+            }
+
+            function goToPage(page) {
+                if (page < 1 || page > state.totalPages) return;
+                state.page = page;
+                load();
+            }
+
+            return { load, sort, goToPage };
+        }
+
+        // Field-mapper shared between Namespace and Distribution tables (same 11 avg
+        // fields, only the primary label and the count column name differ per call site).
+        function mapAvgFields(item, primaryField, countField) {
+            return {
+                primary: item[primaryField] || '',
+                count: item[countField],
+                risk: item.avg_risk,
+                critical: item.avg_critical, high: item.avg_high,
+                medium: item.avg_medium, low: item.avg_low,
+                negligible: item.avg_negligible, unknown: item.avg_unknown,
+                exploits: item.avg_exploits, packages: item.avg_packages
+            };
+        }
+
+        async function initPage() {
+            try {
+                await loadConfig();
+
+                const clusterNameDiv = document.getElementById('clusterName');
+                if (clusterNameDiv && appConfig) {
+                    clusterNameDiv.textContent = pageTitle + ' - ' + appConfig.clusterName;
+                    document.title = pageTitle + ' - ' + appConfig.clusterName;
+                }
+
+                pageConfig.currentPageUrl = 'index.html';
+                renderSidebarNav();
+                renderTopBarNav();
+                renderVersionFooter();
+
+                await Promise.all([
+                    loadSummaryStats(),
+                    loadNamespaceTable(),
+                    loadDistributionTable(),
+                    loadNodeDistributionTable()
+                ]);
+            } catch (error) {
+                console.error('Error initializing page:', error);
+            }
+        }
+
+        // Render the top summary as a hero metric (total CVEs across the cluster)
+        // plus a small breakdown grid that splits images vs nodes by metric.
+        // Pending / Failed columns appear only when those counts are non-zero, so
+        // a clean cluster shows just the steady-state columns.
+        async function loadSummaryStats() {
+            let dep = {};
+            let nodes = null;
+
+            try {
+                const res = await fetch('/api/summary/deployment-metrics');
+                if (res.ok) dep = await res.json();
+            } catch (e) {
+                console.error('Error loading deployment metrics:', e);
+            }
+
+            try {
+                const res = await fetch('/api/summary/node-metrics');
+                if (res.ok) nodes = await res.json();
+                else if (res.status === 404) nodes = null;
+            } catch (e) {
+                console.error('Error loading node metrics:', e);
+            }
+
+            const heroDiv = document.getElementById('summaryHero');
+            if (!heroDiv) return;
+
+            // Hero: total CVE instances across the cluster (image + node side).
+            const totalCves = (dep.total_cves || 0) + (nodes ? (nodes.total_cves || 0) : 0);
+
+            // Build the breakdown grid columns. Always-present columns first,
+            // then optional Pending / Failed when their counts are non-zero.
+            const cols = [
+                { key: 'count',    label: 'Count' },
+                { key: 'containers', label: 'Containers' },
+                { key: 'cves',     label: 'CVEs' },
+                { key: 'unique',   label: 'Unique CVEs' },
+                { key: 'exploits', label: 'Exploits' },
+            ];
+            const showImagesPending = !!dep.images_pending;
+            const showImagesFailed  = !!dep.images_failed;
+            const showNodesPending  = !!(nodes && nodes.nodes_pending);
+            const showNodesFailed   = !!(nodes && nodes.nodes_failed);
+            if (showImagesPending || showNodesPending) cols.push({ key: 'pending', label: 'Pending' });
+            if (showImagesFailed  || showNodesFailed)  cols.push({ key: 'failed',  label: 'Failed' });
+
+            const rows = [{
+                label: 'Images',
+                count:      dep.images_scanned || 0,
+                containers: dep.container_instances || 0,
+                cves:       dep.total_cves || 0,
+                unique:     dep.unique_cves || 0,
+                exploits:   dep.total_exploits || 0,
+                pending:    dep.images_pending || 0,
+                failed:     dep.images_failed || 0,
+            }];
+            if (nodes) {
+                rows.push({
+                    label: 'Nodes',
+                    count:      nodes.total_nodes || 0,
+                    containers: null,                    // nodes don't have containers
+                    cves:       nodes.total_cves || 0,
+                    unique:     nodes.unique_cves || 0,
+                    exploits:   nodes.total_exploits || 0,
+                    pending:    nodes.nodes_pending || 0,
+                    failed:     nodes.nodes_failed || 0,
+                });
+            }
+
+            const cell = (row, col) => {
+                const v = row[col.key];
+                if (v === null || v === undefined) return '<span class="zero-dash">—</span>';
+                if (v === 0) return '<span class="zero-dash">—</span>';
+                return formatNumber(v);
+            };
+
+            heroDiv.innerHTML = `
+                <div class="hero-metric">
+                    <div class="hero-value">${formatNumber(totalCves)}</div>
+                    <div class="hero-label">Total CVEs across the cluster</div>
+                </div>
+                <table class="hero-grid">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            ${cols.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.map(r => `
+                            <tr>
+                                <th class="row-label">${escapeHtml(r.label)}</th>
+                                ${cols.map(c => `<td>${cell(r, c)}</td>`).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`;
+        }
+
+        // ===== Namespace Summary =====
+        // function declarations are hoisted, so cfg can reference them.
+        function loadNamespaceTable()    { namespaceTable.load(); }
+        function sortNamespaceTable(c)   { namespaceTable.sort(c); }
+        function goToNamespacePage(p)    { namespaceTable.goToPage(p); }
+        const namespaceTable = setupAvgTable({
+            endpoint: '/api/summary/by-namespace',
+            dataKey: 'namespaces',
+            tbodyId: 'namespaceTableBody',
+            tableId: 'namespaceTable',
+            paginationId: 'namespacePagination',
+            csvLinkId: 'namespaceCSVLink',
+            goToPageFn: goToNamespacePage,
+            rowHref: ns => 'containers.html?namespaces=' + encodeURIComponent(ns.namespace),
+            mapItem: ns => mapAvgFields(ns, 'namespace', 'container_count'),
+        });
+
+        // ===== Container Distribution Summary =====
+        function loadDistributionTable()    { distributionTable.load(); }
+        function sortDistributionTable(c)   { distributionTable.sort(c); }
+        function goToDistributionPage(p)    { distributionTable.goToPage(p); }
+        const distributionTable = setupAvgTable({
+            endpoint: '/api/summary/by-distribution',
+            dataKey: 'distributions',
+            tbodyId: 'distributionTableBody',
+            tableId: 'distributionTable',
+            paginationId: 'distributionPagination',
+            csvLinkId: 'distributionCSVLink',
+            goToPageFn: goToDistributionPage,
+            rowHref: dist => 'containers.html?osNames=' + encodeURIComponent(dist.os_name),
+            mapItem: dist => mapAvgFields(dist, 'os_name', 'container_count'),
+        });
+
+        // ===== Node Distribution Summary =====
+        async function loadNodeDistributionTable() {
+            try {
+                const response = await fetch('/api/summary/by-node-distro');
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        document.getElementById('nodeDistroSummary').style.display = 'none';
+                        return;
+                    }
+                    throw new Error('Failed to load node distribution summary');
+                }
+
+                const distributions = await response.json();
+                renderNodeDistributionTable(distributions || []);
+            } catch (error) {
+                console.error('Error loading node distribution summary:', error);
+                showError('nodeDistributionTableBody', error.message, 9);
+            }
+        }
+
+        function renderNodeDistributionTable(distributions) {
+            const tbody = document.getElementById('nodeDistributionTableBody');
+            tbody.innerHTML = '';
+
+            if (distributions.length === 0) {
+                showEmpty(tbody, 9);
+                return;
+            }
+
+            distributions.forEach(dist => {
+                const row = document.createElement('tr');
+                row.classList.add('clickable-row');
+                row.onclick = function() {
+                    window.location.href = 'nodes.html?osNames=' + encodeURIComponent(dist.os_name);
+                };
+                renderAvgRow(row, {
+                    primary: dist.os_name || 'Unknown',
+                    count: dist.node_count || 0,
+                    risk: dist.avg_risk,
+                    critical: dist.avg_critical,
+                    high: dist.avg_high,
+                    medium: dist.avg_medium,
+                    low: dist.avg_low,
+                    negligible: dist.avg_negligible,
+                    unknown: dist.avg_unknown,
+                    exploits: dist.avg_exploits,
+                    packages: dist.avg_packages
+                });
+                tbody.appendChild(row);
+            });
+        }
+
+        // ===== Shared row renderer for the three average tables =====
+        // Columns: primary | count | avg risk | avg crit | avg high | avg other | avg cves | avg exploits | avg packages
+        function renderAvgRow(row, d) {
+            // Primary label, left
+            addCellToRow(row, 'left', d.primary);
+
+            // Count, right
+            addCellToRow(row, 'right', formatNumber(d.count || 0));
+
+            // Risk
+            addAvgOrDash(row, d.risk, formatRisk1);
+
+            // Critical, High
+            addAvgOrDash(row, d.critical, formatAvg1);
+            addAvgOrDash(row, d.high, formatAvg1);
+
+            // Other = Medium + Low + Negligible + Unknown
+            const other = (d.medium || 0) + (d.low || 0) + (d.negligible || 0) + (d.unknown || 0);
+            const otherCell = addAvgOrDash(row, other, formatAvg1);
+            if (other > 0) otherCell.classList.add('muted-num');
+            otherCell.title = 'Medium: ' + formatAvg1(d.medium) +
+                              ' · Low: ' + formatAvg1(d.low) +
+                              ' · Negligible: ' + formatAvg1(d.negligible) +
+                              ' · Unknown: ' + formatAvg1(d.unknown);
+
+            // Avg CVEs = sum of severity averages
+            const avgCves = (d.critical || 0) + (d.high || 0) + (d.medium || 0) +
+                            (d.low || 0) + (d.negligible || 0) + (d.unknown || 0);
+            addAvgOrDash(row, avgCves, formatAvg1);
+
+            // Exploits
+            addAvgOrDash(row, d.exploits, formatAvg1);
+
+            // Packages (rounded integer)
+            const pkgCell = document.createElement('td');
+            pkgCell.style.textAlign = 'right';
+            const pkgVal = d.packages || 0;
+            if (pkgVal === 0) {
+                pkgCell.innerHTML = '<span class="zero-dash">—</span>';
+            } else {
+                pkgCell.textContent = Math.round(pkgVal).toLocaleString('en-US');
+            }
+            row.appendChild(pkgCell);
+        }
+
+        function addAvgOrDash(row, value, formatter) {
+            const cell = document.createElement('td');
+            cell.style.textAlign = 'right';
+            const v = value || 0;
+            if (v === 0) {
+                cell.innerHTML = '<span class="zero-dash">—</span>';
+            } else {
+                cell.textContent = formatter(v);
+            }
+            row.appendChild(cell);
+            return cell;
+        }
+
+        function formatAvg1(value) {
+            if (value === null || value === undefined) return '0.0';
+            return value.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        }
+
+        function formatRisk1(value) {
+            if (value === null || value === undefined) return '0.0';
+            if (value > 0 && value < 0.1) return '<0.1';
+            return value.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        }
+
+        // ===== Shared pagination + sort + helpers =====
+        function renderPaginationFor(containerId, state, goToPage) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            if (state.totalPages <= 1) { container.innerHTML = ''; return; }
+
+            let html = '<div style="display: flex; justify-content: center; align-items: center; gap: 10px;">';
+            html += `<button onclick="(${goToPage.name})(${state.page - 1})" ${state.page === 1 ? 'disabled' : ''}>Previous</button>`;
+            html += '<div style="display: flex; gap: 5px;">';
+            for (let i = Math.max(1, state.page - 2); i <= Math.min(state.totalPages, state.page + 2); i++) {
+                if (i === state.page) {
+                    html += `<button style="font-weight: bold; background: lightgrey;">${i}</button>`;
+                } else {
+                    html += `<button onclick="(${goToPage.name})(${i})">${i}</button>`;
+                }
+            }
+            html += '</div>';
+            html += `<button onclick="(${goToPage.name})(${state.page + 1})" ${state.page === state.totalPages ? 'disabled' : ''}>Next</button>`;
+
+            const startItem = (state.page - 1) * state.pageSize + 1;
+            const endItem = Math.min(state.page * state.pageSize, state.totalItems);
+            html += `<span style="margin-left: 20px; color: #666;">Showing ${startItem}-${endItem} of ${state.totalItems}</span>`;
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function updateSortIndicatorsFor(tableId, state) {
+            const table = document.getElementById(tableId);
+            const headers = table.querySelectorAll('th.sortable');
+            headers.forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (th.getAttribute('data-sort-field') === state.sortBy) {
+                    th.classList.add(state.sortOrder === 'ASC' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+        }
+
+        function buildIndexQueryParams(additionalParams = {}) {
+            const params = new URLSearchParams();
+            Object.entries(additionalParams).forEach(([key, value]) => {
+                if (value !== null && value !== undefined && value !== '') {
+                    params.append(key, value);
+                }
+            });
+            const paramString = params.toString();
+            return paramString ? '?' + paramString : '';
+        }
+
+        function showEmpty(tbody, colSpan) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.innerHTML = 'No data available';
+            cell.colSpan = colSpan;
+            row.appendChild(cell);
+            tbody.appendChild(row);
+        }
+
+        function showError(tbodyId, message, colSpan) {
+            const tbody = document.getElementById(tbodyId);
+            tbody.innerHTML = '';
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.innerHTML = '⚠️ Error loading data: ' + message;
+            cell.colSpan = colSpan;
+            cell.style.color = 'red';
+            row.appendChild(cell);
+            tbody.appendChild(row);
+        }
+
+        // Auto-refresh
+        let indexCurrentTimestamp = null;
+
+        async function checkForUpdates() {
+            try {
+                const response = await fetch('/api/lastupdated');
+                if (!response.ok) return;
+
+                const newTimestamp = await response.text();
+
+                if (indexCurrentTimestamp === null) {
+                    indexCurrentTimestamp = newTimestamp;
+                } else if (newTimestamp !== indexCurrentTimestamp) {
+                    indexCurrentTimestamp = newTimestamp;
+                    await Promise.all([
+                        loadSummaryStats(),
+                        loadNamespaceTable(),
+                        loadDistributionTable(),
+                        loadNodeDistributionTable()
+                    ]);
+                }
+            } catch (error) {
+                console.error('Error checking for updates:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initPage();
+            setInterval(checkForUpdates, 2000);
+        });
+    </script>
+</body>
+</html>

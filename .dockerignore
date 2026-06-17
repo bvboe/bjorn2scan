@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# CI/CD
+.github
+
+# Documentation
+*.md
+docs/
+
+# Development files
+.vscode/
+.idea/
+
+# Build artifacts
+**/bin/
+**/dist/
+**/*.test
+**/*.out
+
+# Temporary files
+**/*~
+**/.DS_Store
+
+# Kubernetes
+helm/
+*.yaml
+*.yml
+
+# Only include what's needed for build
+!go.mod
+!go.sum
+!**/*.go

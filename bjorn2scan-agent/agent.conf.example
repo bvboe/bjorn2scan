@@ -1,0 +1,303 @@
+# Bjorn2Scan Agent Configuration File
+# Copy this file to /etc/bjorn2scan/agent.conf or ./agent.conf
+# Environment variables override values in this file
+
+# Server port (default: 9999)
+# Environment variable: PORT
+port=9999
+
+# Database path (default: /var/lib/bjorn2scan/data/containers.db)
+# Environment variable: DB_PATH
+db_path=/var/lib/bjorn2scan/data/containers.db
+
+# Enable debug mode (default: false)
+# When enabled, adds /debug/sql and /debug/metrics endpoints
+# WARNING: Only enable in development/testing - NOT for production
+# Environment variable: DEBUG_ENABLED
+debug_enabled=false
+
+# Enable web UI (default: true)
+# When enabled, serves the web UI at the root path (/)
+# The web UI provides a dashboard for viewing scanned containers and vulnerabilities
+# Set to false to disable the web UI and only expose API endpoints
+# Environment variable: WEB_UI_ENABLED
+web_ui_enabled=true
+
+# ============================================================================
+# AUTO-UPDATE CONFIGURATION
+# ============================================================================
+
+# Enable automatic updates (default: true)
+# When enabled, agent will periodically check for new versions and auto-update
+auto_update_enabled=true
+
+# Update check interval (default: 6h)
+# Format: Go duration string (e.g., "6h", "24h", "30m")
+auto_update_check_interval=1h
+
+# Allow automatic minor version updates (default: true)
+# Example: 0.1.x → 0.2.x
+auto_update_minor_versions=true
+
+# Allow automatic major version updates (default: false)
+# Example: 0.x.x → 1.x.x
+auto_update_major_versions=false
+
+# Pin to a specific version (default: empty = auto-update)
+# When set, only this version will be installed
+# Example: auto_update_pinned_version=0.1.35
+auto_update_pinned_version=
+
+# Minimum allowed version (default: empty = no minimum)
+# Will not downgrade below this version
+auto_update_min_version=
+
+# Maximum allowed version (default: empty = no maximum)
+# Will not upgrade above this version
+auto_update_max_version=
+
+# Release feed URL (default: https://github.com/bvboe/b2s-go/releases.atom)
+# Atom/RSS feed containing release information
+update_feed_url=https://github.com/bvboe/b2s-go/releases.atom
+
+# Asset download base URL (default: https://github.com/bvboe/b2s-go/releases/download)
+# Base URL for downloading release assets
+# Assets are downloaded from: {base_url}/{version}/{filename}
+update_asset_base_url=https://github.com/bvboe/b2s-go/releases/download
+
+# Verify cosign signatures before installing (default: true)
+update_verify_signatures=true
+
+# Enable automatic rollback on failure (default: true)
+# If health check fails after update, automatically rollback to previous version
+update_rollback_enabled=true
+
+# Health check timeout after update (default: 60s)
+# Format: Go duration string or integer seconds
+update_health_check_timeout=60s
+
+# Cosign identity regexp for signature verification
+update_cosign_identity_regexp=https://github.com/bvboe/b2s-go/*
+
+# Cosign OIDC issuer for signature verification
+update_cosign_oidc_issuer=https://token.actions.githubusercontent.com
+
+# Maximum download retry attempts (default: 3)
+# Number of times to retry downloading release assets on failure
+# Uses exponential backoff: 2s, 4s, 8s, up to 30s max
+update_download_max_retries=3
+
+# Validate asset availability before download (default: true)
+# When enabled, performs HEAD request to check assets exist before downloading
+# Provides faster failure detection and clearer error messages
+# Helps avoid partial downloads during incomplete releases
+update_download_validate_assets=true
+
+# ============================================================================
+# SCHEDULED JOBS CONFIGURATION
+# ============================================================================
+
+# Enable scheduled jobs system (default: true)
+# When disabled, all jobs below will be inactive
+jobs_enabled=true
+
+# --- Refresh Images Job ---
+# Periodically reconciles running containers with the database
+# This ensures the database stays synchronized with actual workloads
+
+# Enable refresh images job (default: true)
+jobs_refresh_images_enabled=true
+
+# How often to run the refresh job (default: 6h)
+# Format: Go duration string (e.g., "6h", "12h", "24h")
+jobs_refresh_images_interval=6h
+
+# Maximum execution time for refresh job (default: 10m)
+jobs_refresh_images_timeout=10m
+
+# --- Cleanup Job ---
+# Removes orphaned container images and related data from the database
+# Keeps the database lean by cleaning up images no longer in use
+
+# Enable cleanup job (default: true)
+jobs_cleanup_enabled=true
+
+# How often to run the cleanup job (default: 24h)
+# Format: Go duration string (e.g., "24h", "48h", "7d")
+jobs_cleanup_interval=24h
+
+# Maximum execution time for cleanup job (default: 1h)
+jobs_cleanup_timeout=1h
+
+# --- Rescan Database Job ---
+# Monitors Grype vulnerability database for updates and rescans all images
+# This ensures vulnerability data stays current as new CVEs are discovered
+# When the database updates, all images are rescanned using their existing SBOMs
+# (no need to regenerate SBOMs, only vulnerability scanning is repeated)
+
+# Enable rescan database job (default: true)
+jobs_rescan_database_enabled=true
+
+# How often to check for database updates (default: 30m)
+# Format: Go duration string (e.g., "30m", "1h", "2h")
+# Grype's vulnerability database typically updates daily
+jobs_rescan_database_interval=30m
+
+# Maximum execution time for rescan job (default: 30m)
+# Should be long enough to scan all images in your environment
+jobs_rescan_database_timeout=30m
+
+# ============================================================================
+# OPENTELEMETRY METRICS CONFIGURATION
+# ============================================================================
+
+# Enable OpenTelemetry metrics export (default: false)
+# When enabled, metrics are pushed to an OTLP endpoint
+# Environment variable: OTEL_METRICS_ENABLED
+otel_metrics_enabled=false
+
+# OTLP endpoint (default: localhost:4317)
+# For Prometheus native OTLP: prometheus-server:9090
+# For OTEL Collector: otel-collector:4317
+# Environment variable: OTEL_METRICS_ENDPOINT
+otel_metrics_endpoint=localhost:4317
+
+# OTLP protocol (default: grpc)
+# Options: "grpc" for OTEL Collector, "http" for Prometheus native OTLP
+# Environment variable: OTEL_METRICS_PROTOCOL
+otel_metrics_protocol=grpc
+
+# Metrics push interval (default: 5m)
+# Format: Go duration string (e.g., "1m", "5m", "10m")
+# Environment variable: OTEL_METRICS_PUSH_INTERVAL
+otel_metrics_push_interval=15m
+
+# Allow insecure connections (default: true)
+# Set to false for production with TLS/SSL
+# Environment variable: OTEL_METRICS_INSECURE
+otel_metrics_insecure=true
+
+# Use direct OTLP export for high-cardinality metrics (default: true)
+# Bypasses SDK buffering to prevent OOM with large node vulnerability datasets
+# Recommended for deployments with many node vulnerabilities (100k+)
+# Environment variable: OTEL_USE_DIRECT_EXPORT
+otel_use_direct_export=true
+
+# Batch size for direct export (default: 5000)
+# Number of data points per HTTP/gRPC request when using direct export
+# Larger batches are more efficient but use more memory per batch
+# Environment variable: OTEL_DIRECT_BATCH_SIZE
+otel_direct_batch_size=5000
+
+# ============================================================================
+# INDIVIDUAL METRIC TOGGLES
+# ============================================================================
+
+# Enable bjorn2scan_deployment metric (default: true)
+# This metric reports deployment information (uuid, name, type, version)
+# Environment variable: METRICS_DEPLOYMENT_ENABLED
+metrics_deployment_enabled=true
+
+# Enable bjorn2scan_scanned_instance metric (default: true)
+# This metric reports detailed information about each scanned container instance
+# Warning: In large clusters with many containers, this can generate significant metric cardinality
+# Environment variable: METRICS_SCANNED_INSTANCES_ENABLED
+metrics_scanned_instances_enabled=true
+
+# Enable bjorn2scan_vulnerability metric (default: true)
+# This metric reports vulnerabilities found in each running container instance
+# Warning: In environments with many vulnerabilities, this can generate very high metric cardinality
+# Each unique vulnerability per container instance creates a separate metric
+# Environment variable: METRICS_VULNERABILITIES_ENABLED
+metrics_vulnerabilities_enabled=true
+
+# Enable bjorn2scan_vulnerability_exploited metric (default: true)
+# This metric reports known exploited vulnerabilities (CISA KEV catalog) in running container instances
+# Uses the known_exploited field to highlight actively exploited CVEs that pose higher risk
+# Warning: Similar to bjorn2scan_vulnerability, this can generate high metric cardinality
+# Environment variable: METRICS_VULNERABILITY_EXPLOITED_ENABLED
+metrics_vulnerability_exploited_enabled=true
+
+# Enable bjorn2scan_vulnerability_risk metric (default: true)
+# This metric reports vulnerability risk scores for running container instances
+# Uses the risk field (float) to provide granular risk assessment for each vulnerability
+# Warning: Similar to bjorn2scan_vulnerability, this can generate high metric cardinality
+# Environment variable: METRICS_VULNERABILITY_RISK_ENABLED
+metrics_vulnerability_risk_enabled=true
+
+# Enable bjorn2scan_image_scan_status metric (default: true)
+# This metric reports scan status counts per image (pending, complete, failed)
+# Useful for monitoring scan coverage and detecting problematic images
+# Environment variable: METRICS_IMAGE_SCAN_STATUS_ENABLED
+metrics_image_scan_status_enabled=true
+
+# Metrics staleness window (default: 60m)
+# Duration after which metrics are considered stale and marked with NaN
+# This affects both /metrics endpoint and OTLP push to ensure consistency
+# When a metric (e.g., container, vulnerability) hasn't been seen within this window,
+# it will be marked as stale (NaN value) to create gaps in Grafana rather than
+# showing flat lines of old data
+# Format: Go duration string (e.g., "30m", "60m", "1h", "2h")
+# Environment variable: METRICS_STALENESS_WINDOW
+metrics_staleness_window=60m
+
+# ============================================================================
+# NODE METRICS TOGGLES
+# (Only applicable when host scanning is enabled)
+# ============================================================================
+
+# Enable bjorn2scan_node_scanned metric (default: true)
+# This metric reports information about each scanned node
+# Environment variable: METRICS_NODE_SCANNED_ENABLED
+metrics_node_scanned_enabled=true
+
+# Enable bjorn2scan_node_vulnerability metric (default: true)
+# This metric reports vulnerabilities found on each scanned node
+# Environment variable: METRICS_NODE_VULNERABILITIES_ENABLED
+metrics_node_vulnerabilities_enabled=true
+
+# Enable bjorn2scan_node_vulnerability_risk metric (default: true)
+# This metric reports vulnerability risk scores for node packages
+# Environment variable: METRICS_NODE_VULNERABILITY_RISK_ENABLED
+metrics_node_vulnerability_risk_enabled=true
+
+# Enable bjorn2scan_node_vulnerability_exploited metric (default: true)
+# This metric reports known exploited vulnerabilities (CISA KEV) on nodes
+# Environment variable: METRICS_NODE_VULNERABILITY_EXPLOITED_ENABLED
+metrics_node_vulnerability_exploited_enabled=true
+
+# ============================================================================
+# HOST SCANNING CONFIGURATION
+# ============================================================================
+
+# Enable host/node package scanning (default: true)
+# When enabled, scans the host filesystem for installed packages
+# and reports vulnerabilities found in system packages
+# Environment variable: HOST_SCANNING_ENABLED
+host_scanning_enabled=true
+
+# Host scanning interval (default: 24h)
+# How often to rescan the host filesystem for package changes
+# Format: Go duration string (e.g., "12h", "24h", "48h")
+# Environment variable: HOST_SCANNING_INTERVAL
+host_scanning_interval=24h
+
+# Additional exclusion patterns for host scanning (default: empty)
+# Comma-separated list of glob patterns to exclude from scanning
+# These are added to the default exclusions (container runtimes, virtual filesystems, etc.)
+# Example: /home/**,/backup/**,/data/**
+# Environment variable: HOST_SCANNING_EXTRA_EXCLUSIONS
+host_scanning_extra_exclusions=
+
+# Auto-detect network filesystem mounts (default: true)
+# When enabled, automatically detects and excludes NFS, CIFS, and other network mounts
+# This prevents slow scans on network filesystems and avoids scanning remote data
+# Environment variable: HOST_SCANNING_AUTO_DETECT_NFS
+host_scanning_auto_detect_nfs=true
+
+# Additional network filesystem types to detect (default: empty)
+# Comma-separated list of filesystem types to add to the default detection
+# Default types: nfs, nfs4, cifs, smbfs, fuse.sshfs, fuse.rclone, fuse.s3fs, afs, gfs, gfs2, lustre, glusterfs
+# Example: fuse.gdrive,fuse.dropbox,fuse.onedrive
+# Environment variable: HOST_SCANNING_EXTRA_NETWORK_FS_TYPES
+host_scanning_extra_network_fs_types=

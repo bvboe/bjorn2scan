@@ -1,0 +1,42 @@
+{{- if .Values.updateController.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-update-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: update-controller
+spec:
+  schedule: {{ .Values.updateController.schedule | quote }}
+  concurrencyPolicy: {{ .Values.updateController.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.updateController.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.updateController.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "bjorn2scan.labels" . | nindent 8 }}
+        app.kubernetes.io/component: update-controller
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "bjorn2scan.labels" . | nindent 12 }}
+            app.kubernetes.io/component: update-controller
+        spec:
+          serviceAccountName: {{ include "bjorn2scan.serviceAccountName" . }}
+          restartPolicy: OnFailure
+          containers:
+          - name: update-controller
+            image: "{{ if .Values.updateController.image.digest }}{{ .Values.updateController.image.repository }}@{{ .Values.updateController.image.digest }}{{ else }}{{ .Values.updateController.image.repository }}:{{ .Values.updateController.image.tag | default .Chart.AppVersion }}{{ end }}"
+            imagePullPolicy: {{ .Values.updateController.image.pullPolicy }}
+            env:
+            - name: CONFIG_MAP_NAME
+              value: {{ include "bjorn2scan.fullname" . }}-update-config
+            - name: CONFIG_MAP_NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: CONFIG_MAP_KEY
+              value: config.yaml
+            resources:
+              {{- toYaml .Values.updateController.resources | nindent 14 }}
+{{- end }}

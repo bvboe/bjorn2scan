@@ -1,0 +1,175 @@
+name: Grype/Syft Integration Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster_type:
+        description: 'Kubernetes cluster type'
+        required: false
+        default: 'kind'
+        type: choice
+        options:
+          - kind
+          - minikube
+
+jobs:
+  validate:
+    name: Validate Grype/Syft Integration
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: |
+          k8s-scan-server/go.sum
+          pod-scanner/go.sum
+          scanner-core/go.sum
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Cache Kind
+      if: inputs.cluster_type == 'kind'
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.kind
+          /var/lib/docker/image
+        key: ${{ runner.os }}-kind-${{ hashFiles('.github/workflows/grype-syft-validation.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-kind-
+
+    - name: Cache Minikube
+      if: inputs.cluster_type == 'minikube'
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.minikube
+          /var/lib/minikube
+        key: ${{ runner.os }}-minikube-${{ hashFiles('.github/workflows/grype-syft-validation.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-minikube-
+
+    - name: Cache Helm
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cache/helm
+          ~/.local/share/helm
+        key: ${{ runner.os }}-helm-${{ hashFiles('helm/**') }}
+        restore-keys: |
+          ${{ runner.os }}-helm-
+
+    - name: Build k8s-scan-server image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: ./k8s-scan-server/Dockerfile
+        push: false
+        tags: k8s-scan-server:test
+        cache-from: |
+          type=gha,scope=k8s-scan-server-${{ hashFiles('k8s-scan-server/go.sum', 'scanner-core/go.sum') }}
+          type=gha,scope=k8s-scan-server
+        cache-to: type=gha,mode=max,scope=k8s-scan-server-${{ hashFiles('k8s-scan-server/go.sum', 'scanner-core/go.sum') }}
+        load: true
+
+    - name: Build pod-scanner image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: ./pod-scanner/Dockerfile
+        push: false
+        tags: pod-scanner:test
+        cache-from: |
+          type=gha,scope=pod-scanner-${{ hashFiles('pod-scanner/go.sum', 'scanner-core/go.sum') }}
+          type=gha,scope=pod-scanner
+        cache-to: type=gha,mode=max,scope=pod-scanner-${{ hashFiles('pod-scanner/go.sum', 'scanner-core/go.sum') }}
+        load: true
+
+    - name: Set up kind cluster
+      if: inputs.cluster_type == 'kind'
+      uses: helm/kind-action@v1
+      with:
+        cluster_name: grype-syft-test
+
+    - name: Load images to kind
+      if: inputs.cluster_type == 'kind'
+      run: |
+        kind load docker-image k8s-scan-server:test --name grype-syft-test
+        kind load docker-image pod-scanner:test --name grype-syft-test
+
+    - name: Set up minikube cluster
+      if: inputs.cluster_type == 'minikube'
+      uses: medyagh/setup-minikube@latest
+      with:
+        driver: docker
+
+    - name: Load images to minikube
+      if: inputs.cluster_type == 'minikube'
+      run: |
+        minikube image load k8s-scan-server:test
+        minikube image load pod-scanner:test
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v5
+      with:
+        version: 'latest'
+
+    - name: Deploy bjorn2scan with Helm
+      run: |
+        helm install bjorn2scan ./helm/bjorn2scan \
+          --namespace default \
+          --create-namespace \
+          --set scanServer.image.repository=k8s-scan-server \
+          --set scanServer.image.tag=test \
+          --set podScanner.image.repository=pod-scanner \
+          --set podScanner.image.tag=test \
+          --wait \
+          --timeout 3m
+
+    - name: Verify deployment
+      run: |
+        kubectl get pods -n default
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=bjorn2scan -n default --timeout=180s
+
+    - name: Install Syft
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+    - name: Install Grype
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+    - name: Verify tools installation
+      run: |
+        syft version
+        grype version
+        jq --version
+        kubectl version --client
+
+    - name: Run grype-syft integration test
+      run: |
+        chmod +x ./scripts/grype-syft-integration-test
+        ./scripts/grype-syft-integration-test
+
+    - name: Get pod logs on failure
+      if: failure()
+      run: |
+        echo "=== Pod Status ==="
+        kubectl get pods -n default
+        echo ""
+        echo "=== Scan Server Logs ==="
+        kubectl logs -l app.kubernetes.io/component=scan-server -n default --tail=100
+        echo ""
+        echo "=== Pod Scanner Logs ==="
+        kubectl logs -l app.kubernetes.io/component=pod-scanner -n default --tail=100
+
+    - name: Cleanup
+      if: always()
+      run: |
+        helm uninstall bjorn2scan -n default || true

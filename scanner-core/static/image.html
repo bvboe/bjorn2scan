@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bjorn2scan - Image Summary</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="custom-styles.css">
+</head>
+<body>
+    <nav class="topbar">
+        <span class="brand">Bjørn2Scan</span>
+        <div id="topbarNav" class="topbar-links"></div>
+    </nav>
+    <main class="page-content">
+        <div class="back-link"><a href="#" onclick="window.history.back(); return false;">← Back</a></div>
+        <div id="pageHeading"></div>
+
+        <!-- Three summary metadata blocks (side-by-side, all data preserved) -->
+        <div class="image-summary-grid">
+            <table class="summaryTable">
+                <tr><td><b>Total Risk:</b></td><td id="total_risk"></td></tr>
+                <tr><td><b>CVEs:</b></td><td id="total_cves"></td></tr>
+                <tr><td><b>Unique CVEs:</b></td><td id="unique_cves"></td></tr>
+                <tr><td><b>Exploits:</b></td><td id="total_exploits"></td></tr>
+                <tr><td><b>Unique Exploits:</b></td><td id="unique_exploits"></td></tr>
+                <tr><td><b>Packages:</b></td><td id="total_packages"></td></tr>
+                <tr><td><b>Unique Packages:</b></td><td id="unique_packages"></td></tr>
+            </table>
+
+            <table class="summaryTable">
+                <tr><td><b>Critical:</b></td><td id="cves_critical"></td></tr>
+                <tr><td><b>High:</b></td><td id="cves_high"></td></tr>
+                <tr><td><b>Medium:</b></td><td id="cves_medium"></td></tr>
+                <tr><td><b>Low:</b></td><td id="cves_low"></td></tr>
+                <tr><td><b>Negligible:</b></td><td id="cves_negligible"></td></tr>
+                <tr><td><b>Unknown:</b></td><td id="cves_unknown"></td></tr>
+            </table>
+
+            <table class="summaryTable">
+                <tr><td><b>Digest:</b></td><td id="image_id"></td></tr>
+                <tr><td><b>References:</b></td><td id="references"></td></tr>
+                <tr><td><b>Linux Distribution:</b></td><td id="distro_display_name"></td></tr>
+                <tr><td><b>Containers:</b></td><td id="containers"></td></tr>
+                <tr><td><b>Scan Status:</b></td><td id="scan_status"></td></tr>
+                <tr><td><b>Last Scanned:</b></td><td id="vulns_scanned_at"></td></tr>
+                <tr><td><b>Grype DB Version:</b></td><td id="grype_db_built"></td></tr>
+            </table>
+        </div>
+
+        <!-- Always-visible inline filters -->
+        <div class="inline-filters">
+            <form>
+                <label for="severityFilter"><b>Severity:</b></label>
+                <select id="severityFilter" name="severity" multiple onchange="onFilterChange()"></select>
+
+                <label for="fixStatusFilter"><b>Status:</b></label>
+                <select id="fixStatusFilter" name="fixStatus" multiple onchange="onFilterChange()"></select>
+
+                <label for="packageTypeFilter"><b>Type:</b></label>
+                <select id="packageTypeFilter" name="packageType" multiple onchange="onFilterChange()"></select>
+            </form>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <a id="cvesHeader" class="active" onclick="showVulnerabilityTable(); return false;">Vulnerabilities</a>
+            <a id="sbomHeader" onclick="showSBOMTable(); return false;">SBOM</a>
+        </div>
+
+        <!-- Vulnerabilities tab -->
+        <div id="cvesSection" style="display: block;">
+            <div class="table-wrap">
+                <div class="csv-row">
+                    <a href="" id="cvejsonlink">Export to JSON</a> · <a href="" id="cvecsvlink">Export to CSV</a>
+                </div>
+                <table id="cvesTable" class="listingTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable text-col" data-sort-field="vulnerability_severity" onclick="sortVulnByColumn('vulnerability_severity')"><b>Severity</b></th>
+                            <th class="sortable text-col" data-sort-field="vulnerability_id" onclick="sortVulnByColumn('vulnerability_id')"><b>Vulnerability</b></th>
+                            <th class="sortable text-col" data-sort-field="artifact_name" onclick="sortVulnByColumn('artifact_name')"><b>Name</b></th>
+                            <th class="sortable text-col" data-sort-field="artifact_version" onclick="sortVulnByColumn('artifact_version')"><b>Installed</b></th>
+                            <th class="sortable text-col" data-sort-field="vulnerability_fix_versions" onclick="sortVulnByColumn('vulnerability_fix_versions')"><b>Fixed In</b></th>
+                            <th class="sortable text-col" data-sort-field="vulnerability_fix_state" onclick="sortVulnByColumn('vulnerability_fix_state')"><b>Status</b></th>
+                            <th class="sortable text-col" data-sort-field="artifact_type" onclick="sortVulnByColumn('artifact_type')"><b>Type</b></th>
+                            <th class="sortable" data-sort-field="vulnerability_risk" onclick="sortVulnByColumn('vulnerability_risk')"><b>Risk</b></th>
+                            <th class="sortable" data-sort-field="vulnerability_known_exploits" onclick="sortVulnByColumn('vulnerability_known_exploits')"><b>Exploits</b></th>
+                            <th class="sortable" data-sort-field="vulnerability_count" onclick="sortVulnByColumn('vulnerability_count')"><b>Count</b></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div id="vulnPagination" style="margin: 16px 0; text-align: center;"></div>
+                <div class="app-footer"></div>
+            </div>
+        </div>
+
+        <!-- SBOM tab -->
+        <div id="sbomSection" style="display: none;">
+            <div class="table-wrap">
+                <div class="csv-row">
+                    <a href="" id="sbomjsonlink">Export to JSON</a> · <a href="" id="sbomcsvlink">Export to CSV</a>
+                </div>
+                <table id="sbomTable" class="listingTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable text-col" data-sort-field="name" onclick="sortSBOMByColumn('name')"><b>Name</b></th>
+                            <th class="sortable text-col" data-sort-field="version" onclick="sortSBOMByColumn('version')"><b>Version</b></th>
+                            <th class="sortable text-col" data-sort-field="type" onclick="sortSBOMByColumn('type')"><b>Type</b></th>
+                            <th class="sortable" data-sort-field="count" onclick="sortSBOMByColumn('count')"><b>Count</b></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div id="sbomPagination" style="margin: 16px 0; text-align: center;"></div>
+                <div class="app-footer"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for displaying JSON details -->
+    <div id="detailsModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 900px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 id="modalTitle">Details</h2>
+                <button onclick="closeDetailsModal()" style="font-size: 28px; font-weight: bold; cursor: pointer; background: none; border: none; padding: 0; width: 30px; height: 30px;">&times;</button>
+            </div>
+            <div style="max-height: 600px; overflow: auto; background-color: #f5f5f5; padding: 15px; border: 1px solid #ddd;">
+                <pre id="modalContent" style="margin: 0; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-wrap: break-word;"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="image.js"></script>
+</body>
+</html>

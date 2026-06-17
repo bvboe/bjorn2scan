@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+# Functional test for Helm upgrade with restricted RBAC permissions
+# This test validates that the bjorn2scan ServiceAccount has sufficient permissions
+# to perform a Helm upgrade, which is what the update-controller does.
+#
+# Configuration via environment variables:
+#   TEST_NAMESPACE     - Kubernetes namespace (default: default)
+#   RELEASE_NAME       - Helm release name (default: bjorn2scan)
+#   SERVICE_ACCOUNT    - ServiceAccount to test (default: bjorn2scan)
+#   CHART_PATH         - Path to Helm chart (default: ./helm/bjorn2scan)
+#
+# Example:
+#   TEST_NAMESPACE=b2sv2 ./scripts/test-helm-upgrade-rbac
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
+NAMESPACE="${TEST_NAMESPACE:-default}"
+RELEASE_NAME="${RELEASE_NAME:-bjorn2scan}"
+SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-bjorn2scan}"
+CHART_PATH="${CHART_PATH:-$SCRIPT_DIR/helm/bjorn2scan}"
+
+echo "========================================"
+echo "Helm Upgrade RBAC Functional Test"
+echo "Namespace: $NAMESPACE"
+echo "Release: $RELEASE_NAME"
+echo "ServiceAccount: $SERVICE_ACCOUNT"
+echo "========================================"
+echo ""
+
+# Verify chart is already deployed
+if ! helm status "$RELEASE_NAME" -n "$NAMESPACE" &>/dev/null; then
+    echo -e "${RED}ERROR: Helm release '$RELEASE_NAME' not found in namespace '$NAMESPACE'${NC}"
+    echo ""
+    echo "This test requires the chart to be already deployed."
+    echo ""
+    echo "Options:"
+    echo "  1. Deploy the chart first:"
+    echo "     helm install $RELEASE_NAME $CHART_PATH --namespace $NAMESPACE --create-namespace"
+    echo ""
+    echo "  2. If using a different namespace/release, set environment variables:"
+    echo "     TEST_NAMESPACE=your-namespace RELEASE_NAME=your-release $0"
+    echo ""
+    echo "  3. List existing releases:"
+    echo "     helm list --all-namespaces"
+    exit 1
+fi
+
+echo -e "${GREEN}✓${NC} Found existing Helm release"
+echo ""
+
+# Create a Job that runs helm upgrade as the ServiceAccount
+echo "Creating Helm upgrade Job using ServiceAccount: $SERVICE_ACCOUNT"
+
+# Get current chart values to preserve them
+CURRENT_IMAGE_TAG=$(kubectl get deployment -n "$NAMESPACE" -l app.kubernetes.io/component=scan-server -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' | cut -d: -f2)
+echo "Current image tag: $CURRENT_IMAGE_TAG"
+
+# Create a unique annotation to trigger an actual upgrade
+UPGRADE_TIMESTAMP=$(date +%s)
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: helm-upgrade-test-values
+  namespace: $NAMESPACE
+data:
+  values.yaml: |
+    scanServer:
+      image:
+        tag: "$CURRENT_IMAGE_TAG"
+      podAnnotations:
+        test-upgrade: "$UPGRADE_TIMESTAMP"
+    podScanner:
+      image:
+        tag: "$CURRENT_IMAGE_TAG"
+    updateController:
+      enabled: true
+      image:
+        tag: "$CURRENT_IMAGE_TAG"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: helm-upgrade-rbac-test
+  namespace: $NAMESPACE
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: helm-upgrade-test
+    spec:
+      serviceAccountName: $SERVICE_ACCOUNT
+      restartPolicy: Never
+      containers:
+      - name: helm-upgrade
+        image: alpine/helm:latest
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "========================================"
+          echo "Running Helm upgrade as ServiceAccount: $SERVICE_ACCOUNT"
+          echo "========================================"
+          echo ""
+
+          # Install kubectl
+          apk add --no-cache curl
+          curl -LO "https://dl.k8s.io/release/\$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          mv kubectl /usr/local/bin/
+
+          echo "Current permissions:"
+          kubectl auth can-i --list --namespace=$NAMESPACE || true
+          echo ""
+
+          echo "Extracting chart..."
+          mkdir -p /tmp/chart
+          tar -xzf /chart/chart.tgz -C /tmp/chart --strip-components=1
+          echo ""
+
+          echo "Attempting Helm upgrade..."
+          helm upgrade $RELEASE_NAME /tmp/chart \
+            --namespace $NAMESPACE \
+            --values /values/values.yaml \
+            --reuse-values \
+            --wait \
+            --timeout 2m \
+            --debug
+
+          echo ""
+          echo "========================================"
+          echo "✓ Helm upgrade completed successfully!"
+          echo "========================================"
+        volumeMounts:
+        - name: chart
+          mountPath: /chart
+          readOnly: true
+        - name: values
+          mountPath: /values
+          readOnly: true
+      volumes:
+      - name: chart
+        configMap:
+          name: helm-upgrade-test-chart
+      - name: values
+        configMap:
+          name: helm-upgrade-test-values
+EOF
+
+# Package the chart into a ConfigMap for the Job to use
+echo ""
+echo "Packaging Helm chart..."
+TEMP_DIR=$(mktemp -d)
+helm package "$CHART_PATH" -d "$TEMP_DIR"
+CHART_TGZ=$(ls "$TEMP_DIR"/*.tgz)
+
+# Create ConfigMap with packaged chart
+kubectl create configmap helm-upgrade-test-chart -n "$NAMESPACE" \
+  --from-file=chart.tgz="$CHART_TGZ" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+rm -rf "$TEMP_DIR"
+
+echo -e "${GREEN}✓${NC} Chart packaged and loaded"
+echo ""
+
+# Wait for the Job to complete
+echo "Waiting for Helm upgrade Job to complete (timeout: 3m)..."
+if kubectl wait --for=condition=complete job/helm-upgrade-rbac-test -n "$NAMESPACE" --timeout=180s; then
+    echo -e "${GREEN}✓ Helm upgrade Job completed successfully!${NC}"
+    echo ""
+
+    # Show Job logs
+    echo "Job logs:"
+    echo "========================================"
+    kubectl logs job/helm-upgrade-rbac-test -n "$NAMESPACE"
+    echo "========================================"
+    echo ""
+
+    # Verify the annotation was applied
+    DEPLOYED_ANNOTATION=$(kubectl get deployment -n "$NAMESPACE" -l app.kubernetes.io/component=scan-server -o jsonpath='{.items[0].spec.template.metadata.annotations.test-upgrade}')
+    if [ "$DEPLOYED_ANNOTATION" = "$UPGRADE_TIMESTAMP" ]; then
+        echo -e "${GREEN}✓ Upgrade verification: Annotation applied correctly${NC}"
+    else
+        echo -e "${RED}✗ Upgrade verification: Annotation not found or incorrect${NC}"
+        echo "Expected: $UPGRADE_TIMESTAMP"
+        echo "Got: $DEPLOYED_ANNOTATION"
+        exit 1
+    fi
+
+    echo ""
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}✓ RBAC permissions are sufficient!${NC}"
+    echo -e "${GREEN}  Helm upgrades will work correctly.${NC}"
+    echo -e "${GREEN}========================================${NC}"
+
+    # Cleanup
+    kubectl delete job helm-upgrade-rbac-test -n "$NAMESPACE" --ignore-not-found=true
+    kubectl delete configmap helm-upgrade-test-chart -n "$NAMESPACE" --ignore-not-found=true
+    kubectl delete configmap helm-upgrade-test-values -n "$NAMESPACE" --ignore-not-found=true
+
+    exit 0
+else
+    echo -e "${RED}✗ Helm upgrade Job failed or timed out!${NC}"
+    echo ""
+
+    # Show Job status and logs
+    echo "Job status:"
+    kubectl get job helm-upgrade-rbac-test -n "$NAMESPACE"
+    echo ""
+
+    echo "Pod status:"
+    kubectl get pods -n "$NAMESPACE" -l app=helm-upgrade-test
+    echo ""
+
+    echo "Job logs:"
+    echo "========================================"
+    kubectl logs job/helm-upgrade-rbac-test -n "$NAMESPACE" || echo "Failed to get logs"
+    echo "========================================"
+    echo ""
+
+    echo -e "${RED}========================================${NC}"
+    echo -e "${RED}✗ RBAC permissions are INSUFFICIENT!${NC}"
+    echo -e "${RED}  Check the ClusterRole permissions.${NC}"
+    echo -e "${RED}========================================${NC}"
+
+    # Cleanup
+    kubectl delete job helm-upgrade-rbac-test -n "$NAMESPACE" --ignore-not-found=true
+    kubectl delete configmap helm-upgrade-test-chart -n "$NAMESPACE" --ignore-not-found=true
+    kubectl delete configmap helm-upgrade-test-values -n "$NAMESPACE" --ignore-not-found=true
+
+    exit 1
+fi

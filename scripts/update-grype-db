@@ -1,0 +1,39 @@
+#!/bin/bash
+# Fetches the latest Grype database info and appends it to grype-db-history.json
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HISTORY_FILE="$SCRIPT_DIR/grype-db-history.json"
+URL="https://grype.anchore.io/databases/v6/latest.json"
+
+# Fetch latest database info
+latest=$(curl -s "$URL")
+
+if [ -z "$latest" ]; then
+    echo "Error: Failed to fetch data from $URL" >&2
+    exit 1
+fi
+
+# Validate it's valid JSON
+if ! echo "$latest" | jq . > /dev/null 2>&1; then
+    echo "Error: Invalid JSON response from $URL" >&2
+    exit 1
+fi
+
+# Create history file with empty array if it doesn't exist
+if [ ! -f "$HISTORY_FILE" ]; then
+    echo "[]" > "$HISTORY_FILE"
+fi
+
+# Check if checksum already exists
+checksum=$(echo "$latest" | jq -r '.checksum')
+if jq -e --arg checksum "$checksum" '.[] | select(.checksum == $checksum)' "$HISTORY_FILE" > /dev/null 2>&1; then
+    echo "Entry already exists: $(echo "$latest" | jq -r '.schemaVersion + " built " + .built')"
+    exit 0
+fi
+
+# Append to history array (chronological order)
+jq --argjson new "$latest" '. += [$new]' "$HISTORY_FILE" > "$HISTORY_FILE.tmp" && mv "$HISTORY_FILE.tmp" "$HISTORY_FILE"
+
+echo "Added entry: $(echo "$latest" | jq -r '.schemaVersion + " built " + .built')"

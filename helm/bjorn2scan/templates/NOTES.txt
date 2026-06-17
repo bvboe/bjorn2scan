@@ -1,0 +1,38 @@
+Thank you for installing {{ .Chart.Name }} v{{ .Chart.Version }}!
+
+Your release is named {{ .Release.Name }}.
+
+This chart deploys:
+- Scan Server (Singleton): Central coordination service
+- Pod Scanner (DaemonSet): Runs on every node to scan local pods
+
+To access the Scan Server, run:
+
+{{- if .Values.scanServer.enabled }}
+{{- if eq .Values.scanServer.service.type "NodePort" }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "bjorn2scan.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if eq .Values.scanServer.service.type "LoadBalancer" }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        Watch the status with: kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "bjorn2scan.fullname" . }}
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "bjorn2scan.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.scanServer.service.port }}
+{{- else if eq .Values.scanServer.service.type "ClusterIP" }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "bjorn2scan.fullname" . }} 8080:{{ .Values.scanServer.service.port }}
+  echo "Visit http://127.0.0.1:8080/health to check the service"
+  echo "Visit http://127.0.0.1:8080/info for service information"
+{{- end }}
+{{- end }}
+
+To check the deployment status:
+  # Scan Server
+  kubectl --namespace {{ .Release.Namespace }} get deployment {{ include "bjorn2scan.fullname" . }}-scan-server
+
+  # Pod Scanner DaemonSet
+  kubectl --namespace {{ .Release.Namespace }} get daemonset {{ include "bjorn2scan.fullname" . }}-pod-scanner
+
+  # All pods
+  kubectl --namespace {{ .Release.Namespace }} get pods -l "app.kubernetes.io/name={{ include "bjorn2scan.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
+
+For more information, visit: https://github.com/bvboe/b2s-go

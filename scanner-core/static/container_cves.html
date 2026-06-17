@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bjorn2scan - Container CVEs</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="custom-styles.css">
+</head>
+<body>
+    <nav class="topbar">
+        <span class="brand">Bjørn2Scan</span>
+        <div id="topbarNav" class="topbar-links"></div>
+    </nav>
+    <main class="page-content">
+        <h1><div id="clusterName">bjorn2scan</div></h1>
+
+        <div id="imageSummary" class="stats-strip"></div>
+
+        <!-- Always-visible inline filters -->
+        <div class="inline-filters">
+            <form>
+                <label for="namespaceFilter"><b>Namespace:</b></label>
+                <select id="namespaceFilter" name="namespaces" multiple onchange="onFilterChange()"></select>
+
+                <label for="osNameFilter"><b>OS Distribution:</b></label>
+                <select id="osNameFilter" name="osNames" multiple onchange="onFilterChange()"></select>
+
+                <label for="severityFilter"><b>Severity:</b></label>
+                <select id="severityFilter" name="severity" multiple onchange="onFilterChange()"></select>
+
+                <label for="vulnerabilityStatusFilter"><b>Fix Status:</b></label>
+                <select id="vulnerabilityStatusFilter" name="vulnStatuses" multiple onchange="onFilterChange()"></select>
+
+                <label for="packageTypeFilter"><b>Package Type:</b></label>
+                <select id="packageTypeFilter" name="packageTypes" multiple onchange="onFilterChange()"></select>
+            </form>
+        </div>
+
+        <div class="table-wrap">
+            <div class="csv-row"><a href="" id="cvecsvlink">Export to CSV</a></div>
+            <table id="cvesTable" class="listingTable">
+                <thead>
+                    <tr>
+                        <th class="sortable text-col" data-sort-field="vulnerability_severity" onclick="sortCVEByColumn('vulnerability_severity')"><b>Severity</b></th>
+                        <th class="sortable text-col" data-sort-field="vulnerability_id" onclick="sortCVEByColumn('vulnerability_id')"><b>Vulnerability</b></th>
+                        <th class="sortable text-col" data-sort-field="artifact_name" onclick="sortCVEByColumn('artifact_name')"><b>Name</b></th>
+                        <th class="sortable text-col" data-sort-field="artifact_version" onclick="sortCVEByColumn('artifact_version')"><b>Installed</b></th>
+                        <th class="sortable text-col" data-sort-field="vulnerability_fix_versions" onclick="sortCVEByColumn('vulnerability_fix_versions')"><b>Fixed In</b></th>
+                        <th class="sortable text-col" data-sort-field="vulnerability_fix_state" onclick="sortCVEByColumn('vulnerability_fix_state')"><b>Status</b></th>
+                        <th class="sortable text-col" data-sort-field="artifact_type" onclick="sortCVEByColumn('artifact_type')"><b>Type</b></th>
+                        <th class="sortable" data-sort-field="vulnerability_risk" onclick="sortCVEByColumn('vulnerability_risk')"><b>Risk</b></th>
+                        <th class="sortable" data-sort-field="vulnerability_known_exploits" onclick="sortCVEByColumn('vulnerability_known_exploits')"><b>Exploits</b></th>
+                        <th class="sortable" data-sort-field="vulnerability_count" onclick="sortCVEByColumn('vulnerability_count')" title="Number of affected container instances"><b>Count</b></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div id="pagination" style="margin: 16px 0; text-align: center;"></div>
+            <div id="app-footer"></div>
+        </div>
+    </main>
+
+    <!-- Modal for displaying CVE details -->
+    <div id="detailsModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 900px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 id="modalTitle">Details</h2>
+                <button onclick="closeDetailsModal()" style="font-size: 28px; font-weight: bold; cursor: pointer; background: none; border: none; padding: 0; width: 30px; height: 30px;">&times;</button>
+            </div>
+            <div id="modalAffected" style="margin-bottom: 15px;"></div>
+            <div style="margin-bottom: 6px;"><b>Vulnerability detail</b> <span style="color: #666; font-size: 12px;">— distinct detail records across affected images. Byte-identical records are collapsed; each variant lists the images that share it.</span></div>
+            <div id="modalVariants" style="max-height: 500px; overflow: auto;"></div>
+        </div>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="container_cves.js"></script>
+</body>
+</html>

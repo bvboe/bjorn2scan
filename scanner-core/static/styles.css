@@ -1,0 +1,84 @@
+h1 {
+    padding: 0px 10px;
+    font-family: 'Times', "Times New Roman", serif;
+}
+
+h2 {
+    padding: 0px 10px;
+}
+
+h3 {
+    padding: 0px 10px;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.listingTable {
+    border-collapse: collapse;
+    width: max-content;
+}
+
+.listingTable th, .listingTable td {
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 8px 10px;
+}
+
+.listingTable thead th {
+    border-bottom: 1px solid #888;
+    text-align: right;
+}
+
+.listingTable thead th:first-child,
+.listingTable thead th.text-col {
+    text-align: left;
+}
+
+.summaryTable {
+    border-collapse: collapse;
+}
+
+.summaryTable td {
+    padding: 8px 10px 8px 20px;    
+
+    /* border: 1px solid; */
+}
+
+
+/* Sortable column header styles */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.sortable:hover {
+    background-color: #f0f0f0;
+}
+
+/* Sort direction indicators (inline, after the header text) */
+.sortable.sort-asc::after,
+.sortable.sort-desc::after {
+    margin-left: 4px;
+    font-size: 0.8em;
+}
+
+.sortable.sort-asc::after {
+    content: "▲";
+}
+
+.sortable.sort-desc::after {
+    content: "▼";
+}
+
+/* Clickable row styles */
+.clickable-row {
+    cursor: pointer;
+}
+
+.clickable-row:hover {
+    background-color: #f0f0f0;
+}

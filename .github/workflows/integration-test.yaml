@@ -1,0 +1,76 @@
+name: Integration Tests
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  test-on-kind:
+    name: kind
+    uses: ./.github/workflows/integration-test-reusable.yaml
+    with:
+      cluster_type: kind
+
+  test-on-minikube:
+    name: minikube
+    uses: ./.github/workflows/integration-test-reusable.yaml
+    with:
+      cluster_type: minikube
+
+  agent-integration-test:
+    name: agent
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+        cache-dependency-path: |
+          bjorn2scan-agent/go.sum
+          scanner-core/go.sum
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Build agent test container
+      working-directory: bjorn2scan-agent
+      run: ./test-container.sh build
+
+    - name: Install Syft
+      run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+    - name: Install Grype
+      run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+    - name: Verify tools installation
+      run: |
+        syft version
+        grype version
+        jq --version
+
+    - name: Run agent integration test
+      run: |
+        chmod +x ./scripts/agent-integration-test
+        ./scripts/agent-integration-test
+
+    - name: Get container logs on failure
+      if: failure()
+      run: |
+        echo "=== Container Status ==="
+        docker ps -a
+        echo ""
+        echo "=== Agent Container Logs ==="
+        docker logs bjorn2scan-test --tail=100 || echo "Container not found"
+        echo ""
+        echo "=== Agent Service Status ==="
+        docker exec bjorn2scan-test systemctl status bjorn2scan-agent --no-pager || echo "Cannot get service status"
+
+    - name: Cleanup
+      if: always()
+      run: |
+        docker stop bjorn2scan-test 2>/dev/null || true
+        docker rm bjorn2scan-test 2>/dev/null || true

@@ -1,0 +1,19 @@
+# Test cases for deep-scan-test
+# One container image per line - must be images that run as services without config
+# Comments (lines starting with #) are ignored
+
+# Web servers
+nginx:latest
+nginx:1.15
+httpd:2.4-alpine
+caddy:2-alpine
+
+# Caches/Stores
+redis:7-alpine
+memcached:1.6-alpine
+
+# Proxies/Load Balancers
+traefik:v2.10
+
+# Old image
+bjornvb/spring-music:latest

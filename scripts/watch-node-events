@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# watch-node-events: Stream Kubernetes events related to node lifecycle.
+#
+# Usage:
+#   ./scripts/watch-node-events [NODE_NAME]
+#
+# If NODE_NAME is omitted, watches events for all nodes.
+# Set CONTEXT env var to override the kube context.
+#
+# Node events live in the kube-system namespace (or default depending on the
+# cluster), but are cluster-scoped objects — this script uses --all-namespaces
+# and filters client-side for events whose object is a node.
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+GRAY='\033[0;90m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+# Event reasons that appear on Node objects
+NODE_REASONS=(
+    # Readiness / health
+    NodeReady
+    NodeNotReady
+    NodeNotSchedulable
+    NodeSchedulable
+    # Kubelet lifecycle
+    Starting
+    RegisteredNode
+    RemovingNode
+    DeletingNode
+    Rebooted
+    # Resource pressure
+    OOMKilling
+    EvictionThresholdMet
+    NodeHasDiskPressure
+    NodeHasNoDiskPressure
+    NodeHasMemoryPressure
+    NodeHasSufficientMemory
+    NodeHasInsufficientPID
+    NodeHasSufficientPID
+    # Network / storage
+    NetworkNotReady
+    FreeDiskSpaceFailed
+    # Taints / cordoning
+    TaintManagerEviction
+    # Setup failures
+    KubeletSetupFailed
+    InvalidDiskCapacity
+)
+
+REASON_PATTERN=$(IFS='|'; echo "${NODE_REASONS[*]}")
+
+NODE_FILTER="${1:-}"
+KUBECTL_ARGS=(--all-namespaces)
+
+if [[ -n "${CONTEXT:-}" ]]; then
+    KUBECTL_ARGS+=(--context "$CONTEXT")
+fi
+
+if [[ -n "$NODE_FILTER" ]]; then
+    LABEL="node=$NODE_FILTER"
+else
+    LABEL="all nodes"
+fi
+
+echo -e "${BOLD}Watching node lifecycle events (${LABEL})${RESET}"
+echo -e "${GRAY}Filtering for: ${REASON_PATTERN//|/, }${RESET}"
+echo ""
+
+colorize() {
+    local reason="$1"
+    local type="$2"
+    local line="$3"
+    local color
+
+    # Color by reason first — some critical reasons arrive as Normal type.
+    case "$reason" in
+        # Red: node is down or under severe pressure
+        NodeNotReady|OOMKilling|EvictionThresholdMet)
+            color="$RED" ;;
+        NodeHasDiskPressure|NodeHasMemoryPressure|NodeHasInsufficientPID)
+            color="$RED" ;;
+        NetworkNotReady|KubeletSetupFailed|FreeDiskSpaceFailed|InvalidDiskCapacity)
+            color="$RED" ;;
+        # Yellow: node leaving or scheduling suspended
+        RemovingNode|DeletingNode|NodeNotSchedulable|TaintManagerEviction)
+            color="$YELLOW" ;;
+        # Green: node healthy or pressure cleared
+        NodeReady|NodeSchedulable|RegisteredNode)
+            color="$GREEN" ;;
+        NodeHasNoDiskPressure|NodeHasSufficientMemory|NodeHasSufficientPID)
+            color="$GREEN" ;;
+        # Cyan: kubelet lifecycle
+        Starting|Rebooted)
+            color="$CYAN" ;;
+        # Fall back to type-based coloring for anything else
+        *)
+            [[ "$type" == "Warning" ]] && color="$YELLOW" || color="$RESET" ;;
+    esac
+
+    echo -e "${color}${line}${RESET}"
+}
+
+# Node events are emitted with object like "node/worker-1".
+# We filter by reason AND by object prefix "node/" to exclude pod events
+# that share reason names (e.g. OOMKilling can appear on both).
+
+kubectl events --watch "${KUBECTL_ARGS[@]}" 2>/dev/null \
+| grep --line-buffered -E "\b(${REASON_PATTERN})\b" \
+| grep --line-buffered -iE "\bNode/" \
+| while IFS= read -r line; do
+    if echo "$line" | grep -qE "^(LAST SEEN|NAMESPACE)"; then
+        continue
+    fi
+
+    # Use regex extraction instead of read — "LAST SEEN" can be multi-word
+    # when kubectl aggregates repeated events: "16s (x8 over 95s)".
+    reason=$(echo "$line" | grep -oE "\b(${REASON_PATTERN})\b" | head -1)
+    object=$(echo "$line" | grep -oiE "\bNode/[^ ]+" | head -1)
+    type=$(echo  "$line" | grep -oE "\b(Normal|Warning)\b" | head -1)
+    last_seen=$(echo "$line" | grep -oE "^[^(]+" | grep -oE "[0-9]+[smhd]+" | head -1)
+    node_name="${object#*/}"
+    message=$(echo "$line" | sed "s|.*${object}[[:space:]]*||" | xargs)
+
+    [[ -z "$reason" || -z "$node_name" ]] && continue
+
+    # Optionally filter to a specific node
+    if [[ -n "$NODE_FILTER" ]] && [[ "$node_name" != "$NODE_FILTER" ]]; then
+        continue
+    fi
+
+    out=$(printf "%-6s  %-30s  %-35s  %-8s  %s" \
+        "$last_seen" "$reason" "$node_name" "$type" "$message")
+
+    colorize "$reason" "$type" "$out"
+done

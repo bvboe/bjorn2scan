@@ -1,0 +1,362 @@
+#!/usr/bin/env bash
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Configuration
+# Determine repository root (works from any directory in the repo)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEST_NAMESPACE="test-$(date +%s)"
+SCAN_SERVER_IMAGE="k8s-scan-server"
+POD_SCANNER_IMAGE="pod-scanner"
+UPDATE_CONTROLLER_IMAGE="k8s-update-controller"
+IMAGE_TAG="local-test"
+CLEANUP_ON_EXIT=true
+
+# Test environment selection
+# Set TEST_CLUSTERS to control which clusters to test:
+#   "kind" (default) - Test on kind only (faster)
+#   "minikube" - Test on minikube only
+#   "both" - Test on both kind and minikube
+TEST_CLUSTERS="${TEST_CLUSTERS:-kind}"
+
+# Track test results
+TESTS_PASSED=0
+TESTS_FAILED=0
+
+print_header() {
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "${BLUE}$1${NC}"
+    echo -e "${BLUE}================================================${NC}"
+}
+
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+print_info() {
+    echo -e "${YELLOW}→ $1${NC}"
+}
+
+cleanup() {
+    if [ "$CLEANUP_ON_EXIT" = true ]; then
+        print_header "Cleaning up"
+
+        # Cleanup kind
+        if kind get clusters 2>/dev/null | grep -q "local-test"; then
+            print_info "Deleting kind cluster..."
+            kind delete cluster --name local-test 2>/dev/null || true
+        fi
+
+        # Cleanup minikube namespace
+        if kubectl get namespace "$TEST_NAMESPACE" 2>/dev/null; then
+            print_info "Deleting test namespace from minikube..."
+            kubectl delete namespace "$TEST_NAMESPACE" --ignore-not-found=true 2>/dev/null || true
+        fi
+
+        print_success "Cleanup complete"
+    fi
+}
+
+trap cleanup EXIT
+
+run_test() {
+    local test_name=$1
+    shift
+
+    print_info "Running: $test_name"
+
+    if "$@"; then
+        print_success "$test_name"
+        ((TESTS_PASSED++))
+        return 0
+    else
+        print_error "$test_name"
+        ((TESTS_FAILED++))
+        return 1
+    fi
+}
+
+# Run integration tests against a deployed cluster
+# Args: cluster_name (for display)
+run_integration_tests() {
+    local cluster_name=$1
+
+    print_info "Waiting for pod to be ready..."
+    if kubectl wait --for=condition=ready pod \
+        -l app.kubernetes.io/name=bjorn2scan \
+        -n "$TEST_NAMESPACE" \
+        --timeout=120s; then
+
+        print_success "Pod ready on $cluster_name"
+
+        # Run integration tests
+        print_info "Setting up port-forward to scan-server..."
+        kubectl port-forward -n "$TEST_NAMESPACE" svc/bjorn2scan 8080:80 > /dev/null 2>&1 &
+        local pf_pid=$!
+        sleep 3
+
+        print_info "Running integration tests..."
+        cd "$SCRIPT_DIR/k8s-scan-server/test/integration"
+        if SERVICE_URL=http://localhost:8080 go test -v -timeout 5m ./...; then
+            print_success "Integration tests passed on $cluster_name"
+            ((TESTS_PASSED++))
+        else
+            print_error "Integration tests failed on $cluster_name"
+            ((TESTS_FAILED++))
+        fi
+        cd "$SCRIPT_DIR"
+
+        # Cleanup port-forward
+        kill $pf_pid 2>/dev/null || true
+    else
+        print_error "Pod failed to become ready on $cluster_name"
+        kubectl get pods -n "$TEST_NAMESPACE"
+        kubectl logs -l app.kubernetes.io/name=bjorn2scan -n "$TEST_NAMESPACE" --tail=50
+        ((TESTS_FAILED++))
+    fi
+}
+
+print_header "Local Test Suite"
+echo "Test namespace: $TEST_NAMESPACE"
+echo "Test clusters: $TEST_CLUSTERS"
+echo "Scan Server Image: $SCAN_SERVER_IMAGE:$IMAGE_TAG"
+echo "Pod Scanner Image: $POD_SCANNER_IMAGE:$IMAGE_TAG"
+echo "Update Controller Image: $UPDATE_CONTROLLER_IMAGE:$IMAGE_TAG"
+echo "Agent Image: bjorn2scan-agent:$IMAGE_TAG"
+echo ""
+
+# 1. Unit Tests
+print_header "1. Unit Tests - scanner-core"
+cd "$SCRIPT_DIR/scanner-core"
+run_test "scanner-core: Go unit tests" go test -v ./...
+run_test "scanner-core: Go vet" go vet ./...
+
+print_header "1. Unit Tests - k8s-scan-server"
+cd "$SCRIPT_DIR/k8s-scan-server"
+run_test "k8s-scan-server: Go unit tests" go test -v ./...
+run_test "k8s-scan-server: Go vet" go vet ./...
+
+print_header "1. Unit Tests - pod-scanner"
+cd "$SCRIPT_DIR/pod-scanner"
+run_test "pod-scanner: Go unit tests" go test -v ./...
+run_test "pod-scanner: Go vet" go vet ./...
+
+print_header "1. Unit Tests - bjorn2scan-agent"
+cd "$SCRIPT_DIR/bjorn2scan-agent"
+run_test "bjorn2scan-agent: Go unit tests" go test -v ./...
+run_test "bjorn2scan-agent: Go vet" go vet ./...
+
+print_header "1. Unit Tests - k8s-update-controller"
+cd "$SCRIPT_DIR/k8s-update-controller"
+run_test "k8s-update-controller: Go unit tests" go test -v ./...
+run_test "k8s-update-controller: Go vet" go vet ./...
+
+# 2. Code Quality
+print_header "2. Code Quality - scanner-core"
+cd "$SCRIPT_DIR/scanner-core"
+if command -v golangci-lint &> /dev/null; then
+    run_test "scanner-core: golangci-lint" golangci-lint run ./...
+else
+    print_error "golangci-lint not installed, skipping"
+    ((TESTS_FAILED++))
+fi
+
+print_header "2. Code Quality - k8s-scan-server"
+cd "$SCRIPT_DIR/k8s-scan-server"
+if command -v golangci-lint &> /dev/null; then
+    run_test "k8s-scan-server: golangci-lint" golangci-lint run ./...
+else
+    print_error "golangci-lint not installed, skipping"
+    ((TESTS_FAILED++))
+fi
+
+print_header "2. Code Quality - pod-scanner"
+cd "$SCRIPT_DIR/pod-scanner"
+if command -v golangci-lint &> /dev/null; then
+    run_test "pod-scanner: golangci-lint" golangci-lint run ./...
+else
+    print_error "golangci-lint not installed, skipping"
+    ((TESTS_FAILED++))
+fi
+
+print_header "2. Code Quality - bjorn2scan-agent"
+cd "$SCRIPT_DIR/bjorn2scan-agent"
+if command -v golangci-lint &> /dev/null; then
+    run_test "bjorn2scan-agent: golangci-lint" golangci-lint run ./...
+else
+    print_error "golangci-lint not installed, skipping"
+    ((TESTS_FAILED++))
+fi
+
+print_header "2. Code Quality - k8s-update-controller"
+cd "$SCRIPT_DIR/k8s-update-controller"
+if command -v golangci-lint &> /dev/null; then
+    run_test "k8s-update-controller: golangci-lint" golangci-lint run ./...
+else
+    print_error "golangci-lint not installed, skipping"
+    ((TESTS_FAILED++))
+fi
+
+print_header "2. Code Quality - Web (HTML/CSS/JS)"
+cd "$SCRIPT_DIR/scanner-core/web"
+if command -v npm &> /dev/null; then
+    # Install dependencies if node_modules doesn't exist
+    if [ ! -d "node_modules" ]; then
+        print_info "Installing npm dependencies..."
+        npm install --silent
+    fi
+    run_test "Web: HTML lint" npm run lint:html --silent
+    run_test "Web: CSS lint" npm run lint:css --silent
+    run_test "Web: JavaScript lint" npm run lint:js --silent
+else
+    print_error "npm not installed, skipping web linting"
+    ((TESTS_FAILED++))
+fi
+
+# 3. Build
+print_header "3. Build Tests - k8s-scan-server"
+cd "$SCRIPT_DIR/k8s-scan-server"
+run_test "k8s-scan-server: Go build" go build -v -o k8s-scan-server .
+cd "$SCRIPT_DIR"
+run_test "k8s-scan-server: Docker build" docker build -f k8s-scan-server/Dockerfile -t "$SCAN_SERVER_IMAGE:$IMAGE_TAG" --build-arg VERSION=local-test .
+
+print_header "3. Build Tests - pod-scanner"
+cd "$SCRIPT_DIR/pod-scanner"
+run_test "pod-scanner: Go build" go build -v -o pod-scanner .
+cd "$SCRIPT_DIR"
+run_test "pod-scanner: Docker build" docker build -f pod-scanner/Dockerfile -t "$POD_SCANNER_IMAGE:$IMAGE_TAG" --build-arg VERSION=local-test .
+
+print_header "3. Build Tests - bjorn2scan-agent"
+cd "$SCRIPT_DIR/bjorn2scan-agent"
+run_test "bjorn2scan-agent: Go build" go build -v -o bjorn2scan-agent .
+cd "$SCRIPT_DIR"
+run_test "bjorn2scan-agent: Docker build" docker build -f bjorn2scan-agent/Dockerfile -t bjorn2scan-agent:$IMAGE_TAG --build-arg VERSION=local-test .
+
+print_header "3. Build Tests - k8s-update-controller"
+cd "$SCRIPT_DIR/k8s-update-controller"
+run_test "k8s-update-controller: Go build" go build -v -o k8s-update-controller .
+cd "$SCRIPT_DIR"
+run_test "k8s-update-controller: Docker build" docker build -f k8s-update-controller/Dockerfile -t "$UPDATE_CONTROLLER_IMAGE:$IMAGE_TAG" --build-arg VERSION=local-test .
+
+# 4. Helm Tests
+print_header "4. Helm Tests"
+cd "$SCRIPT_DIR"
+run_test "Helm lint" helm lint ./helm/bjorn2scan
+run_test "Helm template" helm template test ./helm/bjorn2scan --namespace "$TEST_NAMESPACE" > /dev/null
+
+# 5. Integration Tests - kind
+if [ "$TEST_CLUSTERS" = "kind" ] || [ "$TEST_CLUSTERS" = "both" ]; then
+    print_header "5. Integration Tests - kind"
+
+    print_info "Creating kind cluster..."
+    if kind create cluster --name local-test --wait 5m; then
+        print_success "kind cluster created"
+
+        print_info "Loading images to kind..."
+        kind load docker-image "$SCAN_SERVER_IMAGE:$IMAGE_TAG" --name local-test
+        kind load docker-image "$POD_SCANNER_IMAGE:$IMAGE_TAG" --name local-test
+        kind load docker-image "$UPDATE_CONTROLLER_IMAGE:$IMAGE_TAG" --name local-test
+
+        print_info "Creating namespace..."
+        kubectl create namespace "$TEST_NAMESPACE"
+
+        print_info "Installing Helm chart..."
+        if helm install bjorn2scan "$SCRIPT_DIR/helm/bjorn2scan" \
+            --namespace "$TEST_NAMESPACE" \
+            --set scanServer.image.repository="$SCAN_SERVER_IMAGE" \
+            --set scanServer.image.tag="$IMAGE_TAG" \
+            --set podScanner.image.repository="$POD_SCANNER_IMAGE" \
+            --set podScanner.image.tag="$IMAGE_TAG" \
+            --set scanServer.persistence.enabled=false \
+            --wait --timeout 2m; then
+
+            print_success "Helm chart installed on kind"
+
+            # Run integration tests using shared function
+            run_integration_tests "kind"
+
+            print_info "Uninstalling from kind..."
+            helm uninstall bjorn2scan -n "$TEST_NAMESPACE"
+        else
+            print_error "Failed to install Helm chart on kind"
+            ((TESTS_FAILED++))
+        fi
+
+        print_info "Deleting kind cluster..."
+        kind delete cluster --name local-test
+    else
+        print_error "Failed to create kind cluster"
+        ((TESTS_FAILED++))
+    fi
+else
+    print_info "Skipping kind integration tests (TEST_CLUSTERS=$TEST_CLUSTERS)"
+fi
+
+# 6. Integration Tests - minikube
+if [ "$TEST_CLUSTERS" = "minikube" ] || [ "$TEST_CLUSTERS" = "both" ]; then
+    print_header "6. Integration Tests - minikube"
+
+    print_info "Starting minikube (if not running)..."
+    if minikube start 2>/dev/null || minikube status > /dev/null 2>&1; then
+        print_success "minikube running"
+
+        print_info "Loading images to minikube..."
+        minikube image load "$SCAN_SERVER_IMAGE:$IMAGE_TAG"
+        minikube image load "$POD_SCANNER_IMAGE:$IMAGE_TAG"
+        minikube image load "$UPDATE_CONTROLLER_IMAGE:$IMAGE_TAG"
+
+        print_info "Creating namespace..."
+        kubectl create namespace "$TEST_NAMESPACE" || true
+
+        print_info "Installing Helm chart..."
+        if helm install bjorn2scan "$SCRIPT_DIR/helm/bjorn2scan" \
+            --namespace "$TEST_NAMESPACE" \
+            --set scanServer.image.repository="$SCAN_SERVER_IMAGE" \
+            --set scanServer.image.tag="$IMAGE_TAG" \
+            --set podScanner.image.repository="$POD_SCANNER_IMAGE" \
+            --set podScanner.image.tag="$IMAGE_TAG" \
+            --set scanServer.persistence.enabled=false \
+            --wait --timeout 2m; then
+
+            print_success "Helm chart installed on minikube"
+
+            # Run integration tests using shared function
+            run_integration_tests "minikube"
+
+            print_info "Uninstalling from minikube..."
+            helm uninstall bjorn2scan -n "$TEST_NAMESPACE"
+        else
+            print_error "Failed to install Helm chart on minikube"
+            ((TESTS_FAILED++))
+        fi
+    else
+        print_error "Failed to start minikube"
+        ((TESTS_FAILED++))
+    fi
+else
+    print_info "Skipping minikube integration tests (TEST_CLUSTERS=$TEST_CLUSTERS)"
+fi
+
+# Summary
+print_header "Test Summary"
+echo -e "Tests Passed: ${GREEN}$TESTS_PASSED${NC}"
+echo -e "Tests Failed: ${RED}$TESTS_FAILED${NC}"
+echo ""
+
+if [ $TESTS_FAILED -eq 0 ]; then
+    print_success "All tests passed!"
+    exit 0
+else
+    print_error "Some tests failed"
+    exit 1
+fi

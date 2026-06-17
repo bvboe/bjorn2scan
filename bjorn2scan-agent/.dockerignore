@@ -1,0 +1,11 @@
+bjorn2scan-agent
+bjorn2scan-agent-*
+*.md
+.git
+.gitignore
+build/
+dist/
+test/
+install.sh
+bjorn2scan-agent.service
+Makefile

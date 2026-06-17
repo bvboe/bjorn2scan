@@ -1,0 +1,123 @@
+# Fast local development Makefile
+# Source this to use: include Makefile.fast
+
+.DEFAULT_GOAL := help
+
+.PHONY: help fast-build fast-deploy fast-restart dev-mode
+
+# Enable Docker BuildKit for faster builds
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
+# Variables
+NAMESPACE?=b2sv2
+HELM_RELEASE?=bjorn2scan
+SCAN_SERVER_IMAGE?=ghcr.io/bvboe/b2s-go/k8s-scan-server
+POD_SCANNER_IMAGE?=ghcr.io/bvboe/b2s-go/pod-scanner
+IMAGE_TAG?=dev-latest
+
+## HELP ##
+
+help: ## Show this help message
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "  🚀 Fast Development Makefile for Bjorn2Scan"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "Usage: make -f Makefile.fast <target>"
+	@echo ""
+	@echo "Available targets:"
+	@echo ""
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "Examples:"
+	@echo "  make -f Makefile.fast fast-build      # Build all images in parallel"
+	@echo "  make -f Makefile.fast fast-deploy     # Build and deploy to kind"
+	@echo "  make -f Makefile.fast fast-scan-server # Build only scan-server"
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════════"
+
+## FAST BUILD OPTIONS ##
+
+# Option 1: Parallel Docker builds (2-3x faster)
+fast-build: ## Build Docker images in parallel with BuildKit
+	@echo "🚀 Building images in parallel with BuildKit..."
+	@$(MAKE) -f $(MAKEFILE_LIST) -j2 _build-scan-server _build-pod-scanner
+	@echo "✅ Build complete!"
+
+_build-scan-server:
+	@echo "Building scan-server..."
+	@cd k8s-scan-server && $(MAKE) docker-build IMAGE_NAME=$(SCAN_SERVER_IMAGE) IMAGE_TAG=$(IMAGE_TAG)
+
+_build-pod-scanner:
+	@echo "Building pod-scanner..."
+	@cd pod-scanner && $(MAKE) docker-build IMAGE_NAME=$(POD_SCANNER_IMAGE) IMAGE_TAG=$(IMAGE_TAG)
+
+# Option 2: Fast deploy (parallel build + load + restart)
+fast-deploy: fast-build ## Fast parallel build and deploy to kind
+	@echo "📦 Loading images into kind..."
+	@kind load docker-image $(SCAN_SERVER_IMAGE):$(IMAGE_TAG) & \
+	 kind load docker-image $(POD_SCANNER_IMAGE):$(IMAGE_TAG) & \
+	 wait
+	@echo "🔄 Restarting deployments..."
+	@kubectl set image deployment/$(HELM_RELEASE)-scan-server \
+		scan-server=$(SCAN_SERVER_IMAGE):$(IMAGE_TAG) -n $(NAMESPACE) && \
+	 kubectl set image daemonset/$(HELM_RELEASE)-pod-scanner \
+		pod-scanner=$(POD_SCANNER_IMAGE):$(IMAGE_TAG) -n $(NAMESPACE)
+	@echo "✅ Deploy complete! Waiting for rollout..."
+	@kubectl rollout status deployment/$(HELM_RELEASE)-scan-server -n $(NAMESPACE) --timeout=60s
+
+# Option 3: Dev mode - just restart pods (if only web/static changes)
+fast-restart: ## Quick restart without rebuild (for config/web changes)
+	@echo "🔄 Restarting pods..."
+	@kubectl rollout restart deployment/$(HELM_RELEASE)-scan-server -n $(NAMESPACE)
+	@kubectl rollout restart daemonset/$(HELM_RELEASE)-pod-scanner -n $(NAMESPACE)
+	@kubectl rollout status deployment/$(HELM_RELEASE)-scan-server -n $(NAMESPACE) --timeout=30s
+
+# Option 4: Build only what changed
+fast-scan-server: ## Build and deploy only scan-server
+	@echo "🚀 Fast build: scan-server only..."
+	@cd k8s-scan-server && $(MAKE) docker-build IMAGE_NAME=$(SCAN_SERVER_IMAGE) IMAGE_TAG=$(IMAGE_TAG)
+	@kind load docker-image $(SCAN_SERVER_IMAGE):$(IMAGE_TAG)
+	@kubectl set image deployment/$(HELM_RELEASE)-scan-server \
+		scan-server=$(SCAN_SERVER_IMAGE):$(IMAGE_TAG) -n $(NAMESPACE)
+	@kubectl rollout status deployment/$(HELM_RELEASE)-scan-server -n $(NAMESPACE) --timeout=60s
+	@echo "✅ Scan-server updated!"
+
+fast-pod-scanner: ## Build and deploy only pod-scanner
+	@echo "🚀 Fast build: pod-scanner only..."
+	@cd pod-scanner && $(MAKE) docker-build IMAGE_NAME=$(POD_SCANNER_IMAGE) IMAGE_TAG=$(IMAGE_TAG)
+	@kind load docker-image $(POD_SCANNER_IMAGE):$(IMAGE_TAG)
+	@kubectl set image daemonset/$(HELM_RELEASE)-pod-scanner \
+		pod-scanner=$(POD_SCANNER_IMAGE):$(IMAGE_TAG) -n $(NAMESPACE)
+	@echo "✅ Pod-scanner updated!"
+
+# Option 5: Development mode with file watching (requires entr)
+dev-mode: ## Watch for changes and auto-rebuild (requires 'entr')
+	@command -v entr >/dev/null 2>&1 || { echo "❌ 'entr' not found. Install with: brew install entr"; exit 1; }
+	@echo "👀 Watching for changes... (Ctrl+C to stop)"
+	@find k8s-scan-server scanner-core -name '*.go' | entr -r make fast-scan-server
+
+## OPTIMIZATION INFO ##
+
+buildkit-info: ## Show BuildKit status and tips
+	@echo "=== Docker BuildKit Status ==="
+	@if [ "$$DOCKER_BUILDKIT" = "1" ]; then \
+		echo "✅ BuildKit is ENABLED (faster builds)"; \
+	else \
+		echo "❌ BuildKit is DISABLED"; \
+		echo "To enable: export DOCKER_BUILDKIT=1"; \
+	fi
+	@echo ""
+	@echo "=== Build Cache Info ==="
+	@docker buildx du 2>/dev/null || echo "Run 'docker buildx create --use' to enable buildx"
+	@echo ""
+	@echo "=== Quick Tips ==="
+	@echo "• Use 'make fast-deploy' for parallel builds (2-3x faster)"
+	@echo "• Use 'make fast-scan-server' to rebuild only one component"
+	@echo "• Use 'make fast-restart' if only web/config changed"
+	@echo "• BuildKit caches layers - subsequent builds are MUCH faster"
+
+clean-cache: ## Clean Docker build cache (if builds are broken)
+	@echo "🧹 Cleaning Docker build cache..."
+	@docker builder prune -af
+	@echo "✅ Cache cleaned!"
