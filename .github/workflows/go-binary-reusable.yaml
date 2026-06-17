@@ -124,12 +124,11 @@ jobs:
         fi
         echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-    - name: Stamp internal module versions for release
-      if: github.ref_type == 'tag'
-      run: |
-        find . -name "go.mod" -not -path "*/vendor/*" | xargs sed -i \
-          -e "s|github.com/bvboe/bjorn2scan/scanner-core v[^[:space:]]*|github.com/bvboe/bjorn2scan/scanner-core ${GITHUB_REF_NAME}|" \
-          -e "s|github.com/bvboe/bjorn2scan/sbom-generator-shared v[^[:space:]]*|github.com/bvboe/bjorn2scan/sbom-generator-shared ${GITHUB_REF_NAME}|"
+    # Internal modules (scanner-core, sbom-generator-shared) are built via local
+    # `replace => ../<module>` directives, with the siblings copied into the build
+    # context — so they need no version stamping. Pinning their require lines to the
+    # release tag breaks Go's v2+ rule (a v2.x require needs a /v2 module path) and
+    # never reached the SBOM anyway (replace-built modules are recorded as UNKNOWN).
 
     # Cache cosign binary
     - name: Cache cosign
