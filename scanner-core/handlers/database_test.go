@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bvboe/b2s-go/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
 )
 
 // mockDatabaseProvider implements DatabaseProvider for testing

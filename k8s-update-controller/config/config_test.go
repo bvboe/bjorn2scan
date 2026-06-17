@@ -27,14 +27,14 @@ versionConstraints:
 helm:
   releaseName: "bjorn2scan"
   namespace: "bjorn2scan"
-  chartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan"
+  chartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan"
 rollback:
   enabled: true
   healthCheckDelay: "5m"
   autoRollback: true
 verification:
   enabled: false
-  cosignIdentityRegexp: "https://github.com/bvboe/b2s-go/*"
+  cosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*"
   cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
 `,
 			wantErr: false,
@@ -84,11 +84,11 @@ func TestSetDefaults(t *testing.T) {
 				Helm: HelmConfig{
 					Namespace:     "bjorn2scan",
 					ReleaseName:   "bjorn2scan",
-					ChartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan",
+					ChartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 				},
 				Verification: VerificationConfig{
 					CosignOIDCIssuer:     "https://token.actions.githubusercontent.com",
-					CosignIdentityRegexp: "https://github.com/bvboe/b2s-go/*",
+					CosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*",
 				},
 			},
 		},
@@ -103,11 +103,11 @@ func TestSetDefaults(t *testing.T) {
 				Helm: HelmConfig{
 					Namespace:     "custom-namespace",
 					ReleaseName:   "bjorn2scan",
-					ChartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan",
+					ChartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 				},
 				Verification: VerificationConfig{
 					CosignOIDCIssuer:     "https://token.actions.githubusercontent.com",
-					CosignIdentityRegexp: "https://github.com/bvboe/b2s-go/*",
+					CosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*",
 				},
 			},
 		},

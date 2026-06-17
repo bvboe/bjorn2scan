@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bvboe/b2s-go/pod-scanner/runtime"
+	"github.com/bvboe/bjorn2scan/pod-scanner/runtime"
 )
 
 var log = slog.Default().With("component", "pod-scanner")

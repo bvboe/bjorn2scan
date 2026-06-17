@@ -284,7 +284,7 @@ updateController:
 EOF
 
 # Step 2: Apply configuration
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n bjorn2scan \
   -f update-config.yaml
 
@@ -364,7 +364,7 @@ updateController:
 EOF
 
 # Step 2: Apply changes
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n bjorn2scan \
   -f version-constraints.yaml \
   --reuse-values
@@ -422,7 +422,7 @@ updateController:
 EOF
 
 # Step 2: Apply configuration
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n bjorn2scan \
   -f pinned-version.yaml \
   --reuse-values
@@ -790,7 +790,7 @@ kubectl rollout status deployment/bjorn2scan-scan-server -n bjorn2scan
 
 # Option B: If rollback fails, force delete and reinstall
 helm uninstall bjorn2scan -n bjorn2scan
-helm install bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n bjorn2scan \
   --version <last-known-good-version> \
   -f saved-values.yaml
@@ -924,7 +924,7 @@ updateController:
     pinnedVersion: "$current_version"
 EOF
 
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n bjorn2scan \
   -f fix-loop.yaml \
   --reuse-values
@@ -966,7 +966,7 @@ kubectl patch cronjob bjorn2scan-update-controller \
   -n $NAMESPACE
 
 echo "Step 4: Upgrading to $TARGET_VERSION..."
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --version $TARGET_VERSION \
   -n $NAMESPACE \
   --reuse-values \
@@ -993,7 +993,7 @@ updateController:
     pinnedVersion: "$TARGET_VERSION"
 EOF
 
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n $NAMESPACE \
   -f pin-version.yaml \
   --reuse-values
@@ -1021,7 +1021,7 @@ VERSION="0.1.36"
 # Stage 1: Development
 echo "=== Stage 1: Development Environment ==="
 kubectl config use-context dev-cluster
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --version $VERSION \
   -n bjorn2scan \
   --reuse-values
@@ -1042,7 +1042,7 @@ fi
 # Stage 2: Staging
 echo "=== Stage 2: Staging Environment ==="
 kubectl config use-context staging-cluster
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --version $VERSION \
   -n bjorn2scan \
   --reuse-values
@@ -1067,7 +1067,7 @@ kubectl config use-context prod-cluster
 echo "Creating backup..."
 helm get values bjorn2scan -n bjorn2scan > prod-backup-$(date +%Y%m%d).yaml
 
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --version $VERSION \
   -n bjorn2scan \
   --reuse-values \
@@ -1104,7 +1104,7 @@ kubectl create namespace $TEST_NAMESPACE
 
 # Install test release
 echo "Step 2: Installing test release..."
-helm install bjorn2scan-test oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm install bjorn2scan-test oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --version $NEW_VERSION \
   -n $TEST_NAMESPACE \
   --set updateController.enabled=false
@@ -1223,7 +1223,7 @@ sleep 30
 
 # Step 3: Reinstall from backup
 echo "Reinstalling from backup..."
-helm install bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n $NAMESPACE \
   -f $BACKUP_FILE \
   --wait
@@ -1246,7 +1246,7 @@ echo "=== Restore Complete ==="
 
 ```bash
 # Download specific chart version
-helm pull oci://ghcr.io/bvboe/b2s-go/bjorn2scan --version 0.1.35
+helm pull oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan --version 0.1.35
 
 # Extract chart
 tar -xzf bjorn2scan-0.1.35.tgz
@@ -1264,10 +1264,10 @@ helm install bjorn2scan . -n bjorn2scan -f custom-values.yaml
 ```bash
 # Download specific version
 VERSION="0.1.35"
-curl -LO https://github.com/bvboe/b2s-go/releases/download/v${VERSION}/bjorn2scan-agent-linux-amd64.tar.gz
+curl -LO https://github.com/bvboe/bjorn2scan/releases/download/v${VERSION}/bjorn2scan-agent-linux-amd64.tar.gz
 
 # Verify checksum
-curl -LO https://github.com/bvboe/b2s-go/releases/download/v${VERSION}/bjorn2scan-agent-linux-amd64.tar.gz.sha256
+curl -LO https://github.com/bvboe/bjorn2scan/releases/download/v${VERSION}/bjorn2scan-agent-linux-amd64.tar.gz.sha256
 sha256sum -c bjorn2scan-agent-linux-amd64.tar.gz.sha256
 
 # Extract and install
@@ -1290,22 +1290,22 @@ cosign version
 
 # Step 2: Test signature verification manually
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/bvboe/b2s-go/bjorn2scan:0.1.35
+  ghcr.io/bvboe/bjorn2scan/bjorn2scan:0.1.35
 
 # Step 3: If verification fails, check configuration
 kubectl get configmap bjorn2scan-update-controller -n bjorn2scan -o yaml \
   | grep -A 3 "verification"
 
 # Step 4: Temporarily disable verification for testing
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n bjorn2scan \
   --set updateController.config.verification.enabled=false \
   --reuse-values
 
 # Step 5: Re-enable after fixing
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -n bjorn2scan \
   --set updateController.config.verification.enabled=true \
   --reuse-values

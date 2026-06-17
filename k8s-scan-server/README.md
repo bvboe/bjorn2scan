@@ -287,7 +287,7 @@ git push origin v0.1.0
 
 ```bash
 # Install Helm chart directly from OCI registry
-helm install bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --version 0.1.0 \
   --namespace bjorn2scan \
   --create-namespace
@@ -316,9 +316,9 @@ Released container images are signed with cosign (sigstore):
 
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/bvboe/b2s-go/k8s-scan-server:0.1.0
+  ghcr.io/bvboe/bjorn2scan/k8s-scan-server:0.1.0
 ```
 
 **Helm Charts:**
@@ -327,9 +327,9 @@ Released Helm charts (OCI artifacts) are also signed with cosign:
 
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/bvboe/b2s-go/bjorn2scan:0.1.0
+  ghcr.io/bvboe/bjorn2scan/bjorn2scan:0.1.0
 ```
 
 ### GPG Commit Signing

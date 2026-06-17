@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
 )
 
 // TestGetOrCreateImage_CreatesNew tests that a new image is created

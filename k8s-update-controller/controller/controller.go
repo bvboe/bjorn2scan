@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/bvboe/b2s-go/k8s-update-controller/config"
+	"github.com/bvboe/bjorn2scan/k8s-update-controller/config"
 )
 
 var log = slog.Default().With("component", "k8s-update-controller")

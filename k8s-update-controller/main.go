@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bvboe/b2s-go/k8s-update-controller/config"
-	"github.com/bvboe/b2s-go/k8s-update-controller/controller"
+	"github.com/bvboe/bjorn2scan/k8s-update-controller/config"
+	"github.com/bvboe/bjorn2scan/k8s-update-controller/controller"
 )
 
 var version = "dev" // Set via ldflags at build time

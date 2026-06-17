@@ -8,9 +8,9 @@ import (
 	"github.com/anchore/syft/syft/format"
 	"github.com/anchore/syft/syft/format/syftjson"
 	"github.com/anchore/syft/syft/source"
-	"github.com/bvboe/b2s-go/sbom-generator-shared/exclusions"
-	"github.com/bvboe/b2s-go/scanner-core/containers"
-	"github.com/bvboe/b2s-go/scanner-core/logging"
+	"github.com/bvboe/bjorn2scan/sbom-generator-shared/exclusions"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/logging"
 )
 
 var log = logging.For(logging.ComponentQueue)

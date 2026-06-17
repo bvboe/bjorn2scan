@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
 )
 
 // ContainerRow represents a container in the database

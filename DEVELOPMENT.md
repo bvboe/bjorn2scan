@@ -86,7 +86,7 @@ The project consists of six Go modules — four deployable components and two sh
 - Vulnerability scanning using Grype
 - Database operations (SQLite)
 - Web UI (static HTML/CSS/JS)
-- Package: `github.com/bvboe/b2s-go/scanner-core`
+- Package: `github.com/bvboe/bjorn2scan/scanner-core`
 
 ### 2. k8s-scan-server (Kubernetes deployment)
 - Kubernetes controller/coordinator deployed as a pod
@@ -94,39 +94,39 @@ The project consists of six Go modules — four deployable components and two sh
 - Coordinates scanning activities
 - Aggregates and stores scan results
 - Serves web UI for cluster-wide visibility
-- Package: `github.com/bvboe/b2s-go/k8s-scan-server`
+- Package: `github.com/bvboe/bjorn2scan/k8s-scan-server`
 
 ### 3. pod-scanner (Kubernetes DaemonSet)
 - Deployed as a DaemonSet (runs on every node)
 - Retrieves SBOMs from pods running on each node
 - Scans the node host filesystem (mounted at `/host`) when node scanning is enabled
 - Works in conjunction with k8s-scan-server
-- Package: `github.com/bvboe/b2s-go/pod-scanner`
+- Package: `github.com/bvboe/bjorn2scan/pod-scanner`
 
 ### 4. bjorn2scan-agent (Standalone agent)
 - Agent deployed directly on hosts (servers, VMs)
 - Scans the host itself and any containers running on it
 - Uses scanner-core for scanning logic
 - Can be deployed on non-Kubernetes environments
-- Package: `github.com/bvboe/b2s-go/bjorn2scan-agent`
+- Package: `github.com/bvboe/bjorn2scan/bjorn2scan-agent`
 
 ### 5. sbom-generator-shared (Go library)
 - Shared SBOM-generation library (Syft wrapper)
 - Used by pod-scanner and bjorn2scan-agent
 - No internal dependencies
-- Package: `github.com/bvboe/b2s-go/sbom-generator-shared`
+- Package: `github.com/bvboe/bjorn2scan/sbom-generator-shared`
 
 ### 6. k8s-update-controller (Kubernetes deployment)
 - In-cluster controller that auto-updates Bjørn2Scan components
 - Watches for new releases and applies updated Helm charts
 - Verifies cosign signatures before applying (see `docs/AUTO_UPDATE.md`)
 - No internal dependencies
-- Package: `github.com/bvboe/b2s-go/k8s-update-controller`
+- Package: `github.com/bvboe/bjorn2scan/k8s-update-controller`
 
 ## Repository Structure
 
 ```
-b2s-go/
+bjorn2scan/
 ├── scanner-core/          # Core scanning library (shared)
 │   ├── database/         # SQLite database operations
 │   ├── handlers/         # HTTP handlers for API
@@ -173,8 +173,8 @@ b2s-go/
 ### Initial Setup
 ```bash
 # Clone the repository
-git clone https://github.com/bvboe/b2s-go.git
-cd b2s-go
+git clone https://github.com/bvboe/bjorn2scan.git
+cd bjorn2scan
 
 # Install dependencies for each module
 cd scanner-core && go mod download && cd ..

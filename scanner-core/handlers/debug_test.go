@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/debug"
-	"github.com/bvboe/b2s-go/scanner-core/scanning"
+	"github.com/bvboe/bjorn2scan/scanner-core/debug"
+	"github.com/bvboe/bjorn2scan/scanner-core/scanning"
 )
 
 // Note: We can't easily mock *database.DB as it's a concrete type,

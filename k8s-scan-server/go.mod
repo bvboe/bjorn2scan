@@ -1,10 +1,10 @@
-module github.com/bvboe/b2s-go/k8s-scan-server
+module github.com/bvboe/bjorn2scan/k8s-scan-server
 
 go 1.26.3
 
 require (
 	github.com/KimMachineGun/automemlimit v0.7.5
-	github.com/bvboe/b2s-go/scanner-core v0.0.0
+	github.com/bvboe/bjorn2scan/scanner-core v0.0.0
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
 	k8s.io/client-go v0.36.2
@@ -331,7 +331,7 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/bvboe/b2s-go/scanner-core => ../scanner-core
+replace github.com/bvboe/bjorn2scan/scanner-core => ../scanner-core
 
 // Force all dependencies to use the same version of modernc.org/sqlite to avoid duplicate driver registration
 replace modernc.org/sqlite => modernc.org/sqlite v1.40.1

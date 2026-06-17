@@ -3,7 +3,7 @@ package docker
 import (
 	"testing"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
 )
 
 // TestNewRefreshTrigger tests that NewRefreshTrigger creates a valid trigger

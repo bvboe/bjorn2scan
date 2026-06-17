@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/bvboe/b2s-go/bjorn2scan-agent/updater"
+	"github.com/bvboe/bjorn2scan/bjorn2scan-agent/updater"
 )
 
 // testDriver is a simple program that triggers a single update check

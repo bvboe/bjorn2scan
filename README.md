@@ -15,7 +15,7 @@ You need a Kubernetes cluster (kind, minikube, k3s, MicroK8s, or production), He
 
 ```bash
 # 1. Install bjorn2scan from the signed OCI chart
-helm install bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --namespace bjorn2scan --create-namespace \
   --set clusterName="My Cluster" \
   --wait
@@ -33,7 +33,7 @@ Then visit **http://localhost:8080**. Scanning starts automatically — results 
 To scan a Linux host outside Kubernetes, install the standalone agent:
 
 ```bash
-curl -sSfL https://github.com/bvboe/b2s-go/releases/latest/download/install.sh | sudo sh
+curl -sSfL https://github.com/bvboe/bjorn2scan/releases/latest/download/install.sh | sudo sh
 ```
 
 This installs a systemd service that scans the host and reports results (`curl http://localhost:9999/health` to check it). See [bjorn2scan-agent/README.md](bjorn2scan-agent/README.md).
@@ -49,7 +49,7 @@ Auto-update is **enabled by default** — the in-cluster update controller and t
 To disable it in Kubernetes:
 
 ```bash
-helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --namespace bjorn2scan --create-namespace \
   --set updateController.enabled=false
 ```
@@ -61,7 +61,7 @@ For the host agent, set `auto_update_enabled=false` in `agent.conf`. Configurati
 Override any chart value with `--set` or a values file:
 
 ```bash
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --namespace bjorn2scan -f my-values.yaml
 ```
 
@@ -71,7 +71,7 @@ All options are documented in [`helm/bjorn2scan/values.yaml`](helm/bjorn2scan/va
 
 ```bash
 # Upgrade to the latest chart
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan -n bjorn2scan
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan -n bjorn2scan
 
 # Uninstall
 helm uninstall bjorn2scan -n bjorn2scan
@@ -84,9 +84,9 @@ Container images and Helm charts are signed with [cosign](https://github.com/sig
 
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/bvboe/b2s-go/bjorn2scan:<version>
+  ghcr.io/bvboe/bjorn2scan/bjorn2scan:<version>
 ```
 
 ## Development
@@ -103,7 +103,7 @@ Architecture, module layout, and contributor setup are in [DEVELOPMENT.md](DEVEL
 
 - [DEVELOPMENT.md](DEVELOPMENT.md) — architecture and development guide
 - [docs/](docs/) — auto-update, runbooks, metrics, scheduled jobs, CI/CD validation
-- [GitHub Issues](https://github.com/bvboe/b2s-go/issues) — bugs and feature requests
+- [GitHub Issues](https://github.com/bvboe/bjorn2scan/issues) — bugs and feature requests
 
 ## License
 

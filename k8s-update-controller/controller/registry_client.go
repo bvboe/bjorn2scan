@@ -32,7 +32,7 @@ func NewRegistryClient(chartRegistry string) *RegistryClient {
 
 // ListVersions lists all available chart versions from the OCI registry
 func (rc *RegistryClient) ListVersions(ctx context.Context) ([]string, error) {
-	// Parse OCI registry URL (e.g., "oci://ghcr.io/bvboe/b2s-go/bjorn2scan")
+	// Parse OCI registry URL (e.g., "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan")
 	registryURL := strings.TrimPrefix(rc.chartRegistry, "oci://")
 
 	// Parse as OCI reference

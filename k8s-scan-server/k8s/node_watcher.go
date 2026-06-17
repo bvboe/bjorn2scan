@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/nodes"
+	"github.com/bvboe/bjorn2scan/scanner-core/nodes"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -155,7 +155,7 @@ check_what_exists() {
     else
         local packages=("k8s-scan-server" "pod-scanner" "bjorn2scan")
         for package in "${packages[@]}"; do
-            local api_response=$(gh api "/user/packages/container/b2s-go%2F${package}/versions" 2>&1)
+            local api_response=$(gh api "/user/packages/container/bjorn2scan%2F${package}/versions" 2>&1)
 
             # Check if API call failed
             if [[ "$api_response" == *"message"* ]] || [[ "$api_response" == *"error"* ]]; then
@@ -254,7 +254,7 @@ delete_all_artifacts() {
         fi
 
         # Find version ID
-        local api_response=$(gh api "/user/packages/container/b2s-go%2F${package}/versions" 2>&1)
+        local api_response=$(gh api "/user/packages/container/bjorn2scan%2F${package}/versions" 2>&1)
 
         # Check if API call failed
         if [[ "$api_response" == *"message"* ]] || [[ "$api_response" == *"error"* ]]; then
@@ -271,7 +271,7 @@ delete_all_artifacts() {
         fi
 
         # Delete the version
-        local delete_result=$(gh api -X DELETE "/user/packages/container/b2s-go%2F${package}/versions/$version_id" 2>&1)
+        local delete_result=$(gh api -X DELETE "/user/packages/container/bjorn2scan%2F${package}/versions/$version_id" 2>&1)
 
         if [ $? -eq 0 ]; then
             log_success "Package '$package' version deleted"
@@ -357,9 +357,9 @@ main() {
     echo ""
     echo "  • GitHub Release (if exists)"
     echo "  • Git tag (local and remote)"
-    echo "  • Container image: ghcr.io/bvboe/b2s-go/k8s-scan-server:$version"
-    echo "  • Container image: ghcr.io/bvboe/b2s-go/pod-scanner:$version"
-    echo "  • Helm chart: ghcr.io/bvboe/b2s-go/bjorn2scan:$version"
+    echo "  • Container image: ghcr.io/bvboe/bjorn2scan/k8s-scan-server:$version"
+    echo "  • Container image: ghcr.io/bvboe/bjorn2scan/pod-scanner:$version"
+    echo "  • Helm chart: ghcr.io/bvboe/bjorn2scan/bjorn2scan:$version"
     echo ""
     log_error "⚠️  THIS OPERATION CANNOT BE UNDONE! ⚠️"
     echo ""

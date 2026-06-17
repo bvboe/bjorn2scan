@@ -64,7 +64,7 @@ updateController:
 Apply with `helm upgrade --install` (auto-update is already on; this sets the schedule):
 
 ```bash
-helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --namespace bjorn2scan \
   --create-namespace \
   --set updateController.schedule="0 2 * * *"
@@ -73,7 +73,7 @@ helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
 To disable auto-update entirely:
 
 ```bash
-helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --namespace bjorn2scan \
   --create-namespace \
   --set updateController.enabled=false
@@ -141,7 +141,7 @@ updateController:
       enabled: true
 
       # GitHub Actions OIDC identity pattern
-      cosignIdentityRegexp: "https://github.com/bvboe/b2s-go/*"
+      cosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*"
 
       # OIDC issuer for GitHub Actions
       cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
@@ -274,9 +274,9 @@ auto_update_min_version=
 # Will not upgrade above this version
 auto_update_max_version=
 
-# GitHub repository for updates (default: bvboe/b2s-go)
+# GitHub repository for updates (default: bvboe/bjorn2scan)
 # Format: owner/repo
-update_github_repo=bvboe/b2s-go
+update_github_repo=bvboe/bjorn2scan
 
 # Verify signatures before installing (default: true)
 # Verifies the cosign/Sigstore bundle for each downloaded release before installing
@@ -291,7 +291,7 @@ update_rollback_enabled=true
 update_health_check_timeout=60s
 
 # Cosign identity regexp for signature verification
-update_cosign_identity_regexp=https://github.com/bvboe/b2s-go/*
+update_cosign_identity_regexp=https://github.com/bvboe/bjorn2scan/*
 
 # Cosign OIDC issuer for signature verification
 update_cosign_oidc_issuer=https://token.actions.githubusercontent.com
@@ -533,7 +533,7 @@ updateController:
   config:
     verification:
       enabled: true
-      cosignIdentityRegexp: "https://github.com/bvboe/b2s-go/*"
+      cosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*"
       cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
 ```
 
@@ -564,9 +564,9 @@ You can manually verify signatures for any release:
 **Helm Chart:**
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/bvboe/b2s-go/bjorn2scan:0.1.35
+  ghcr.io/bvboe/bjorn2scan/bjorn2scan:0.1.35
 ```
 
 **Agent Binary:**
@@ -576,7 +576,7 @@ cosign verify \
 cosign verify-blob bjorn2scan-agent-linux-amd64.tar.gz \
   --certificate bjorn2scan-agent-linux-amd64.tar.gz.cert \
   --signature bjorn2scan-agent-linux-amd64.tar.gz.sig \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
 
@@ -766,7 +766,7 @@ curl -X POST http://localhost:9999/api/update/trigger
 curl -X POST http://localhost:9999/api/update/resume
 
 # Verify network connectivity
-curl -I https://api.github.com/repos/bvboe/b2s-go/releases/latest
+curl -I https://api.github.com/repos/bvboe/bjorn2scan/releases/latest
 ```
 
 #### Update Downloaded But Not Applied
@@ -943,7 +943,7 @@ Example Prometheus alert:
 
 For issues or questions:
 
-- **GitHub Issues**: https://github.com/bvboe/b2s-go/issues
-- **Documentation**: https://github.com/bvboe/b2s-go/tree/main/docs
+- **GitHub Issues**: https://github.com/bvboe/bjorn2scan/issues
+- **Documentation**: https://github.com/bvboe/bjorn2scan/tree/main/docs
 - **Runbooks**: See [RUNBOOKS.md](./RUNBOOKS.md) for operational procedures
 

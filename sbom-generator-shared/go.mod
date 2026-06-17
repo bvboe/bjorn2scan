@@ -1,4 +1,4 @@
-module github.com/bvboe/b2s-go/sbom-generator-shared
+module github.com/bvboe/bjorn2scan/sbom-generator-shared
 
 go 1.25.6
 

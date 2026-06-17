@@ -17,11 +17,11 @@ func TestNewRegistryClient(t *testing.T) {
 	}{
 		{
 			name:          "Standard OCI registry",
-			chartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan",
+			chartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 		},
 		{
 			name:          "Registry without oci:// prefix",
-			chartRegistry: "ghcr.io/bvboe/b2s-go/bjorn2scan",
+			chartRegistry: "ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 		},
 		{
 			name:          "Empty registry",
@@ -50,13 +50,13 @@ func TestRegistryClient_URLParsing(t *testing.T) {
 	}{
 		{
 			name:          "OCI prefix is stripped",
-			chartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan",
-			wantPrefix:    "ghcr.io/bvboe/b2s-go/bjorn2scan",
+			chartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan",
+			wantPrefix:    "ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 		},
 		{
 			name:          "No OCI prefix - unchanged",
-			chartRegistry: "ghcr.io/bvboe/b2s-go/bjorn2scan",
-			wantPrefix:    "ghcr.io/bvboe/b2s-go/bjorn2scan",
+			chartRegistry: "ghcr.io/bvboe/bjorn2scan/bjorn2scan",
+			wantPrefix:    "ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 		},
 	}
 
@@ -131,7 +131,7 @@ func TestRegistryClient_DownloadChart_InvalidURL(t *testing.T) {
 		},
 		{
 			name:          "Empty version",
-			chartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan",
+			chartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 			version:       "",
 			wantErr:       true,
 		},
@@ -167,7 +167,7 @@ func TestVerifySignature_BundleNotFound(t *testing.T) {
 	}
 
 	err := rc.VerifySignature(context.Background(), chartPath, "1.0.0",
-		srv.URL, "https://github.com/bvboe/b2s-go/*", "https://token.actions.githubusercontent.com")
+		srv.URL, "https://github.com/bvboe/bjorn2scan/*", "https://token.actions.githubusercontent.com")
 	if err == nil {
 		t.Error("expected error when bundle returns 404, got nil")
 	}
@@ -189,7 +189,7 @@ func TestVerifySignature_MalformedBundle(t *testing.T) {
 	}
 
 	err := rc.VerifySignature(context.Background(), chartPath, "1.0.0",
-		srv.URL, "https://github.com/bvboe/b2s-go/*", "https://token.actions.githubusercontent.com")
+		srv.URL, "https://github.com/bvboe/bjorn2scan/*", "https://token.actions.githubusercontent.com")
 	if err == nil {
 		t.Error("expected error for malformed bundle JSON, got nil")
 	}
@@ -211,7 +211,7 @@ func TestVerifySignature_EmptyBundle(t *testing.T) {
 	}
 
 	err := rc.VerifySignature(context.Background(), chartPath, "1.0.0",
-		srv.URL, "https://github.com/bvboe/b2s-go/*", "https://token.actions.githubusercontent.com")
+		srv.URL, "https://github.com/bvboe/bjorn2scan/*", "https://token.actions.githubusercontent.com")
 	if err == nil {
 		t.Error("expected error for empty bundle JSON, got nil")
 	}
@@ -227,7 +227,7 @@ func TestVerifySignature_MissingChart(t *testing.T) {
 	rc := NewRegistryClient("oci://ghcr.io/example/chart")
 
 	err := rc.VerifySignature(context.Background(), "/nonexistent/chart.tgz", "1.0.0",
-		srv.URL, "https://github.com/bvboe/b2s-go/*", "https://token.actions.githubusercontent.com")
+		srv.URL, "https://github.com/bvboe/bjorn2scan/*", "https://token.actions.githubusercontent.com")
 	if err == nil {
 		t.Error("expected error when chart file is missing, got nil")
 	}
@@ -274,9 +274,9 @@ func TestBundleURLConstruction(t *testing.T) {
 		wantURL        string
 	}{
 		{
-			releaseBaseURL: "https://github.com/bvboe/b2s-go/releases/download",
+			releaseBaseURL: "https://github.com/bvboe/bjorn2scan/releases/download",
 			version:        "0.1.122",
-			wantURL:        "https://github.com/bvboe/b2s-go/releases/download/v0.1.122/bjorn2scan-0.1.122.tgz.sigstore",
+			wantURL:        "https://github.com/bvboe/bjorn2scan/releases/download/v0.1.122/bjorn2scan-0.1.122.tgz.sigstore",
 		},
 	}
 
@@ -360,21 +360,21 @@ func TestChartRefConstruction(t *testing.T) {
 	}{
 		{
 			name:          "Standard chart reference",
-			chartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan",
+			chartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 			version:       "0.1.35",
-			wantRef:       "ghcr.io/bvboe/b2s-go/bjorn2scan:0.1.35",
+			wantRef:       "ghcr.io/bvboe/bjorn2scan/bjorn2scan:0.1.35",
 		},
 		{
 			name:          "Registry without oci prefix",
-			chartRegistry: "ghcr.io/bvboe/b2s-go/bjorn2scan",
+			chartRegistry: "ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 			version:       "0.1.35",
-			wantRef:       "ghcr.io/bvboe/b2s-go/bjorn2scan:0.1.35",
+			wantRef:       "ghcr.io/bvboe/bjorn2scan/bjorn2scan:0.1.35",
 		},
 		{
 			name:          "Version with v prefix",
-			chartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan",
+			chartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan",
 			version:       "v0.1.35",
-			wantRef:       "ghcr.io/bvboe/b2s-go/bjorn2scan:v0.1.35",
+			wantRef:       "ghcr.io/bvboe/bjorn2scan/bjorn2scan:v0.1.35",
 		},
 	}
 

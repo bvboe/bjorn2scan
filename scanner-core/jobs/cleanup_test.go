@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
-	"github.com/bvboe/b2s-go/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
 )
 
 // mockDatabaseCleanup implements DatabaseCleanup for testing

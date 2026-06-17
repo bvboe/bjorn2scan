@@ -1,16 +1,16 @@
-module github.com/bvboe/b2s-go/bjorn2scan-agent
+module github.com/bvboe/bjorn2scan/bjorn2scan-agent
 
 go 1.26.3
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/anchore/syft v1.45.1
-	github.com/bvboe/b2s-go/sbom-generator-shared v0.0.0-20260318203456-d47caeb6547a
-	github.com/bvboe/b2s-go/scanner-core v0.0.0-20251229133410-246b755cc828
+	github.com/bvboe/bjorn2scan/sbom-generator-shared v0.0.0-20260318203456-d47caeb6547a
+	github.com/bvboe/bjorn2scan/scanner-core v0.0.0-20251229133410-246b755cc828
 	github.com/sigstore/sigstore-go v1.2.1
 )
 
-replace github.com/bvboe/b2s-go/sbom-generator-shared => ../sbom-generator-shared
+replace github.com/bvboe/bjorn2scan/sbom-generator-shared => ../sbom-generator-shared
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -354,4 +354,4 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 )
 
-replace github.com/bvboe/b2s-go/scanner-core => ../scanner-core
+replace github.com/bvboe/bjorn2scan/scanner-core => ../scanner-core

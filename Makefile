@@ -6,9 +6,9 @@
 NAMESPACE?=
 HELM_RELEASE?=bjorn2scan
 HELM_CHART=./helm/bjorn2scan
-SCAN_SERVER_IMAGE?=ghcr.io/bvboe/b2s-go/k8s-scan-server
-POD_SCANNER_IMAGE?=ghcr.io/bvboe/b2s-go/pod-scanner
-UPDATE_CONTROLLER_IMAGE?=ghcr.io/bvboe/b2s-go/k8s-update-controller
+SCAN_SERVER_IMAGE?=ghcr.io/bvboe/bjorn2scan/k8s-scan-server
+POD_SCANNER_IMAGE?=ghcr.io/bvboe/bjorn2scan/pod-scanner
+UPDATE_CONTROLLER_IMAGE?=ghcr.io/bvboe/bjorn2scan/k8s-update-controller
 # Use timestamp for local builds to ensure unique tags (evaluated once and exported)
 IMAGE_TAG:=$(if $(IMAGE_TAG),$(IMAGE_TAG),local-$(shell date +%s))
 export IMAGE_TAG

@@ -81,17 +81,17 @@ func setDefaults(cfg *Config) {
 		cfg.Helm.ReleaseName = "bjorn2scan"
 	}
 	if cfg.Helm.ChartRegistry == "" {
-		cfg.Helm.ChartRegistry = "oci://ghcr.io/bvboe/b2s-go/bjorn2scan"
+		cfg.Helm.ChartRegistry = "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan"
 	}
 	// HealthCheckDelay default is handled in ParseDurations()
 	if cfg.Verification.CosignOIDCIssuer == "" {
 		cfg.Verification.CosignOIDCIssuer = "https://token.actions.githubusercontent.com"
 	}
 	if cfg.Verification.CosignIdentityRegexp == "" {
-		cfg.Verification.CosignIdentityRegexp = "https://github.com/bvboe/b2s-go/*"
+		cfg.Verification.CosignIdentityRegexp = "https://github.com/bvboe/bjorn2scan/*"
 	}
 	if cfg.Verification.ReleaseBaseURL == "" {
-		cfg.Verification.ReleaseBaseURL = "https://github.com/bvboe/b2s-go/releases/download"
+		cfg.Verification.ReleaseBaseURL = "https://github.com/bvboe/bjorn2scan/releases/download"
 	}
 }
 

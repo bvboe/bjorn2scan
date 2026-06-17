@@ -4,7 +4,7 @@ import (
 	"io/fs"
 	"net/http"
 
-	scanner_core "github.com/bvboe/b2s-go/scanner-core"
+	scanner_core "github.com/bvboe/bjorn2scan/scanner-core"
 )
 
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/bvboe/b2s-go/k8s-update-controller/config"
+	"github.com/bvboe/bjorn2scan/k8s-update-controller/config"
 )
 
 // VersionChecker evaluates version constraints

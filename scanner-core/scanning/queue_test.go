@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
-	"github.com/bvboe/b2s-go/scanner-core/database"
-	"github.com/bvboe/b2s-go/scanner-core/grype"
-	"github.com/bvboe/b2s-go/scanner-core/nodes"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/grype"
+	"github.com/bvboe/bjorn2scan/scanner-core/nodes"
 	// Note: SQLite driver is imported via Grype's dependencies
 	// DO NOT import sqlitedriver here to avoid duplicate registration
 )

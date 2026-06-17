@@ -36,10 +36,10 @@ Go API for managing container instance lifecycle events in memory:
 Add scanner-core to your component's `go.mod`:
 
 ```go
-require github.com/bvboe/b2s-go/scanner-core v0.0.0
+require github.com/bvboe/bjorn2scan/scanner-core v0.0.0
 
 // For local development
-replace github.com/bvboe/b2s-go/scanner-core => ../scanner-core
+replace github.com/bvboe/bjorn2scan/scanner-core => ../scanner-core
 ```
 
 ### Implementing Health and Info Endpoints
@@ -51,7 +51,7 @@ package main
 
 import (
     "net/http"
-    "github.com/bvboe/b2s-go/scanner-core/handlers"
+    "github.com/bvboe/bjorn2scan/scanner-core/handlers"
 )
 
 // Define your component-specific info response
@@ -87,7 +87,7 @@ package main
 
 import (
     "net/http"
-    "github.com/bvboe/b2s-go/scanner-core/handlers"
+    "github.com/bvboe/bjorn2scan/scanner-core/handlers"
 )
 
 type MyInfo struct{}
@@ -126,7 +126,7 @@ package main
 
 import (
     "net/http"
-    "github.com/bvboe/b2s-go/scanner-core/handlers"
+    "github.com/bvboe/bjorn2scan/scanner-core/handlers"
 )
 
 type MyInfo struct{}
@@ -155,7 +155,7 @@ package main
 
 import (
     "log"
-    "github.com/bvboe/b2s-go/scanner-core/containers"
+    "github.com/bvboe/bjorn2scan/scanner-core/containers"
 )
 
 func main() {

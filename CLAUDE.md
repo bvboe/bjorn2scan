@@ -1,4 +1,4 @@
-# bjorn2scan v2 (b2s-go) — Claude Code Guide
+# bjorn2scan v2 — Claude Code Guide
 
 ## Project Context
 

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bvboe/b2s-go/k8s-update-controller/config"
+	"github.com/bvboe/bjorn2scan/k8s-update-controller/config"
 )
 
 func TestShouldUpdate(t *testing.T) {

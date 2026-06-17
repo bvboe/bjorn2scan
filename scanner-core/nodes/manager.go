@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/logging"
+	"github.com/bvboe/bjorn2scan/scanner-core/logging"
 )
 
 var log = logging.For(logging.ComponentNodes)

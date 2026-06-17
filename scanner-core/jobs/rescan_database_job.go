@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
-	"github.com/bvboe/b2s-go/scanner-core/database"
-	"github.com/bvboe/b2s-go/scanner-core/grype"
-	"github.com/bvboe/b2s-go/scanner-core/scanning"
-	"github.com/bvboe/b2s-go/scanner-core/vulndb"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/grype"
+	"github.com/bvboe/bjorn2scan/scanner-core/scanning"
+	"github.com/bvboe/bjorn2scan/scanner-core/vulndb"
 )
 
 // DatabaseUpdateChecker defines the interface for checking vulnerability database updates

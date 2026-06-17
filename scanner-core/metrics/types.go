@@ -1,8 +1,8 @@
 package metrics
 
 import (
-	"github.com/bvboe/b2s-go/scanner-core/database"
-	"github.com/bvboe/b2s-go/scanner-core/nodes"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/nodes"
 )
 
 // MetricPoint represents a single metric observation with labels and value

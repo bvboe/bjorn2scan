@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
 
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"

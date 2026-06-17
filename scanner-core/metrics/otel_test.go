@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/database"
-	"github.com/bvboe/b2s-go/scanner-core/nodes"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/nodes"
 	metricsv1 "go.opentelemetry.io/proto/otlp/metrics/v1"
 )
 

@@ -35,4 +35,4 @@ To check the deployment status:
   # All pods
   kubectl --namespace {{ .Release.Namespace }} get pods -l "app.kubernetes.io/name={{ include "bjorn2scan.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
 
-For more information, visit: https://github.com/bvboe/b2s-go
+For more information, visit: https://github.com/bvboe/bjorn2scan

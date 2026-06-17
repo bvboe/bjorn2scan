@@ -56,14 +56,14 @@ auto_update_min_version=
 # Will not upgrade above this version
 auto_update_max_version=
 
-# Release feed URL (default: https://github.com/bvboe/b2s-go/releases.atom)
+# Release feed URL (default: https://github.com/bvboe/bjorn2scan/releases.atom)
 # Atom/RSS feed containing release information
-update_feed_url=https://github.com/bvboe/b2s-go/releases.atom
+update_feed_url=https://github.com/bvboe/bjorn2scan/releases.atom
 
-# Asset download base URL (default: https://github.com/bvboe/b2s-go/releases/download)
+# Asset download base URL (default: https://github.com/bvboe/bjorn2scan/releases/download)
 # Base URL for downloading release assets
 # Assets are downloaded from: {base_url}/{version}/{filename}
-update_asset_base_url=https://github.com/bvboe/b2s-go/releases/download
+update_asset_base_url=https://github.com/bvboe/bjorn2scan/releases/download
 
 # Verify cosign signatures before installing (default: true)
 update_verify_signatures=true
@@ -77,7 +77,7 @@ update_rollback_enabled=true
 update_health_check_timeout=60s
 
 # Cosign identity regexp for signature verification
-update_cosign_identity_regexp=https://github.com/bvboe/b2s-go/*
+update_cosign_identity_regexp=https://github.com/bvboe/bjorn2scan/*
 
 # Cosign OIDC issuer for signature verification
 update_cosign_oidc_issuer=https://token.actions.githubusercontent.com

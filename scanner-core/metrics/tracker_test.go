@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
 )
 
 // mockStalenessDB is an in-memory StalenessDB for testing. Shared across

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bvboe/b2s-go/scanner-core/database"
-	"github.com/bvboe/b2s-go/scanner-core/nodes"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/nodes"
 )
 
 func TestNewMetricsHandler_MethodNotAllowed(t *testing.T) {

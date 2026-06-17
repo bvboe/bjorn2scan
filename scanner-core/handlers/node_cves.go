@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bvboe/b2s-go/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
 )
 
 // NodeCVEsHandler creates an HTTP handler for the /api/node-cves endpoint.

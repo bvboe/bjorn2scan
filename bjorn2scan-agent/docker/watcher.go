@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
-	"github.com/bvboe/b2s-go/scanner-core/logging"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/logging"
 
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"

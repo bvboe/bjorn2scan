@@ -218,8 +218,8 @@ jobs:
       if: github.ref_type == 'tag'
       run: |
         find . -name "go.mod" -not -path "*/vendor/*" | xargs sed -i \
-          -e "s|github.com/bvboe/b2s-go/scanner-core v[^[:space:]]*|github.com/bvboe/b2s-go/scanner-core ${GITHUB_REF_NAME}|" \
-          -e "s|github.com/bvboe/b2s-go/sbom-generator-shared v[^[:space:]]*|github.com/bvboe/b2s-go/sbom-generator-shared ${GITHUB_REF_NAME}|"
+          -e "s|github.com/bvboe/bjorn2scan/scanner-core v[^[:space:]]*|github.com/bvboe/bjorn2scan/scanner-core ${GITHUB_REF_NAME}|" \
+          -e "s|github.com/bvboe/bjorn2scan/sbom-generator-shared v[^[:space:]]*|github.com/bvboe/bjorn2scan/sbom-generator-shared ${GITHUB_REF_NAME}|"
 
     - name: Set image tags
       id: meta
@@ -405,8 +405,8 @@ jobs:
       if: github.ref_type == 'tag'
       run: |
         find . -name "go.mod" -not -path "*/vendor/*" | xargs sed -i \
-          -e "s|github.com/bvboe/b2s-go/scanner-core v[^[:space:]]*|github.com/bvboe/b2s-go/scanner-core ${GITHUB_REF_NAME}|" \
-          -e "s|github.com/bvboe/b2s-go/sbom-generator-shared v[^[:space:]]*|github.com/bvboe/b2s-go/sbom-generator-shared ${GITHUB_REF_NAME}|"
+          -e "s|github.com/bvboe/bjorn2scan/scanner-core v[^[:space:]]*|github.com/bvboe/bjorn2scan/scanner-core ${GITHUB_REF_NAME}|" \
+          -e "s|github.com/bvboe/bjorn2scan/sbom-generator-shared v[^[:space:]]*|github.com/bvboe/bjorn2scan/sbom-generator-shared ${GITHUB_REF_NAME}|"
 
     - name: Prepare platform tag
       id: platform-tag

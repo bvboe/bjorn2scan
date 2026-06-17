@@ -1,6 +1,6 @@
 [Unit]
 Description=Bjorn2Scan Agent - Host-level security scanning agent
-Documentation=https://github.com/bvboe/b2s-go
+Documentation=https://github.com/bvboe/bjorn2scan
 After=network-online.target docker.service
 Wants=network-online.target
 

@@ -128,15 +128,15 @@ scanServer:
 
 ```bash
 # Change refresh interval to 12 hours
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --set scanServer.config.jobs.refreshImages.interval=12h
 
 # Disable cleanup job
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --set scanServer.config.jobs.cleanup.enabled=false
 
 # Change both jobs
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --set scanServer.config.jobs.refreshImages.interval=3h \
   --set scanServer.config.jobs.cleanup.interval=48h
 ```
@@ -160,7 +160,7 @@ scanServer:
 
 Apply it:
 ```bash
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   -f my-values.yaml
 ```
 
@@ -332,7 +332,7 @@ If jobs consistently timeout, increase the timeout:
 
 **Kubernetes**:
 ```bash
-helm upgrade bjorn2scan oci://ghcr.io/bvboe/b2s-go/bjorn2scan \
+helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --set scanServer.config.jobs.refreshImages.timeout=20m
 ```
 

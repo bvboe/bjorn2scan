@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/bvboe/b2s-go/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
 )
 
 // familyMeta maps each metric family name to its [help text, metric type].

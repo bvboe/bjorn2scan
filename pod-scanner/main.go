@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bvboe/b2s-go/pod-scanner/handlers"
-	"github.com/bvboe/b2s-go/pod-scanner/runtime"
+	"github.com/bvboe/bjorn2scan/pod-scanner/handlers"
+	"github.com/bvboe/bjorn2scan/pod-scanner/runtime"
 )
 
 // version is set at build time via ldflags

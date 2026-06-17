@@ -6,10 +6,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
-	"github.com/bvboe/b2s-go/scanner-core/database"
-	"github.com/bvboe/b2s-go/scanner-core/debug"
-	"github.com/bvboe/b2s-go/scanner-core/scanning"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/debug"
+	"github.com/bvboe/bjorn2scan/scanner-core/scanning"
 )
 
 

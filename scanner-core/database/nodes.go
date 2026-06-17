@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/nodes"
+	"github.com/bvboe/bjorn2scan/scanner-core/nodes"
 )
 
 // NodeRow represents a node row from the database

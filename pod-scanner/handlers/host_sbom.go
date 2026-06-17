@@ -10,7 +10,7 @@ import (
 	"github.com/anchore/syft/syft/format"
 	"github.com/anchore/syft/syft/format/syftjson"
 	"github.com/anchore/syft/syft/source"
-	"github.com/bvboe/b2s-go/sbom-generator-shared/exclusions"
+	"github.com/bvboe/bjorn2scan/sbom-generator-shared/exclusions"
 )
 
 

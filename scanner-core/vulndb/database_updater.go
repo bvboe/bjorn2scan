@@ -14,7 +14,7 @@ import (
 	v6 "github.com/anchore/grype/grype/db/v6"
 	"github.com/anchore/grype/grype/db/v6/distribution"
 	"github.com/anchore/grype/grype/db/v6/installation"
-	"github.com/bvboe/b2s-go/scanner-core/logging"
+	"github.com/bvboe/bjorn2scan/scanner-core/logging"
 	// Note: sqlite driver is registered by grype's dependencies (modernc.org/sqlite)
 )
 

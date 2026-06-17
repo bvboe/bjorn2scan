@@ -9,7 +9,7 @@ BINARY = k8s-update-controller
 # Docker image (consistent with other components)
 IMAGE_NAME ?= k8s-update-controller
 IMAGE_TAG ?= latest
-REGISTRY ?= ghcr.io/bvboe/b2s-go
+REGISTRY ?= ghcr.io/bvboe/bjorn2scan
 
 # Build the binary
 build:

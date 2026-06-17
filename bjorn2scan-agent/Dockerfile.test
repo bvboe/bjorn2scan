@@ -9,7 +9,7 @@ FROM cgr.dev/chainguard/go:latest-dev AS builder
 WORKDIR /build
 
 # Copy the entire project (agent + scanner-core) to handle replace directives
-# NOTE: Build context should be the parent directory (b2s-go)
+# NOTE: Build context should be the parent directory (bjorn2scan)
 COPY . .
 
 # Build the agent binary from bjorn2scan-agent directory

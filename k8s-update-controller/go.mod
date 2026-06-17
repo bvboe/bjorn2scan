@@ -1,4 +1,4 @@
-module github.com/bvboe/b2s-go/k8s-update-controller
+module github.com/bvboe/bjorn2scan/k8s-update-controller
 
 go 1.26.0
 

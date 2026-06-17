@@ -117,12 +117,12 @@ Release Workflow (v0.x.x tag pushed)
 ## Release Artifacts
 
 ### Container Images (Signed with Cosign)
-1. `ghcr.io/bvboe/b2s-go/k8s-scan-server:VERSION`
-2. `ghcr.io/bvboe/b2s-go/pod-scanner:VERSION`
-3. `ghcr.io/bvboe/b2s-go/k8s-update-controller:VERSION` ✅ **NEW**
+1. `ghcr.io/bvboe/bjorn2scan/k8s-scan-server:VERSION`
+2. `ghcr.io/bvboe/bjorn2scan/pod-scanner:VERSION`
+3. `ghcr.io/bvboe/bjorn2scan/k8s-update-controller:VERSION` ✅ **NEW**
 
 ### Helm Chart (Signed with Cosign)
-- `ghcr.io/bvboe/b2s-go/bjorn2scan:VERSION` (OCI artifact)
+- `ghcr.io/bvboe/bjorn2scan/bjorn2scan:VERSION` (OCI artifact)
 - `bjorn2scan-VERSION.tgz` (GitHub release attachment)
 
 ### Agent Binaries (Signed with Cosign)
@@ -146,18 +146,18 @@ All artifacts are signed using [sigstore/cosign](https://github.com/sigstore/cos
 ### Helm Chart
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/bvboe/b2s-go/bjorn2scan:VERSION
+  ghcr.io/bvboe/bjorn2scan/bjorn2scan:VERSION
 ```
 
 ### Container Images
 ```bash
 # K8s Update Controller
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  ghcr.io/bvboe/b2s-go/k8s-update-controller:VERSION
+  ghcr.io/bvboe/bjorn2scan/k8s-update-controller:VERSION
 ```
 
 ### Agent Binaries
@@ -165,7 +165,7 @@ cosign verify \
 cosign verify-blob bjorn2scan-agent-linux-amd64.tar.gz \
   --certificate bjorn2scan-agent-linux-amd64.tar.gz.cert \
   --signature bjorn2scan-agent-linux-amd64.tar.gz.sig \
-  --certificate-identity-regexp="https://github.com/bvboe/b2s-go/*" \
+  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
 

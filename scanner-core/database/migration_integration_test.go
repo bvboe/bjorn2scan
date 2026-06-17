@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/bvboe/b2s-go/scanner-core/sqlitedriver"
+	_ "github.com/bvboe/bjorn2scan/scanner-core/sqlitedriver"
 )
 
 // TestMigrationV25WithRealisticData tests the v25 migration (populate architecture from SBOMs)

@@ -289,7 +289,7 @@ silently drops `paths-ignore` when `paths` is present in the same event block).
 
 ## Notes
 
-- This skill is designed for the b2s-go monorepo structure with multiple Go modules
+- This skill is designed for the bjorn2scan monorepo structure with multiple Go modules
 - **Prefer Strategy B (Manual Monorepo Update)** when multiple PRs update the same dependency
 - Tidy failures in Dependabot PRs are **expected** in monorepos - don't let them block progress
 - The scanner-core integration tests may timeout due to Grype DB downloads - this is expected

@@ -1,3 +1,3 @@
-module github.com/bvboe/b2s-go/k8s-scan-server/test/integration
+module github.com/bvboe/bjorn2scan/k8s-scan-server/test/integration
 
 go 1.25

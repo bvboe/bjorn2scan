@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/bvboe/b2s-go/scanner-core/grype"
+	"github.com/bvboe/bjorn2scan/scanner-core/grype"
 )
 
 

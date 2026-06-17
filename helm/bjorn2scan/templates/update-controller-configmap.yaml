@@ -19,14 +19,14 @@ data:
     helm:
       releaseName: {{ .Release.Name }}
       namespace: {{ .Release.Namespace }}
-      chartRegistry: {{ .Values.updateController.config.chartRegistry | default "oci://ghcr.io/bvboe/b2s-go/bjorn2scan" }}
+      chartRegistry: {{ .Values.updateController.config.chartRegistry | default "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan" }}
     rollback:
       enabled: {{ .Values.updateController.config.rollbackEnabled }}
       healthCheckDelay: {{ .Values.updateController.config.healthCheckDelay | default "5m" }}
       autoRollback: {{ .Values.updateController.config.autoRollback }}
     verification:
       enabled: {{ .Values.updateController.config.verificationEnabled }}
-      cosignIdentityRegexp: {{ .Values.updateController.config.cosignIdentityRegexp | default "https://github.com/bvboe/b2s-go/*" }}
+      cosignIdentityRegexp: {{ .Values.updateController.config.cosignIdentityRegexp | default "https://github.com/bvboe/bjorn2scan/*" }}
       cosignOIDCIssuer: {{ .Values.updateController.config.cosignOIDCIssuer | default "https://token.actions.githubusercontent.com" }}
-      releaseBaseURL: {{ .Values.updateController.config.releaseBaseURL | default "https://github.com/bvboe/b2s-go/releases/download" }}
+      releaseBaseURL: {{ .Values.updateController.config.releaseBaseURL | default "https://github.com/bvboe/bjorn2scan/releases/download" }}
 {{- end }}

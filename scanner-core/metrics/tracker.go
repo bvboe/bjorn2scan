@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/database"
 )
 
 // DefaultStalenessWindow is the default duration after which metrics are considered stale

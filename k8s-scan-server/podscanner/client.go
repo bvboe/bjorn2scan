@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/logging"
+	"github.com/bvboe/bjorn2scan/scanner-core/logging"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

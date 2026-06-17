@@ -398,13 +398,13 @@ func TestConfig_Structure(t *testing.T) {
 	config := &Config{
 		Enabled:              true,
 		CheckInterval:        6 * time.Hour,
-		FeedURL:              "https://github.com/bvboe/b2s-go/releases.atom",
-		AssetBaseURL:         "https://github.com/bvboe/b2s-go/releases/download",
+		FeedURL:              "https://github.com/bvboe/bjorn2scan/releases.atom",
+		AssetBaseURL:         "https://github.com/bvboe/bjorn2scan/releases/download",
 		CurrentVersion:       "0.1.38",
 		VerifySignatures:     true,
 		RollbackEnabled:      true,
 		HealthCheckTimeout:   5 * time.Minute,
-		CosignIdentityRegexp: "https://github.com/bvboe/b2s-go/*",
+		CosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*",
 		CosignOIDCIssuer:     "https://token.actions.githubusercontent.com",
 		VersionConstraints: &VersionConstraints{
 			AutoUpdateMinor: true,
@@ -423,12 +423,12 @@ func TestConfig_Structure(t *testing.T) {
 		t.Errorf("CheckInterval = %v, want %v", config.CheckInterval, 6*time.Hour)
 	}
 
-	if config.FeedURL != "https://github.com/bvboe/b2s-go/releases.atom" {
-		t.Errorf("FeedURL = %q, want %q", config.FeedURL, "https://github.com/bvboe/b2s-go/releases.atom")
+	if config.FeedURL != "https://github.com/bvboe/bjorn2scan/releases.atom" {
+		t.Errorf("FeedURL = %q, want %q", config.FeedURL, "https://github.com/bvboe/bjorn2scan/releases.atom")
 	}
 
-	if config.AssetBaseURL != "https://github.com/bvboe/b2s-go/releases/download" {
-		t.Errorf("AssetBaseURL = %q, want %q", config.AssetBaseURL, "https://github.com/bvboe/b2s-go/releases/download")
+	if config.AssetBaseURL != "https://github.com/bvboe/bjorn2scan/releases/download" {
+		t.Errorf("AssetBaseURL = %q, want %q", config.AssetBaseURL, "https://github.com/bvboe/bjorn2scan/releases/download")
 	}
 
 	if config.CurrentVersion != "0.1.38" {

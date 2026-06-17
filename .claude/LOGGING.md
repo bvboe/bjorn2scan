@@ -52,7 +52,7 @@ Each log entry includes a `component` field identifying its source:
 ### In scanner-core modules
 
 ```go
-import "github.com/bvboe/b2s-go/scanner-core/logging"
+import "github.com/bvboe/bjorn2scan/scanner-core/logging"
 
 // Get a logger for a component
 log := logging.For(logging.ComponentQueue)

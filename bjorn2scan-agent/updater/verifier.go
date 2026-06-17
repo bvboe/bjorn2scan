@@ -67,7 +67,7 @@ func (v *Verifier) VerifySignature(blobPath, bundlePath string) error {
 
 	// Build the certificate identity policy:
 	//   issuer    = e.g. "https://token.actions.githubusercontent.com"
-	//   sanRegexp = e.g. "https://github.com/bvboe/b2s-go/*"
+	//   sanRegexp = e.g. "https://github.com/bvboe/bjorn2scan/*"
 	certID, err := verify.NewShortCertificateIdentity(v.oidcIssuer, "", "", v.identityRegexp)
 	if err != nil {
 		return fmt.Errorf("invalid certificate identity: %w", err)

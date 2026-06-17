@@ -272,7 +272,7 @@ jobs:
           **Install from OCI registry:**
 
           ```bash
-          helm install bjorn2scan oci://ghcr.io/${{ github.repository_owner }}/b2s-go/bjorn2scan \
+          helm install bjorn2scan oci://ghcr.io/${{ github.repository_owner }}/bjorn2scan/bjorn2scan \
             --version ${GITHUB_REF_NAME#v} \
             --namespace bjorn2scan \
             --create-namespace
@@ -329,7 +329,7 @@ jobs:
           cosign verify \
             --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
             --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            ghcr.io/${{ github.repository_owner }}/b2s-go/bjorn2scan:${GITHUB_REF_NAME#v}
+            ghcr.io/${{ github.repository_owner }}/bjorn2scan/bjorn2scan:${GITHUB_REF_NAME#v}
           ```
 
           **Verify agent binaries:**
@@ -349,19 +349,19 @@ jobs:
           cosign verify \
             --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
             --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            ghcr.io/${{ github.repository_owner }}/b2s-go/k8s-scan-server:${GITHUB_REF_NAME#v}
+            ghcr.io/${{ github.repository_owner }}/bjorn2scan/k8s-scan-server:${GITHUB_REF_NAME#v}
 
           # Pod scanner
           cosign verify \
             --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
             --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            ghcr.io/${{ github.repository_owner }}/b2s-go/pod-scanner:${GITHUB_REF_NAME#v}
+            ghcr.io/${{ github.repository_owner }}/bjorn2scan/pod-scanner:${GITHUB_REF_NAME#v}
 
           # Update controller
           cosign verify \
             --certificate-identity-regexp="https://github.com/${{ github.repository }}/*" \
             --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-            ghcr.io/${{ github.repository_owner }}/b2s-go/k8s-update-controller:${GITHUB_REF_NAME#v}
+            ghcr.io/${{ github.repository_owner }}/bjorn2scan/k8s-update-controller:${GITHUB_REF_NAME#v}
           ```
 
           ## 📦 Release Assets

@@ -12,8 +12,8 @@ export COMPOSE_DOCKER_CLI_BUILD=1
 # Variables
 NAMESPACE?=b2sv2
 HELM_RELEASE?=bjorn2scan
-SCAN_SERVER_IMAGE?=ghcr.io/bvboe/b2s-go/k8s-scan-server
-POD_SCANNER_IMAGE?=ghcr.io/bvboe/b2s-go/pod-scanner
+SCAN_SERVER_IMAGE?=ghcr.io/bvboe/bjorn2scan/k8s-scan-server
+POD_SCANNER_IMAGE?=ghcr.io/bvboe/bjorn2scan/pod-scanner
 IMAGE_TAG?=dev-latest
 
 ## HELP ##

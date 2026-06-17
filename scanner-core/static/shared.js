@@ -848,7 +848,7 @@ function renderTopBarNav() {
 
 // Render version footer
 function renderVersionFooter() {
-    const html = `<p style="text-align: right; color: #666; font-style: italic;"><a href="https://github.com/bvboe/b2s-go" target="_blank" style="color: #666; text-decoration: underline;">Bjørn2Scan v${appConfig.version}</a></p>`;
+    const html = `<p style="text-align: right; color: #666; font-style: italic;"><a href="https://github.com/bvboe/bjorn2scan" target="_blank" style="color: #666; text-decoration: underline;">Bjørn2Scan v${appConfig.version}</a></p>`;
     // Support both single (#app-footer) and multiple (.app-footer) slots — e.g. image.html
     // and node.html have two tab sections, each needing its own bottom-aligned footer.
     document.querySelectorAll('#app-footer, .app-footer').forEach(el => {

@@ -25,7 +25,7 @@ CONFIG_FILE="${CONFIG_DIR}/agent.conf"
 CONFIG_EXAMPLE="${CONFIG_DIR}/agent.conf.example"
 USER_NAME="bjorn2scan"
 GROUP_NAME="bjorn2scan"
-GITHUB_REPO="bvboe/b2s-go"
+GITHUB_REPO="bvboe/bjorn2scan"
 
 # Helper functions
 log_info() { printf "${BLUE}[INFO]${NC} %s\n" "$1" >&2; }

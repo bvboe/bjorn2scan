@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/nodes"
+	"github.com/bvboe/bjorn2scan/scanner-core/nodes"
 )
 
 // mockNodeDatabase implements NodeDatabaseInterface for testing

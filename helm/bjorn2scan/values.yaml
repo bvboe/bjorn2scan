@@ -24,7 +24,7 @@ scanServer:
   replicaCount: 1
 
   image:
-    repository: ghcr.io/bvboe/b2s-go/k8s-scan-server
+    repository: ghcr.io/bvboe/bjorn2scan/k8s-scan-server
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     tag: ""
@@ -196,7 +196,7 @@ podScanner:
   enabled: true
 
   image:
-    repository: ghcr.io/bvboe/b2s-go/pod-scanner
+    repository: ghcr.io/bvboe/bjorn2scan/pod-scanner
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     tag: ""
@@ -281,7 +281,7 @@ updateController:
   enabled: true  # Auto-update is enabled by default; set to false to disable
 
   image:
-    repository: ghcr.io/bvboe/b2s-go/k8s-update-controller
+    repository: ghcr.io/bvboe/bjorn2scan/k8s-update-controller
     pullPolicy: IfNotPresent
     tag: ""  # Defaults to chart appVersion
     # Pinned to exact multi-arch manifest digest by the release pipeline.
@@ -318,7 +318,7 @@ updateController:
     maxVersion: ""          # Maximum version (empty = no limit)
 
     # Helm configuration (auto-populated from release)
-    chartRegistry: "oci://ghcr.io/bvboe/b2s-go/bjorn2scan"
+    chartRegistry: "oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan"
 
     # Rollback configuration
     rollbackEnabled: true
@@ -329,6 +329,6 @@ updateController:
     # Verifies each downloaded Helm chart against its Sigstore bundle before applying.
     # The bundle is fetched from releaseBaseURL/v<version>/bjorn2scan-<version>.tgz.sigstore.
     verificationEnabled: true   # Verify cosign signatures on chart updates
-    cosignIdentityRegexp: "https://github.com/bvboe/b2s-go/*"
+    cosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*"
     cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
-    releaseBaseURL: "https://github.com/bvboe/b2s-go/releases/download"
+    releaseBaseURL: "https://github.com/bvboe/bjorn2scan/releases/download"

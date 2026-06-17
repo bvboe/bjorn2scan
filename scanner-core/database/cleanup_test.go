@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/containers"
-	_ "github.com/bvboe/b2s-go/scanner-core/sqlitedriver"
+	"github.com/bvboe/bjorn2scan/scanner-core/containers"
+	_ "github.com/bvboe/bjorn2scan/scanner-core/sqlitedriver"
 )
 
 func TestCleanupOrphanedImages(t *testing.T) {

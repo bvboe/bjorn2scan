@@ -1,4 +1,4 @@
-module github.com/bvboe/b2s-go/scanner-core
+module github.com/bvboe/bjorn2scan/scanner-core
 
 go 1.26.3
 

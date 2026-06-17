@@ -48,7 +48,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/bvboe/b2s-go/scanner-core/vulndb"
+	"github.com/bvboe/bjorn2scan/scanner-core/vulndb"
 )
 
 type Result struct {
@@ -119,8 +119,8 @@ GOEOF
 cat > "$TEST_DIR/go.mod" << MODEOF
 module grype-updater-test
 go 1.23
-require github.com/bvboe/b2s-go/scanner-core v0.0.0
-replace github.com/bvboe/b2s-go/scanner-core => $SCANNER_CORE_DIR
+require github.com/bvboe/bjorn2scan/scanner-core v0.0.0
+replace github.com/bvboe/bjorn2scan/scanner-core => $SCANNER_CORE_DIR
 MODEOF
 
 # Build

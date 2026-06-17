@@ -17,7 +17,7 @@ func TestNewVerifier(t *testing.T) {
 	}{
 		{
 			name:           "valid configuration",
-			identityRegexp: "https://github.com/bvboe/b2s-go/*",
+			identityRegexp: "https://github.com/bvboe/bjorn2scan/*",
 			oidcIssuer:     "https://token.actions.githubusercontent.com",
 		},
 		{

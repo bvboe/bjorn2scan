@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bvboe/b2s-go/sbom-generator-shared/exclusions"
+	"github.com/bvboe/bjorn2scan/sbom-generator-shared/exclusions"
 )
 
 // TestDefaultHostExclusions_ContainsContainerPaths tests that container paths are excluded

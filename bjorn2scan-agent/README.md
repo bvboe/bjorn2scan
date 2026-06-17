@@ -24,7 +24,7 @@ The bjorn2scan-agent runs directly on Linux hosts (not in Kubernetes) and provid
 Install the latest release:
 
 ```bash
-curl -sSfL https://github.com/bvboe/b2s-go/releases/latest/download/install.sh | sudo sh
+curl -sSfL https://github.com/bvboe/bjorn2scan/releases/latest/download/install.sh | sudo sh
 ```
 
 #### Specific Version (Pinned)
@@ -33,7 +33,7 @@ For reproducible installations or to match a specific release, download the vers
 
 ```bash
 # Install version 0.1.35 specifically
-curl -sSfL https://github.com/bvboe/b2s-go/releases/download/v0.1.35/install.sh | sudo sh
+curl -sSfL https://github.com/bvboe/bjorn2scan/releases/download/v0.1.35/install.sh | sudo sh
 ```
 
 Replace `v0.1.35` with your desired version. Each release includes a version-stamped `install.sh` that defaults to installing that specific version.
@@ -47,7 +47,7 @@ Replace `v0.1.35` with your desired version. Each release includes a version-sta
 
 ### Manual Installation
 
-1. Download the binary for your platform from [releases](https://github.com/bvboe/b2s-go/releases)
+1. Download the binary for your platform from [releases](https://github.com/bvboe/bjorn2scan/releases)
 2. Extract and install:
 
 ```bash
@@ -58,7 +58,7 @@ sudo install -m 755 bjorn2scan-agent-linux-amd64 /usr/local/bin/bjorn2scan-agent
 3. (Optional) Install systemd service:
 
 ```bash
-sudo curl -sSfL https://raw.githubusercontent.com/bvboe/b2s-go/main/bjorn2scan-agent/bjorn2scan-agent.service \
+sudo curl -sSfL https://raw.githubusercontent.com/bvboe/bjorn2scan/main/bjorn2scan-agent/bjorn2scan-agent.service \
   -o /etc/systemd/system/bjorn2scan-agent.service
 sudo systemctl daemon-reload
 sudo systemctl enable bjorn2scan-agent
@@ -144,7 +144,7 @@ make docker-test
 ## Uninstall
 
 ```bash
-curl -sSfL https://github.com/bvboe/b2s-go/releases/latest/download/install.sh | sudo sh -s uninstall
+curl -sSfL https://github.com/bvboe/bjorn2scan/releases/latest/download/install.sh | sudo sh -s uninstall
 ```
 
 This will completely remove:
