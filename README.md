@@ -1,4 +1,4 @@
-# Bjørn2Scan v2
+# Bjørn2Scan
 <img src="https://github.com/user-attachments/assets/3ec4d350-1cf6-4f2c-a4c6-f19251d70267" width="400" alt="bjorn2scan">
 
 Kubernetes-native vulnerability scanner. It continuously scans the images and hosts running in your cluster with [Grype](https://github.com/anchore/grype) and [Syft](https://github.com/anchore/syft), then surfaces the results in a built-in web dashboard and as Prometheus / OpenTelemetry metrics.
