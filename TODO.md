@@ -8,6 +8,59 @@
 
 ## Backlog
 
+### Production Readiness (v2.0.x → prod hardening)
+From the 2026-06-18 defaults review. **Organizing principle:** flip to *secure-and-production by default*, with an explicit opt-in `devMode` (one Helm flag + one agent config flag) that re-enables debug endpoints, looser verification, and aggressive intervals. Dev becomes the documented exception. Most items below are individual defaults that flip under that principle.
+
+#### Tier 1 — Must fix before calling v2 "production-ready"
+- [ ] **Disable debug endpoints by default** — `helm/bjorn2scan/values.yaml:105` `debugEnabled: true` → `false` (the code default is already `false`). `/api/debug/sql` runs arbitrary SQL incl. INSERT/UPDATE/DELETE/DROP, unauthenticated. Also restrict SQL-debug to read-only even when enabled (`scanner-core/debug/sql_validator.go`).
+- [ ] **[BUG] Gate the always-on destructive debug endpoints** — `POST /api/debug/jobs/{name}/trigger` and `POST /api/debug/db/reinit` (wipes/re-downloads vuln DB) are registered unconditionally — not debug-gated, no auth. `k8s-scan-server/main.go:525,539`; `scanner-core/handlers/jobs.go`, `handlers/database_handlers.go`. Gate behind the debug flag and/or auth. (Verify, then fix regardless of the prod-default discussion.)
+- [ ] **Tighten the cosign identity regexp** — `scanner-core/config/config.go:115` (+ k8s-update-controller config + `values.yaml`): `https://github.com/bvboe/bjorn2scan/*` is unanchored and `*` is a regex quantifier, so it matches substrings (e.g. `bjorn2scan-evil/...`). Anchor it, e.g. `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/.+@refs/tags/.+$`.
+- [ ] **Add scan-server securityContext/podSecurityContext** — `values.yaml:40-49` are empty `{}`. Set `runAsNonRoot: true`, `runAsUser: 65532`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `readOnlyRootFilesystem: true` (tmp/data/grype-cache volumes already exist), `seccompProfile: { type: RuntimeDefault }`. (Fails Pod Security "restricted" today.)
+- [ ] **Agent listener: bind localhost + auth on mutating endpoints** — `bjorn2scan-agent/main.go:689` binds `0.0.0.0:9999`, unauthenticated, incl. `/api/update/{trigger,pause,resume}`. Bind `127.0.0.1` by default, or require a token for the POST endpoints (docs already claim "localhost").
+- [ ] **Default auto-update OFF for production** — `values.yaml:281,294,311` (`updateController.enabled: true`, hourly schedule, `autoUpdateMinor: true`) + agent `config.go:102`. Let operators drive upgrade cadence. Disabling also removes the broad ClusterRole (cluster-wide write on `secrets` + `clusterrole(binding)s`, `clusterrole.yaml:26-47` — a privilege-escalation surface). If kept, scope the RBAC down / use a separate SA for the CronJob.
+
+#### Tier 2 — Should change
+- [ ] **HTTP server timeouts** on scan-server (`k8s-scan-server/main.go:603`) — set Read/Write/Idle/ReadHeader timeouts (slowloris/resource exhaustion).
+- [ ] **OTEL `insecure: true` → `false`** by default (scan-server + agent; `scanner-core/config/config.go:143`, `values.yaml:115`) — plaintext/`InsecureSkipVerify` when the feature is enabled.
+- [ ] **PodDisruptionBudget for scan-server** — it's a SQLite singleton (can't just scale), but a node drain silently evicts it (+~10min WAL recovery). Ship a PDB and document the singleton constraint.
+- [ ] **Agent: run as dedicated user + systemd hardening** — `bjorn2scan-agent.service`/`-compat.service` use `User=root` while self-updating the binary; install.sh creates a `bjorn2scan` user that's never used. Add `PrivateTmp`, `SystemCallFilter`, cap-drop, etc.
+- [ ] **Prerelease auto-install guard** — the agent's `releases.atom` parser doesn't filter prereleases (`bjorn2scan-agent/updater/atom_feed.go`); a published prerelease would auto-install. Filter, or ensure none are published.
+- [ ] **DaemonSet `maxUnavailable: 100%` → 25%** (`pod-scanner-daemonset.yaml:12`) so a bad pod-scanner image doesn't drop node scanning fleet-wide at once.
+- [ ] **install.sh: fetch unit/config/logrotate from the release tag**, not `main` (`bjorn2scan-agent/install.sh:306,377,400`) — reproducible, non-drifting installs.
+
+#### Tier 3 — Polish / document
+- [ ] Pin Docker base images by `@sha256:` digest (currently `cgr.dev/chainguard/*:latest` in all 4 Dockerfiles — minimal/nonroot already, so low risk).
+- [ ] Document that the dashboard + all `/api/*` endpoints are unauthenticated (fine at the ClusterIP default) — must front with auth before any LoadBalancer/NodePort exposure.
+- [ ] Agent log file perms `0644` → `0640`/`0600` (`bjorn2scan-agent/main.go:247`); revisit 7-day log retention.
+- [ ] Add `-trimpath` to Go builds; resolve the `// Todo - revert` on the 1h auto-update interval (`config.go:103-104`) and the conf comment/value mismatch (`agent.conf.example` says 6h, value is 1h); set a meaningful default `clusterName` (currently `"kubernetes"`).
+
+#### Inherent risk — document the trade-off (not a simple flip)
+- [ ] **pod-scanner DaemonSet runs `privileged: true` + root** with host-root read mount + runtime sockets (`values.yaml:219-221`). Genuinely needs elevation for SBOM scanning, but `privileged` is broader than necessary — tighten to specific caps + socket group where feasible, make node scanning opt-in, and document the accepted trade-off.
+
+#### Beyond defaults — additional production-readiness gaps
+From the 2026-06-18 follow-up review. These need *new* work, not just default flips; each was verified as currently missing. (Graceful shutdown, cleanup/retention jobs, and some operational metrics already exist, so they're excluded.)
+
+**Security & access**
+- [ ] **Authn/authz for the dashboard + all `/api/*`** — currently none. Ship optional built-in auth (or a first-class authenticating-ingress example + token). Highest-impact gap: the service exposes the full cluster vuln inventory + SBOMs.
+- [ ] **NetworkPolicy template** — none in the chart. Default-deny ingress (allow only Prometheus/ingress) + scoped egress.
+- [ ] **`SECURITY.md` + vulnerability-disclosure policy** — none at repo root (only `LICENSE`). Also consider publishing SLSA provenance attestations on the images (already cosign-signed).
+
+**Operations & data**
+- [ ] **Backup & restore / DR for the scan DB** — the SQLite PVC is the system of record; no documented backup/restore story.
+- [ ] **Air-gapped / restricted-egress support + documented egress requirements** — signature verification fetches the Sigstore TUF root from `tuf.sigstore.dev` (`bjorn2scan-agent/updater/verifier.go:48`, `k8s-update-controller/controller/registry_client.go`), plus Grype-DB downloads and GitHub for auto-update. No offline mode or documented egress allowlist — blocks regulated/disconnected clusters.
+- [ ] **Auto-update rollback ↔ DB-migration safety** — migrations are forward-only (`scanner-core/database/migrations.go`) but the update controller auto-rolls-back the chart on health-check failure; old code against a migrated DB can break. Document/enforce a safety rule (e.g., don't auto-rollback across a migration boundary).
+
+**Chart quality & safety**
+- [ ] **`values.schema.json`** — none; typos/wrong-typed values are silently accepted at install/upgrade. Add a schema to catch misconfig early.
+- [ ] **`values-production.yaml` example + `helm test` hooks** — a vetted production baseline + an install smoke test.
+
+**Quality gates**
+- [ ] **Dogfood: scan our own images in CI and gate on criticals** — CI validates that Grype/Syft work but doesn't scan the bjorn2scan images themselves for CVEs. A scanner should scan itself.
+
+**Observability & docs**
+- [ ] **Self-observability + alerting** — expand operational metrics (queue depth, scan-duration histogram, last-successful-scan age, DB/WAL size) and ship example Prometheus alert rules / SLOs. (Some exist today: `vuln_scan_failed`, `scan_status`.)
+- [ ] **Production deployment guide** (`docs/`) — prod install guide covering resource sizing by cluster size, the singleton/HA constraints, hardening, **documented scale limits** (max images/nodes the SQLite singleton is tested to), and PVC capacity planning.
+
 ### Code Quality
 - [x] **[BUG] `sbom-generator-shared` appears with unknown version in SBOM output**
   - [x] Investigate how version is embedded at build time for this module
