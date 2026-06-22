@@ -1,0 +1,51 @@
+#!/bin/bash
+#
+# Deploy Prometheus (with the native OTLP receiver) and Grafana via the
+# kube-prometheus-stack chart, with Grafana and Prometheus exposed as
+# LoadBalancer services. Deploys to whatever cluster kubectl currently
+# points at.
+#
+# Usage: scripts/deploy-prometheus-otel [namespace]
+#   namespace defaults to the current kube-context namespace, else "default".
+#
+# Used by `make helm-kind-deploy-with-metrics`.
+#
+set -euo pipefail
+
+NAMESPACE="${1:-$(kubectl config view --minify --output 'jsonpath={..namespace}' 2>/dev/null || true)}"
+NAMESPACE="${NAMESPACE:-default}"
+RELEASE="prometheus"
+
+echo "Deploying Prometheus + Grafana (LoadBalancer) to namespace '${NAMESPACE}' on context '$(kubectl config current-context)'"
+
+# Ensure the chart repo is present (idempotent).
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo update prometheus-community >/dev/null 2>&1 || helm repo update >/dev/null 2>&1 || true
+
+# kube-prometheus-stack with the native OTLP receiver + exemplar storage +
+# remote-write receiver, 30d retention / 10Gi storage. Grafana and Prometheus
+# are exposed as LoadBalancer services.
+helm upgrade --install "${RELEASE}" prometheus-community/kube-prometheus-stack \
+  --namespace "${NAMESPACE}" \
+  --create-namespace \
+  --set "prometheus.prometheusSpec.additionalArgs[0].name=web.enable-otlp-receiver" \
+  --set "prometheus.prometheusSpec.additionalArgs[1].name=enable-feature" \
+  --set "prometheus.prometheusSpec.additionalArgs[1].value=exemplar-storage" \
+  --set "prometheus.prometheusSpec.enableRemoteWriteReceiver=true" \
+  --set "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=10Gi" \
+  --set "prometheus.prometheusSpec.retention=30d" \
+  --set grafana.service.type=LoadBalancer \
+  --set prometheus.service.type=LoadBalancer \
+  --wait
+
+echo ""
+echo "=========================================="
+echo "Deployment complete (namespace: ${NAMESPACE})"
+echo "=========================================="
+echo "In-cluster OTLP endpoint (for bjorn2scan scanServer.config.otelMetrics.endpoint):"
+echo "  prometheus-kube-prometheus-prometheus.${NAMESPACE}.svc.cluster.local:9090"
+echo "  (the OTLP SDK appends /api/v1/otlp/v1/metrics; use protocol=http, insecure=true)"
+echo "Grafana login: admin / prom-operator"
+echo ""
+echo "LoadBalancer addresses (EXTERNAL-IP may show <pending> until the LB is provisioned):"
+kubectl get svc -n "${NAMESPACE}" prometheus-grafana prometheus-kube-prometheus-prometheus 2>/dev/null || true

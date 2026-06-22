@@ -150,7 +150,7 @@ helm-kind-deploy-with-metrics: docker-build-all ## Build and deploy to kind with
 	@echo "Deploying to namespace: $(DEPLOY_NAMESPACE)"
 	@echo "============================================"
 	@echo "Deploying Prometheus and Grafana with OTEL support"
-	@bash ./dev-local/kind-dasboard-otel.sh $(DEPLOY_NAMESPACE)
+	@bash ./scripts/deploy-prometheus-otel $(DEPLOY_NAMESPACE)
 	@echo ""
 	@echo "============================================"
 	@echo "Deploying bjorn2scan with OTEL metrics enabled"
