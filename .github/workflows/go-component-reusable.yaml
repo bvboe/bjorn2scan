@@ -76,7 +76,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Set up Go
       uses: actions/setup-go@v6
@@ -108,7 +108,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Set up Go
       uses: actions/setup-go@v6
@@ -160,7 +160,7 @@ jobs:
         df -h /
 
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
@@ -347,7 +347,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
     
     - name: Convert platforms to JSON array
       id: platforms
@@ -398,7 +398,7 @@ jobs:
         df -h /
 
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     # Internal modules (scanner-core, sbom-generator-shared) are built via local
     # `replace => ../<module>` directives, with the siblings copied into the build
@@ -515,7 +515,7 @@ jobs:
         echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
     - name: Checkout code (for SARIF upload)
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Scan merged image with Grype
       id: scan
