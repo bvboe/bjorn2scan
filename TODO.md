@@ -32,7 +32,7 @@ From the 2026-06-18 defaults review. **Organizing principle:** flip to *secure-a
 - [ ] Pin Docker base images by `@sha256:` digest (currently `cgr.dev/chainguard/*:latest` in all 4 Dockerfiles — minimal/nonroot already, so low risk).
 - [ ] Document that the dashboard + all `/api/*` endpoints are unauthenticated (fine at the ClusterIP default) — must front with auth before any LoadBalancer/NodePort exposure.
 - [ ] Agent log file perms `0644` → `0640`/`0600` (`bjorn2scan-agent/main.go:247`); revisit 7-day log retention.
-- [ ] Add `-trimpath` to Go builds; resolve the `// Todo - revert` on the 1h auto-update interval (`config.go:103-104`) and the conf comment/value mismatch (`agent.conf.example` says 6h, value is 1h); set a meaningful default `clusterName` (currently `"kubernetes"`).
+- [ ] Add `-trimpath` to Go builds; set a meaningful default `clusterName` (currently `"kubernetes"`). (Auto-update interval default resolved → 24h across values.yaml/agent.conf.example/config.go; `// Todo - revert` removed.)
 
 #### Inherent risk — document the trade-off (not a simple flip)
 - [ ] **pod-scanner DaemonSet runs `privileged: true` + root** with host-root read mount + runtime sockets (`values.yaml:219-221`). Genuinely needs elevation for SBOM scanning, but `privileged` is broader than necessary — tighten to specific caps + socket group where feasible, make node scanning opt-in, and document the accepted trade-off.

@@ -102,7 +102,7 @@ scanServer:
 
   config:
     port: "8080"
-    debugEnabled: true  # Set to true to enable debug endpoints (/debug/sql, /debug/metrics)
+    debugEnabled: false  # Debug endpoints (/debug/sql, /debug/metrics); keep false in production
     webUIEnabled: true  # Set to false to disable the web UI
     consoleURL: ""  # Custom console URL (e.g., https://bjorn2scan.example.com/). Leave empty for auto-detection
 
@@ -112,7 +112,7 @@ scanServer:
       endpoint: "prometheus-kube-prometheus-prometheus:9090"  # Service name (will use same namespace)
       protocol: "http"  # "grpc" for OTEL Collector, "http" for Prometheus native OTLP
       pushInterval: "15m"
-      insecure: true
+      insecure: false  # true only for in-cluster plaintext (no-TLS) collectors
       useDirectExport: true  # Bypass SDK buffering for high-cardinality node metrics (prevents OOM)
       directBatchSize: 5000  # Number of data points per batch when using direct export
 
@@ -290,8 +290,8 @@ updateController:
 
   # Cron schedule (standard Kubernetes CronJob format)
   # Examples: "0 2 * * *" (daily at 2am), "0 */6 * * *" (every 6 hours), "@daily"
-  #schedule: "0 2 * * *"
-  schedule: "0 * * * *"
+  # Daily by default; auto-update is on — set updateController.enabled=false to disable.
+  schedule: "@daily"
 
   # CronJob settings
   concurrencyPolicy: Forbid  # Don't run multiple jobs simultaneously

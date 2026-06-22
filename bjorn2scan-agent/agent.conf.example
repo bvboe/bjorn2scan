@@ -31,9 +31,9 @@ web_ui_enabled=true
 # When enabled, agent will periodically check for new versions and auto-update
 auto_update_enabled=true
 
-# Update check interval (default: 6h)
+# Update check interval (default: 24h)
 # Format: Go duration string (e.g., "6h", "24h", "30m")
-auto_update_check_interval=1h
+auto_update_check_interval=24h
 
 # Allow automatic minor version updates (default: true)
 # Example: 0.1.x → 0.2.x
@@ -172,10 +172,10 @@ otel_metrics_protocol=grpc
 # Environment variable: OTEL_METRICS_PUSH_INTERVAL
 otel_metrics_push_interval=15m
 
-# Allow insecure connections (default: true)
-# Set to false for production with TLS/SSL
+# Allow insecure connections (default: false)
+# Set to true only for in-cluster plaintext (no-TLS) collectors
 # Environment variable: OTEL_METRICS_INSECURE
-otel_metrics_insecure=true
+otel_metrics_insecure=false
 
 # Use direct OTLP export for high-cardinality metrics (default: true)
 # Bypasses SDK buffering to prevent OOM with large node vulnerability datasets

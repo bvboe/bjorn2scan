@@ -83,10 +83,10 @@ type Config struct {
 	HostScanningExtraNetworkFSTypes []string      // Additional network FS types to detect (added to defaults)
 
 	// Node metrics toggles (only applicable when host scanning is enabled)
-	MetricsNodeScannedEnabled              bool // Enable bjorn2scan_node_scanned metric
-	MetricsNodeScanStatusEnabled           bool // Enable bjorn2scan_node_scan_status metric
-	MetricsNodeVulnerabilitiesEnabled      bool // Enable bjorn2scan_node_vulnerability metric
-	MetricsNodeVulnerabilityRiskEnabled    bool // Enable bjorn2scan_node_vulnerability_risk metric
+	MetricsNodeScannedEnabled                bool // Enable bjorn2scan_node_scanned metric
+	MetricsNodeScanStatusEnabled             bool // Enable bjorn2scan_node_scan_status metric
+	MetricsNodeVulnerabilitiesEnabled        bool // Enable bjorn2scan_node_vulnerability metric
+	MetricsNodeVulnerabilityRiskEnabled      bool // Enable bjorn2scan_node_vulnerability_risk metric
 	MetricsNodeVulnerabilityExploitedEnabled bool // Enable bjorn2scan_node_vulnerability_exploited metric
 }
 
@@ -99,9 +99,8 @@ func defaultConfig() *Config {
 		WebUIEnabled: true,
 
 		// Auto-update defaults
-		AutoUpdateEnabled: true,
-		//Todo - revert back to something more reasonable
-		AutoUpdateCheckInterval:      1 * time.Hour,
+		AutoUpdateEnabled:            true,
+		AutoUpdateCheckInterval:      24 * time.Hour,
 		AutoUpdateMinorVersions:      true,
 		AutoUpdateMajorVersions:      false,
 		AutoUpdatePinnedVersion:      "",
@@ -140,9 +139,9 @@ func defaultConfig() *Config {
 		OTELMetricsEndpoint:     "localhost:4317",
 		OTELMetricsProtocol:     "grpc", // Use "http" for Prometheus native OTLP
 		OTELMetricsPushInterval: 15 * time.Minute,
-		OTELMetricsInsecure:     true,
-		OTELUseDirectExport:     true,  // Bypass SDK buffering for high-cardinality node metrics
-		OTELDirectBatchSize:     5000,  // Batch size for direct export
+		OTELMetricsInsecure:     false,
+		OTELUseDirectExport:     true, // Bypass SDK buffering for high-cardinality node metrics
+		OTELDirectBatchSize:     5000, // Batch size for direct export
 
 		// Individual metrics - enabled by default
 		MetricsDeploymentEnabled:             true,
@@ -163,10 +162,10 @@ func defaultConfig() *Config {
 		HostScanningExtraNetworkFSTypes: nil,
 
 		// Node metrics - enabled by default when host scanning is enabled
-		MetricsNodeScannedEnabled:              true,
-		MetricsNodeScanStatusEnabled:           true,
-		MetricsNodeVulnerabilitiesEnabled:      true,
-		MetricsNodeVulnerabilityRiskEnabled:    true,
+		MetricsNodeScannedEnabled:                true,
+		MetricsNodeScanStatusEnabled:             true,
+		MetricsNodeVulnerabilitiesEnabled:        true,
+		MetricsNodeVulnerabilityRiskEnabled:      true,
 		MetricsNodeVulnerabilityExploitedEnabled: true,
 	}
 }

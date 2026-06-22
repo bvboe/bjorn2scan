@@ -314,7 +314,7 @@ kubectl get cronjob bjorn2scan-update-controller -n bjorn2scan \
 for host in agent1 agent2 agent3; do
   ssh $host 'sudo tee -a /etc/bjorn2scan/agent.conf > /dev/null <<EOF
 auto_update_enabled=true
-auto_update_check_interval=6h
+auto_update_check_interval=24h
 auto_update_minor_versions=true
 auto_update_major_versions=false
 update_rollback_enabled=true
