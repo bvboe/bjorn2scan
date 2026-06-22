@@ -394,7 +394,9 @@ install_service() {
     ln -sf /etc/bjorn2scan /var/lib/bjorn2scan/config
     ln -sf /var/log/bjorn2scan /var/lib/bjorn2scan/log
 
-    chmod 755 /var/lib/bjorn2scan /var/log/bjorn2scan /etc/bjorn2scan
+    chmod 755 /var/lib/bjorn2scan /etc/bjorn2scan
+    # Logs may contain hostnames and package inventory — restrict to root
+    chmod 750 /var/log/bjorn2scan
 
     # Install logrotate configuration
     LOGROTATE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/bjorn2scan-agent/logrotate.conf"

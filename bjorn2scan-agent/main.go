@@ -48,8 +48,8 @@ type InfoResponse struct {
 }
 
 type AgentInfo struct {
-	port               string
-	webUIEnabled       bool
+	port                string
+	webUIEnabled        bool
 	hostScanningEnabled bool
 	// Cached values computed at startup
 	deploymentIP string
@@ -60,8 +60,8 @@ type AgentInfo struct {
 
 func NewAgentInfo(port string, webUIEnabled bool, hostScanningEnabled bool) *AgentInfo {
 	info := &AgentInfo{
-		port:               port,
-		webUIEnabled:       webUIEnabled,
+		port:                port,
+		webUIEnabled:        webUIEnabled,
 		hostScanningEnabled: hostScanningEnabled,
 	}
 
@@ -244,7 +244,7 @@ func setupLogging() *os.File {
 	logDir := "/var/log/bjorn2scan"
 	logFile := filepath.Join(logDir, "agent.log")
 
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0640)
 	if err != nil {
 		// Can't open log file — fall back to stderr only
 		logging.InitFromEnv()

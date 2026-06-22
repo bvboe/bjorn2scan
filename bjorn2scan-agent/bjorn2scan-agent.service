@@ -34,6 +34,14 @@ LockPersonality=true
 MemoryDenyWriteExecute=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ProtectHostname=true
+ProtectClock=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+# Note: User=root is required — the agent scans the whole host filesystem for
+# packages/vulnerabilities and needs broad read access. SystemCallFilter and a
+# restricted CapabilityBoundingSet are deliberately omitted here because they can
+# impair host reading; validate them on a test host before adding.
 
 # Logging
 StandardOutput=journal
