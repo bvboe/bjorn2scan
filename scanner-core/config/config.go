@@ -111,7 +111,7 @@ func defaultConfig() *Config {
 		UpdateVerifySignatures:       true,
 		UpdateRollbackEnabled:        true,
 		UpdateHealthCheckTimeout:     60 * time.Second,
-		UpdateCosignIdentityRegexp:   "https://github.com/bvboe/bjorn2scan/*",
+		UpdateCosignIdentityRegexp:   `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`,
 		UpdateCosignOIDCIssuer:       "https://token.actions.githubusercontent.com",
 		UpdateDownloadMaxRetries:     3,
 		UpdateDownloadValidateAssets: true,

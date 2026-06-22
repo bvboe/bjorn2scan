@@ -329,6 +329,6 @@ updateController:
     # Verifies each downloaded Helm chart against its Sigstore bundle before applying.
     # The bundle is fetched from releaseBaseURL/v<version>/bjorn2scan-<version>.tgz.sigstore.
     verificationEnabled: true   # Verify cosign signatures on chart updates
-    cosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*"
+    cosignIdentityRegexp: '^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$'
     cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
     releaseBaseURL: "https://github.com/bvboe/bjorn2scan/releases/download"

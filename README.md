@@ -84,7 +84,7 @@ Container images and Helm charts are signed with [cosign](https://github.com/sig
 
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   ghcr.io/bvboe/bjorn2scan/bjorn2scan:<version>
 ```

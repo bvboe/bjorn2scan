@@ -167,7 +167,7 @@ func TestVerifySignature_BundleNotFound(t *testing.T) {
 	}
 
 	err := rc.VerifySignature(context.Background(), chartPath, "1.0.0",
-		srv.URL, "https://github.com/bvboe/bjorn2scan/*", "https://token.actions.githubusercontent.com")
+		srv.URL, `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`, "https://token.actions.githubusercontent.com")
 	if err == nil {
 		t.Error("expected error when bundle returns 404, got nil")
 	}
@@ -189,7 +189,7 @@ func TestVerifySignature_MalformedBundle(t *testing.T) {
 	}
 
 	err := rc.VerifySignature(context.Background(), chartPath, "1.0.0",
-		srv.URL, "https://github.com/bvboe/bjorn2scan/*", "https://token.actions.githubusercontent.com")
+		srv.URL, `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`, "https://token.actions.githubusercontent.com")
 	if err == nil {
 		t.Error("expected error for malformed bundle JSON, got nil")
 	}
@@ -211,7 +211,7 @@ func TestVerifySignature_EmptyBundle(t *testing.T) {
 	}
 
 	err := rc.VerifySignature(context.Background(), chartPath, "1.0.0",
-		srv.URL, "https://github.com/bvboe/bjorn2scan/*", "https://token.actions.githubusercontent.com")
+		srv.URL, `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`, "https://token.actions.githubusercontent.com")
 	if err == nil {
 		t.Error("expected error for empty bundle JSON, got nil")
 	}
@@ -227,7 +227,7 @@ func TestVerifySignature_MissingChart(t *testing.T) {
 	rc := NewRegistryClient("oci://ghcr.io/example/chart")
 
 	err := rc.VerifySignature(context.Background(), "/nonexistent/chart.tgz", "1.0.0",
-		srv.URL, "https://github.com/bvboe/bjorn2scan/*", "https://token.actions.githubusercontent.com")
+		srv.URL, `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`, "https://token.actions.githubusercontent.com")
 	if err == nil {
 		t.Error("expected error when chart file is missing, got nil")
 	}
@@ -304,8 +304,8 @@ func TestVersionFiltering(t *testing.T) {
 			},
 		},
 		{
-			name: "No special tags",
-			tags: []string{"0.1.0", "0.1.1", "0.2.0"},
+			name:     "No special tags",
+			tags:     []string{"0.1.0", "0.1.1", "0.2.0"},
 			wantSkip: map[string]bool{},
 		},
 		{

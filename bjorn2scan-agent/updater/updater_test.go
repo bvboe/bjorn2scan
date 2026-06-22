@@ -404,7 +404,7 @@ func TestConfig_Structure(t *testing.T) {
 		VerifySignatures:     true,
 		RollbackEnabled:      true,
 		HealthCheckTimeout:   5 * time.Minute,
-		CosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*",
+		CosignIdentityRegexp: `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`,
 		CosignOIDCIssuer:     "https://token.actions.githubusercontent.com",
 		VersionConstraints: &VersionConstraints{
 			AutoUpdateMinor: true,

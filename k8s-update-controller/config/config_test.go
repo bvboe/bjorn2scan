@@ -34,7 +34,7 @@ rollback:
   autoRollback: true
 verification:
   enabled: false
-  cosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*"
+  cosignIdentityRegexp: '^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$'
   cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
 `,
 			wantErr: false,
@@ -73,9 +73,9 @@ helm:
 
 func TestSetDefaults(t *testing.T) {
 	tests := []struct {
-		name     string
-		cfg      Config
-		wantCfg  Config
+		name    string
+		cfg     Config
+		wantCfg Config
 	}{
 		{
 			name: "Empty config gets all defaults",
@@ -88,7 +88,7 @@ func TestSetDefaults(t *testing.T) {
 				},
 				Verification: VerificationConfig{
 					CosignOIDCIssuer:     "https://token.actions.githubusercontent.com",
-					CosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*",
+					CosignIdentityRegexp: `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`,
 				},
 			},
 		},
@@ -107,7 +107,7 @@ func TestSetDefaults(t *testing.T) {
 				},
 				Verification: VerificationConfig{
 					CosignOIDCIssuer:     "https://token.actions.githubusercontent.com",
-					CosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*",
+					CosignIdentityRegexp: `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`,
 				},
 			},
 		},
@@ -232,10 +232,10 @@ func TestValidate(t *testing.T) {
 
 func TestRollbackConfig_ParseDurations(t *testing.T) {
 	tests := []struct {
-		name        string
-		delayStr    string
-		wantDelay   time.Duration
-		wantErr     bool
+		name      string
+		delayStr  string
+		wantDelay time.Duration
+		wantErr   bool
 	}{
 		{
 			name:      "Valid duration string",

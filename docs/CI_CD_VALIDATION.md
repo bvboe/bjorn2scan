@@ -146,7 +146,7 @@ All artifacts are signed using [sigstore/cosign](https://github.com/sigstore/cos
 ### Helm Chart
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   ghcr.io/bvboe/bjorn2scan/bjorn2scan:VERSION
 ```
@@ -155,7 +155,7 @@ cosign verify \
 ```bash
 # K8s Update Controller
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   ghcr.io/bvboe/bjorn2scan/k8s-update-controller:VERSION
 ```
@@ -165,7 +165,7 @@ cosign verify \
 cosign verify-blob bjorn2scan-agent-linux-amd64.tar.gz \
   --certificate bjorn2scan-agent-linux-amd64.tar.gz.cert \
   --signature bjorn2scan-agent-linux-amd64.tar.gz.sig \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
 

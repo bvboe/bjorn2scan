@@ -141,7 +141,7 @@ updateController:
       enabled: true
 
       # GitHub Actions OIDC identity pattern
-      cosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*"
+      cosignIdentityRegexp: '^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$'
 
       # OIDC issuer for GitHub Actions
       cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
@@ -291,7 +291,7 @@ update_rollback_enabled=true
 update_health_check_timeout=60s
 
 # Cosign identity regexp for signature verification
-update_cosign_identity_regexp=https://github.com/bvboe/bjorn2scan/*
+update_cosign_identity_regexp=^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$
 
 # Cosign OIDC issuer for signature verification
 update_cosign_oidc_issuer=https://token.actions.githubusercontent.com
@@ -533,7 +533,7 @@ updateController:
   config:
     verification:
       enabled: true
-      cosignIdentityRegexp: "https://github.com/bvboe/bjorn2scan/*"
+      cosignIdentityRegexp: '^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$'
       cosignOIDCIssuer: "https://token.actions.githubusercontent.com"
 ```
 
@@ -564,7 +564,7 @@ You can manually verify signatures for any release:
 **Helm Chart:**
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   ghcr.io/bvboe/bjorn2scan/bjorn2scan:0.1.35
 ```
@@ -576,7 +576,7 @@ cosign verify \
 cosign verify-blob bjorn2scan-agent-linux-amd64.tar.gz \
   --certificate bjorn2scan-agent-linux-amd64.tar.gz.cert \
   --signature bjorn2scan-agent-linux-amd64.tar.gz.sig \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
 

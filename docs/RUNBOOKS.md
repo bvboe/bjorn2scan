@@ -1290,7 +1290,7 @@ cosign version
 
 # Step 2: Test signature verification manually
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   ghcr.io/bvboe/bjorn2scan/bjorn2scan:0.1.35
 

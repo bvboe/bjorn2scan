@@ -88,7 +88,7 @@ func setDefaults(cfg *Config) {
 		cfg.Verification.CosignOIDCIssuer = "https://token.actions.githubusercontent.com"
 	}
 	if cfg.Verification.CosignIdentityRegexp == "" {
-		cfg.Verification.CosignIdentityRegexp = "https://github.com/bvboe/bjorn2scan/*"
+		cfg.Verification.CosignIdentityRegexp = `^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$`
 	}
 	if cfg.Verification.ReleaseBaseURL == "" {
 		cfg.Verification.ReleaseBaseURL = "https://github.com/bvboe/bjorn2scan/releases/download"

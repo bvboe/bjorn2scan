@@ -316,7 +316,7 @@ Released container images are signed with cosign (sigstore):
 
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   ghcr.io/bvboe/bjorn2scan/k8s-scan-server:0.1.0
 ```
@@ -327,7 +327,7 @@ Released Helm charts (OCI artifacts) are also signed with cosign:
 
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/bvboe/bjorn2scan/*" \
+  --certificate-identity-regexp='^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$' \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
   ghcr.io/bvboe/bjorn2scan/bjorn2scan:0.1.0
 ```

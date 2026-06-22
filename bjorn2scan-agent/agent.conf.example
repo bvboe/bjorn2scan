@@ -77,7 +77,7 @@ update_rollback_enabled=true
 update_health_check_timeout=60s
 
 # Cosign identity regexp for signature verification
-update_cosign_identity_regexp=https://github.com/bvboe/bjorn2scan/*
+update_cosign_identity_regexp=^https://github\.com/bvboe/bjorn2scan/\.github/workflows/[^@]+@refs/tags/.+$
 
 # Cosign OIDC issuer for signature verification
 update_cosign_oidc_issuer=https://token.actions.githubusercontent.com

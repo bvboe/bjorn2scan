@@ -26,7 +26,7 @@ data:
       autoRollback: {{ .Values.updateController.config.autoRollback }}
     verification:
       enabled: {{ .Values.updateController.config.verificationEnabled }}
-      cosignIdentityRegexp: {{ .Values.updateController.config.cosignIdentityRegexp | default "https://github.com/bvboe/bjorn2scan/*" }}
+      cosignIdentityRegexp: '{{ .Values.updateController.config.cosignIdentityRegexp | default "^https://github\\.com/bvboe/bjorn2scan/\\.github/workflows/[^@]+@refs/tags/.+$" }}'
       cosignOIDCIssuer: {{ .Values.updateController.config.cosignOIDCIssuer | default "https://token.actions.githubusercontent.com" }}
       releaseBaseURL: {{ .Values.updateController.config.releaseBaseURL | default "https://github.com/bvboe/bjorn2scan/releases/download" }}
 {{- end }}
