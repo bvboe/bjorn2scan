@@ -57,12 +57,11 @@ func TestMigrationV7WithBadNginxData(t *testing.T) {
 		}
 	}
 
-	// Load bad-nginx test data
-	testDataPath := "../../dev-local/test-data/bad-nginx-scanresult.json"
+	// Load bad-nginx test data (a real grype scan result with risk/EPSS/KEV enrichment)
+	testDataPath := "testdata/bad-nginx-scanresult.json"
 	vulnJSON, err := os.ReadFile(testDataPath)
 	if err != nil {
-		t.Skipf("Skipping test data verification: %v", err)
-		return
+		t.Fatalf("Failed to read test data %s: %v", testDataPath, err)
 	}
 
 	// Create a test image to associate vulnerabilities with

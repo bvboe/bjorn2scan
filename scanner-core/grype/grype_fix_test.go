@@ -9,12 +9,18 @@ import (
 )
 
 func TestScanWithDistro(t *testing.T) {
-	// Read the nginx SBOM
-	sbomPath := "../../dev-local/problem-scan/sbom_sha256__23b4dcdf0d34.json"
+	// Integration test: runs a real Grype scan, which needs the vulnerability DB.
+	if testing.Short() {
+		t.Skip("skipping in -short: requires the Grype vulnerability database")
+	}
+
+	// Syft SBOM of nginx:1.15 (image sha256:23b4dcdf0d34...). It carries Debian
+	// distro metadata so Grype matches OS packages — regression guard against the
+	// distro-less SBOMs that only matched ~7 vulnerabilities.
+	sbomPath := "testdata/nginx-1.15-sbom.json"
 	sbomJSON, err := os.ReadFile(sbomPath)
 	if err != nil {
-		t.Skipf("Skipping test: could not read SBOM file: %v", err)
-		return
+		t.Fatalf("Failed to read SBOM %s: %v", sbomPath, err)
 	}
 
 	// Scan for vulnerabilities
