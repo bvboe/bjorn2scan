@@ -800,7 +800,7 @@ function renderSidebarNav() {
         tableBody.appendChild(row);
     }
 
-    addNavItem('Summary', 'index.html');
+    addNavItem('Bjørn2Scan', 'index.html');
     if (showContainerScans) {
         addNavItem('Images', 'images.html', true);
         addNavItem('Containers', 'containers.html', true);
@@ -834,7 +834,7 @@ function renderTopBarNav() {
         container.appendChild(a);
     }
 
-    addNavItem('Summary', 'index.html');
+    addNavItem('Bjørn2Scan', 'index.html');
     if (showContainerScans) {
         addNavItem('Images', 'images.html', true);
         addNavItem('Containers', 'containers.html', true);

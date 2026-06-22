@@ -110,10 +110,6 @@
     font-size: 1.5em;
 }
 
-.topbar .brand {
-    font-weight: 700;
-}
-
 .topbar .topbar-links {
     display: flex;
     gap: 20px;

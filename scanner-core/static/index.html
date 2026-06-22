@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>bjorn2scan - Summary</title>
+    <title>Bjørn2Scan</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="custom-styles.css">
 </head>
 <body>
     <nav class="topbar">
-        <span class="brand">Bjørn2Scan</span>
         <div id="topbarNav" class="topbar-links"></div>
     </nav>
     <main class="page-content">
@@ -93,7 +92,7 @@
 
     <script src="shared.js"></script>
     <script>
-        const pageTitle = 'Summary';
+        const pageTitle = 'Bjørn2Scan';
 
         // Each paginated avg-table on this page (Namespace, Distribution) has the same
         // shape: identical state, identical column layout, an endpoint, a data key, and
@@ -179,7 +178,7 @@
 
                 const clusterNameDiv = document.getElementById('clusterName');
                 if (clusterNameDiv && appConfig) {
-                    clusterNameDiv.textContent = pageTitle + ' - ' + appConfig.clusterName;
+                    clusterNameDiv.textContent = appConfig.clusterName;
                     document.title = pageTitle + ' - ' + appConfig.clusterName;
                 }
 
