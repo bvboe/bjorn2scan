@@ -21,7 +21,7 @@ From the 2026-06-18 defaults review. **Organizing principle:** flip to *secure-a
 
 #### Tier 2 — Should change
 - [ ] **HTTP server timeouts** on scan-server (`k8s-scan-server/main.go:603`) — set Read/Write/Idle/ReadHeader timeouts (slowloris/resource exhaustion).
-- [ ] **OTEL `insecure: true` → `false`** by default (scan-server + agent; `scanner-core/config/config.go:143`, `values.yaml:115`) — plaintext/`InsecureSkipVerify` when the feature is enabled.
+- [x] **OTEL `insecure: true` → `false`** by default — DONE: consistent across all locations — `scanner-core/config/config.go:142` `OTELMetricsInsecure: false` (one package feeding both scan-server and agent), `helm/bjorn2scan/values.yaml:115` `insecure: false` (wired via `OTEL_METRICS_INSECURE`), and `bjorn2scan-agent/agent.conf.example:178` `otel_metrics_insecure=false`. Repo-wide scan confirms no remaining `insecure…true` default.
 - [ ] **PodDisruptionBudget for scan-server** — it's a SQLite singleton (can't just scale), but a node drain silently evicts it (+~10min WAL recovery). Ship a PDB and document the singleton constraint.
 - [ ] **Agent: run as dedicated user + systemd hardening** — `bjorn2scan-agent.service`/`-compat.service` use `User=root` while self-updating the binary; install.sh creates a `bjorn2scan` user that's never used. Add `PrivateTmp`, `SystemCallFilter`, cap-drop, etc.
 - [ ] **Prerelease auto-install guard** — the agent's `releases.atom` parser doesn't filter prereleases (`bjorn2scan-agent/updater/atom_feed.go`); a published prerelease would auto-install. Filter, or ensure none are published.
