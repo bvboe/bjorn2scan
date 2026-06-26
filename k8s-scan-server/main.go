@@ -522,7 +522,7 @@ func main() {
 	corehandlers.RegisterHandlers(mux, infoProvider, db)
 
 	// Register database readiness handlers (/ready, /api/db/status, /api/debug/db/reinit)
-	corehandlers.RegisterDatabaseReadinessHandlers(mux, dbReadinessState)
+	corehandlers.RegisterDatabaseReadinessHandlers(mux, dbReadinessState, debugConfig)
 
 	// Register database handlers (use all default handlers)
 	corehandlers.RegisterDatabaseHandlers(mux, db, nil)
@@ -536,7 +536,7 @@ func main() {
 	corehandlers.RegisterDebugHandlers(mux, db, debugConfig, scanQueue)
 
 	// Register jobs debug handlers for listing, triggering, and viewing execution history
-	corehandlers.RegisterJobsHandlersWithDB(mux, sched, db)
+	corehandlers.RegisterJobsHandlersWithDB(mux, sched, db, debugConfig)
 
 	// Register node API handlers (if host scanning is enabled)
 	if cfg.HostScanningEnabled {

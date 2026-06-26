@@ -605,7 +605,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	handlers.RegisterHandlers(mux, infoProvider, nil)
-	handlers.RegisterDatabaseReadinessHandlers(mux, dbReadinessState)
+	handlers.RegisterDatabaseReadinessHandlers(mux, dbReadinessState, debugConfig)
 	handlers.RegisterDatabaseHandlers(mux, db, nil) // Use all default handlers
 
 	// Register static handlers only if web UI is enabled
@@ -628,7 +628,7 @@ func main() {
 	handlers.RegisterDebugHandlers(mux, db, debugConfig, scanQueue)
 
 	// Register jobs debug handlers for listing, triggering, and viewing execution history
-	handlers.RegisterJobsHandlersWithDB(mux, sched, db)
+	handlers.RegisterJobsHandlersWithDB(mux, sched, db, debugConfig)
 
 	// Create unified metrics config (shared between /metrics and OTEL)
 	unifiedConfig := metrics.UnifiedConfig{

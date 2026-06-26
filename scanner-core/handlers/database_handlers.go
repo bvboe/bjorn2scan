@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/bvboe/bjorn2scan/scanner-core/debug"
 	"github.com/bvboe/bjorn2scan/scanner-core/grype"
 )
 
@@ -112,9 +113,15 @@ func DatabaseStatusHandler(state *DatabaseReadinessState) http.HandlerFunc {
 }
 
 // DatabaseReinitHandler triggers a database re-initialization (for testing)
-// POST /api/debug/db/reinit - deletes and re-downloads the database
-func DatabaseReinitHandler(state *DatabaseReadinessState) http.HandlerFunc {
+// POST /api/debug/db/reinit - deletes and re-downloads the database. Destructive
+// (wipes and re-downloads the vuln DB), so it is gated behind debug mode.
+func DatabaseReinitHandler(state *DatabaseReadinessState, debugConfig *debug.DebugConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !debugConfig.IsEnabled() {
+			http.Error(w, "Debug mode not enabled", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -153,8 +160,8 @@ func DatabaseReinitHandler(state *DatabaseReadinessState) http.HandlerFunc {
 }
 
 // RegisterDatabaseReadinessHandlers registers the database readiness endpoints
-func RegisterDatabaseReadinessHandlers(mux *http.ServeMux, state *DatabaseReadinessState) {
+func RegisterDatabaseReadinessHandlers(mux *http.ServeMux, state *DatabaseReadinessState, debugConfig *debug.DebugConfig) {
 	mux.HandleFunc("/ready", ReadinessHandler(state))
 	mux.HandleFunc("/api/db/status", DatabaseStatusHandler(state))
-	mux.HandleFunc("/api/debug/db/reinit", DatabaseReinitHandler(state))
+	mux.HandleFunc("/api/debug/db/reinit", DatabaseReinitHandler(state, debugConfig))
 }

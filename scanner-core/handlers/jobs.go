@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/bvboe/bjorn2scan/scanner-core/database"
+	"github.com/bvboe/bjorn2scan/scanner-core/debug"
 	"github.com/bvboe/bjorn2scan/scanner-core/scheduler"
 )
 
@@ -55,8 +56,14 @@ func JobsListHandler(sched *scheduler.Scheduler) http.HandlerFunc {
 }
 
 // JobsTriggerHandler handles POST /api/debug/jobs/{name}/trigger - triggers a job immediately
-func JobsTriggerHandler(sched *scheduler.Scheduler) http.HandlerFunc {
+func JobsTriggerHandler(sched *scheduler.Scheduler, debugConfig *debug.DebugConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Destructive (runs a scheduled job out of band) — gate behind debug mode.
+		if !debugConfig.IsEnabled() {
+			http.Error(w, "Debug mode not enabled", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -151,16 +158,16 @@ func JobExecutionsHandler(db JobExecutionStore) http.HandlerFunc {
 }
 
 // RegisterJobsHandlers registers the jobs debug endpoints
-func RegisterJobsHandlers(mux *http.ServeMux, sched *scheduler.Scheduler) {
+func RegisterJobsHandlers(mux *http.ServeMux, sched *scheduler.Scheduler, debugConfig *debug.DebugConfig) {
 	mux.HandleFunc("/api/debug/jobs", JobsListHandler(sched))
-	mux.HandleFunc("/api/debug/jobs/", JobsTriggerHandler(sched)) // Matches /api/debug/jobs/{name}/trigger
+	mux.HandleFunc("/api/debug/jobs/", JobsTriggerHandler(sched, debugConfig)) // Matches /api/debug/jobs/{name}/trigger
 	log.Info("jobs debug handlers registered", "path", "/api/debug/jobs")
 }
 
 // RegisterJobsHandlersWithDB registers all jobs debug endpoints including execution history
-func RegisterJobsHandlersWithDB(mux *http.ServeMux, sched *scheduler.Scheduler, db JobExecutionStore) {
+func RegisterJobsHandlersWithDB(mux *http.ServeMux, sched *scheduler.Scheduler, db JobExecutionStore, debugConfig *debug.DebugConfig) {
 	mux.HandleFunc("/api/debug/jobs", JobsListHandler(sched))
 	mux.HandleFunc("/api/debug/jobs/history", JobExecutionsHandler(db))
-	mux.HandleFunc("/api/debug/jobs/", JobsTriggerHandler(sched)) // Matches /api/debug/jobs/{name}/trigger
+	mux.HandleFunc("/api/debug/jobs/", JobsTriggerHandler(sched, debugConfig)) // Matches /api/debug/jobs/{name}/trigger
 	log.Info("jobs debug handlers registered", "path", "/api/debug/jobs", "with_history", true)
 }

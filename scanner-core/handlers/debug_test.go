@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bvboe/bjorn2scan/scanner-core/debug"
+	"github.com/bvboe/bjorn2scan/scanner-core/grype"
 	"github.com/bvboe/bjorn2scan/scanner-core/scanning"
 )
 
@@ -77,6 +78,47 @@ func TestDebugSQLHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDestructiveDebugEndpointsAreGated verifies that the always-registered but
+// destructive debug endpoints (job trigger, DB reinit) refuse to run when debug
+// mode is disabled — without reaching the destructive action behind them.
+func TestDestructiveDebugEndpointsAreGated(t *testing.T) {
+	t.Run("JobsTriggerHandler disabled -> 403", func(t *testing.T) {
+		// sched is nil: if the debug gate did NOT fire first we'd get 503
+		// (scheduler not initialized) instead of 403.
+		handler := JobsTriggerHandler(nil, debug.NewDebugConfig(false))
+		req := httptest.NewRequest(http.MethodPost, "/api/debug/jobs/rescan-database/trigger", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("expected 403 when debug disabled, got %d (body: %s)", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("JobsTriggerHandler enabled passes gate", func(t *testing.T) {
+		// Enabled + nil scheduler should fall through to the 503 guard, proving
+		// the gate is not blocking when debug is on.
+		handler := JobsTriggerHandler(nil, debug.NewDebugConfig(true))
+		req := httptest.NewRequest(http.MethodPost, "/api/debug/jobs/rescan-database/trigger", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected 503 (gate passed, scheduler nil), got %d", rec.Code)
+		}
+	})
+
+	t.Run("DatabaseReinitHandler disabled -> 403 (no DB touched)", func(t *testing.T) {
+		// The gate must fire before any grype.DeleteDatabase/InitializeDatabase call.
+		state := NewDatabaseReadinessState(grype.Config{})
+		handler := DatabaseReinitHandler(state, debug.NewDebugConfig(false))
+		req := httptest.NewRequest(http.MethodPost, "/api/debug/db/reinit", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("expected 403 when debug disabled, got %d (body: %s)", rec.Code, rec.Body.String())
+		}
+	})
 }
 
 func TestDebugMetricsHandler(t *testing.T) {
