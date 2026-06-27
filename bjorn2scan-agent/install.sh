@@ -1,5 +1,9 @@
 #!/bin/sh
-set -e
+set -eu
+
+# Restrictive umask so files we create (notably the root-run systemd unit) are
+# never group/world-writable; sensitive files are chmod'd explicitly below.
+umask 022
 
 # Ensure standard system paths are available
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
@@ -23,9 +27,15 @@ SERVICE_DIR="/etc/systemd/system"
 CONFIG_DIR="/etc/bjorn2scan"
 CONFIG_FILE="${CONFIG_DIR}/agent.conf"
 CONFIG_EXAMPLE="${CONFIG_DIR}/agent.conf.example"
-USER_NAME="bjorn2scan"
-GROUP_NAME="bjorn2scan"
 GITHUB_REPO="bvboe/bjorn2scan"
+
+# Fallback git ref for any packaged file not bundled in the tarball (older or
+# locally-built tarballs). Stamped releases use their tag; dev builds use main.
+if [ "$VERSION" = "__VERSION__" ] || [ -z "$VERSION" ]; then
+    SOURCE_REF="main"
+else
+    SOURCE_REF="v${VERSION}"
+fi
 
 # Helper functions
 log_info() { printf "${BLUE}[INFO]${NC} %s\n" "$1" >&2; }
@@ -135,8 +145,8 @@ detect_distro() {
         # Save VERSION before sourcing (os-release may contain a VERSION variable)
         _SAVED_VERSION="$VERSION"
         . /etc/os-release
-        DISTRO="$ID"
-        DISTRO_VERSION="$VERSION_ID"
+        DISTRO="${ID:-}"
+        DISTRO_VERSION="${VERSION_ID:-}"
         # Restore our VERSION variable
         VERSION="$_SAVED_VERSION"
         log_info "Detected distribution: $DISTRO $DISTRO_VERSION"
@@ -162,7 +172,7 @@ download_binary() {
     cd "$TMP_DIR"
 
     # Use local binary if specified
-    if [ -n "$LOCAL_BINARY_PATH" ]; then
+    if [ -n "${LOCAL_BINARY_PATH:-}" ]; then
         if [ ! -f "$LOCAL_BINARY_PATH" ]; then
             log_error "Local binary not found: $LOCAL_BINARY_PATH"
             exit 1
@@ -235,53 +245,6 @@ stop_service() {
     fi
 }
 
-# Check if group exists (portable across distros)
-group_exists() {
-    if command -v getent >/dev/null 2>&1; then
-        getent group "$1" >/dev/null 2>&1
-    else
-        grep -q "^${1}:" /etc/group 2>/dev/null
-    fi
-}
-
-# Check if user exists (portable across distros)
-user_exists() {
-    if command -v getent >/dev/null 2>&1; then
-        getent passwd "$1" >/dev/null 2>&1
-    else
-        grep -q "^${1}:" /etc/passwd 2>/dev/null
-    fi
-}
-
-# Create user and group (supports both GNU and BusyBox tools)
-create_user() {
-    # Detect if we're on Alpine/BusyBox
-    IS_ALPINE=false
-    if [ "$DISTRO" = "alpine" ] || ! command -v groupadd >/dev/null 2>&1; then
-        IS_ALPINE=true
-    fi
-
-    # Create group
-    if ! group_exists "$GROUP_NAME"; then
-        log_info "Creating group: $GROUP_NAME"
-        if [ "$IS_ALPINE" = true ]; then
-            addgroup -S "$GROUP_NAME"
-        else
-            groupadd --system "$GROUP_NAME"
-        fi
-    fi
-
-    # Create user
-    if ! user_exists "$USER_NAME"; then
-        log_info "Creating user: $USER_NAME"
-        if [ "$IS_ALPINE" = true ]; then
-            adduser -S -D -H -G "$GROUP_NAME" -s /bin/false "$USER_NAME"
-        else
-            useradd --system --gid "$GROUP_NAME" --no-create-home --shell /bin/false "$USER_NAME"
-        fi
-    fi
-}
-
 # Install binary
 install_binary() {
     log_info "Installing binary to $INSTALL_DIR..."
@@ -295,6 +258,33 @@ install_binary() {
     log_success "Binary installed"
 }
 
+# Obtain a packaged file: prefer the copy bundled in the release tarball (extracted
+# into $TMP_DIR), else fall back to fetching it from the pinned ref. Pass "optional"
+# as $3 to warn-and-continue instead of failing when it can't be obtained.
+fetch_packaged_file() {
+    _name="$1"; _dest="$2"; _optional="${3:-required}"
+
+    if [ -f "${TMP_DIR}/${_name}" ]; then
+        cp "${TMP_DIR}/${_name}" "$_dest"
+        return 0
+    fi
+
+    _url="https://raw.githubusercontent.com/${GITHUB_REPO}/${SOURCE_REF}/bjorn2scan-agent/${_name}"
+    log_info "${_name} not bundled in package; fetching from ${SOURCE_REF}"
+    if command -v curl >/dev/null 2>&1; then
+        if curl -sSfL "$_url" -o "$_dest" 2>/dev/null; then return 0; fi
+    else
+        if wget -q "$_url" -O "$_dest" 2>/dev/null; then return 0; fi
+    fi
+
+    if [ "$_optional" = "optional" ]; then
+        log_warning "Could not obtain ${_name}; skipping"
+        return 1
+    fi
+    log_error "Could not obtain required file: ${_name}"
+    exit 1
+}
+
 # Install configuration file
 install_config() {
     log_info "Installing configuration file..."
@@ -302,16 +292,8 @@ install_config() {
     # Create config directory
     mkdir -p "$CONFIG_DIR"
 
-    # Always install/update the example config
-    CONFIG_EXAMPLE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/bjorn2scan-agent/agent.conf.example"
-
-    if command -v curl >/dev/null 2>&1; then
-        curl -sSfL "$CONFIG_EXAMPLE_URL" -o "$CONFIG_EXAMPLE" 2>/dev/null || \
-            log_warning "Could not download example config (will use defaults)"
-    else
-        wget -q "$CONFIG_EXAMPLE_URL" -O "$CONFIG_EXAMPLE" 2>/dev/null || \
-            log_warning "Could not download example config (will use defaults)"
-    fi
+    # Install/update the example config (bundled in the release tarball).
+    fetch_packaged_file "agent.conf.example" "$CONFIG_EXAMPLE" optional || true
 
     # Check if user config already exists
     if [ -f "$CONFIG_FILE" ]; then
@@ -341,18 +323,21 @@ install_config() {
         fi
     fi
 
-    # Set permissions
+    # Set permissions. The active config is root-readable only (640, root:root) —
+    # it may grow to hold tokens/endpoints; the agent runs as root so no group is
+    # needed. The .example stays world-readable as a documentation template.
     if [ -f "$CONFIG_FILE" ]; then
-        chmod 644 "$CONFIG_FILE"
+        chmod 640 "$CONFIG_FILE"
     fi
     if [ -f "$CONFIG_EXAMPLE" ]; then
         chmod 644 "$CONFIG_EXAMPLE"
     fi
 }
 
-# Get systemd version
+# Get systemd version — leading integer of the first line
+# ("systemd 252 (252.4-1)" -> "252"). Prints empty if it can't be parsed.
 get_systemd_version() {
-    systemctl --version | head -n 1 | awk '{print $2}'
+    systemctl --version 2>/dev/null | head -n 1 | sed -n 's/^systemd \([0-9][0-9]*\).*/\1/p'
 }
 
 # Install systemd service
@@ -368,19 +353,16 @@ install_service() {
     SYSTEMD_VERSION=$(get_systemd_version)
     SERVICE_FILE="bjorn2scan-agent.service"
 
-    if [ "$SYSTEMD_VERSION" -lt 232 ]; then
+    # If the version couldn't be parsed, assume modern systemd (use the full unit).
+    if [ -n "$SYSTEMD_VERSION" ] && [ "$SYSTEMD_VERSION" -lt 232 ]; then
         log_warning "Old systemd detected (v$SYSTEMD_VERSION), using compatibility mode"
         SERVICE_FILE="bjorn2scan-agent-compat.service"
     fi
 
-    # Download service file
-    SERVICE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/bjorn2scan-agent/${SERVICE_FILE}"
-
-    if command -v curl >/dev/null 2>&1; then
-        curl -sSfL "$SERVICE_URL" -o "${SERVICE_DIR}/${SERVICE_NAME}"
-    else
-        wget -q "$SERVICE_URL" -O "${SERVICE_DIR}/${SERVICE_NAME}"
-    fi
+    # Install the service unit (bundled in the release tarball; falls back to the
+    # pinned ref). Required.
+    fetch_packaged_file "$SERVICE_FILE" "${SERVICE_DIR}/${SERVICE_NAME}"
+    chmod 644 "${SERVICE_DIR}/${SERVICE_NAME}"
 
     # Create required directories for the service
     # Note: Service runs as root, but these directories need to exist for systemd mount namespacing
@@ -398,13 +380,8 @@ install_service() {
     # Logs may contain hostnames and package inventory — restrict to root
     chmod 750 /var/log/bjorn2scan
 
-    # Install logrotate configuration
-    LOGROTATE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/bjorn2scan-agent/logrotate.conf"
-    if command -v curl >/dev/null 2>&1; then
-        curl -sSfL "$LOGROTATE_URL" -o /etc/logrotate.d/bjorn2scan-agent 2>/dev/null || log_warning "Could not install logrotate config"
-    else
-        wget -q "$LOGROTATE_URL" -O /etc/logrotate.d/bjorn2scan-agent 2>/dev/null || log_warning "Could not install logrotate config"
-    fi
+    # Install logrotate configuration (bundled in the release tarball; optional).
+    fetch_packaged_file "logrotate.conf" /etc/logrotate.d/bjorn2scan-agent optional || true
 
     # Reload systemd
     systemctl daemon-reload
@@ -500,7 +477,6 @@ main() {
     verify_checksum
     extract_binary
     stop_service
-    create_user
     install_binary
     install_config
     install_service
@@ -537,7 +513,7 @@ uninstall() {
 }
 
 # Parse arguments
-case "$1" in
+case "${1:-}" in
     --help|-h|help)
         show_help
         ;;

@@ -82,6 +82,9 @@ jobs:
       run-tests: true
       run-lint: false
       platforms: linux/amd64,linux/arm64
+      # Bundle the systemd units, config template, and logrotate config into the
+      # tarball so install.sh is self-contained (single sha256/cosign boundary).
+      extra-files: bjorn2scan-agent.service bjorn2scan-agent-compat.service agent.conf.example logrotate.conf
       # Note: Binaries are attached to release in helm-release job for atomic release creation
 
   helm-release:

@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: 'linux/amd64,linux/arm64'
+      extra-files:
+        description: 'Space-separated files (relative to component-path) to bundle into the Linux tarball alongside the binary'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   test:
@@ -159,7 +164,16 @@ jobs:
 
           # Create tarballs for Linux binaries (for install script)
           if [ "${GOOS}" = "linux" ]; then
-            tar -czf dist/${{ inputs.component-name }}-${GOOS}-${GOARCH}.tar.gz --transform="s/-${GOOS}-${GOARCH}$//" -C dist ${{ inputs.component-name }}-${GOOS}-${GOARCH}
+            # Bundle any extra files (systemd unit, config, logrotate) into the tarball
+            # so the installer is self-contained and they share the binary's checksum/
+            # signature. The --transform only rewrites the binary's platform suffix; the
+            # extra files keep their names. (The auto-updater extracts only the binary.)
+            EXTRA_BASENAMES=""
+            for f in ${{ inputs.extra-files }}; do
+              cp "$f" dist/
+              EXTRA_BASENAMES="$EXTRA_BASENAMES $(basename "$f")"
+            done
+            tar -czf dist/${{ inputs.component-name }}-${GOOS}-${GOARCH}.tar.gz --transform="s/-${GOOS}-${GOARCH}$//" -C dist ${{ inputs.component-name }}-${GOOS}-${GOARCH} ${EXTRA_BASENAMES}
             cd dist && sha256sum ${{ inputs.component-name }}-${GOOS}-${GOARCH}.tar.gz > ${{ inputs.component-name }}-${GOOS}-${GOARCH}.tar.gz.sha256 && cd ..
           fi
         done

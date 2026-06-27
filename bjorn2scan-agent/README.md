@@ -38,32 +38,63 @@ curl -sSfL https://github.com/bvboe/bjorn2scan/releases/download/v0.1.35/install
 
 Replace `v0.1.35` with your desired version. Each release includes a version-stamped `install.sh` that defaults to installing that specific version.
 
+#### Verifying the installer (recommended)
+
+Piping a script straight into `sudo sh` runs unreviewed code as root. To inspect it
+first, download, read, then execute:
+
+```bash
+curl -sSfL https://github.com/bvboe/bjorn2scan/releases/download/v0.1.35/install.sh -o install.sh
+less install.sh                 # review what it does
+sudo sh install.sh              # run once you're satisfied
+```
+
+The installer verifies the downloaded binary's SHA256 checksum. The release binaries
+are additionally cosign-signed (see the release notes for `cosign verify-blob`
+instructions), and the agent's auto-updater cosign-verifies every subsequent update.
+
 **What the installer does:**
 - Download the release binary for your platform (amd64 or arm64)
 - Verify SHA256 checksums
-- Install the binary to `/usr/local/bin/bjorn2scan-agent`
+- Install the binary to `/var/lib/bjorn2scan/bin/bjorn2scan-agent`
 - Create systemd service
 - Start the service automatically
 
 ### Manual Installation
 
-1. Download the binary for your platform from [releases](https://github.com/bvboe/bjorn2scan/releases)
-2. Extract and install:
+1. Download the tarball for your platform from [releases](https://github.com/bvboe/bjorn2scan/releases) and verify its checksum:
+
+```bash
+curl -sSfLO https://github.com/bvboe/bjorn2scan/releases/latest/download/bjorn2scan-agent-linux-amd64.tar.gz
+curl -sSfLO https://github.com/bvboe/bjorn2scan/releases/latest/download/bjorn2scan-agent-linux-amd64.tar.gz.sha256
+sha256sum -c bjorn2scan-agent-linux-amd64.tar.gz.sha256
+```
+
+2. Extract it — the tarball contains the binary plus the systemd unit, config template, and logrotate config:
 
 ```bash
 tar -xzf bjorn2scan-agent-linux-amd64.tar.gz
-sudo install -m 755 bjorn2scan-agent-linux-amd64 /usr/local/bin/bjorn2scan-agent
 ```
 
-3. (Optional) Install systemd service:
+3. Install the binary and create the directories the service expects (`ProtectSystem=strict` confines writes to these):
 
 ```bash
-sudo curl -sSfL https://raw.githubusercontent.com/bvboe/bjorn2scan/main/bjorn2scan-agent/bjorn2scan-agent.service \
-  -o /etc/systemd/system/bjorn2scan-agent.service
-sudo systemctl daemon-reload
-sudo systemctl enable bjorn2scan-agent
-sudo systemctl start bjorn2scan-agent
+sudo mkdir -p /var/lib/bjorn2scan/bin /var/lib/bjorn2scan/data /var/lib/bjorn2scan/cache /var/log/bjorn2scan /etc/bjorn2scan
+sudo install -m 755 bjorn2scan-agent /var/lib/bjorn2scan/bin/bjorn2scan-agent
+sudo chmod 750 /var/log/bjorn2scan
 ```
+
+4. (Optional) Install the systemd service, config, and logrotate from the extracted files:
+
+```bash
+sudo install -m 644 bjorn2scan-agent.service /etc/systemd/system/bjorn2scan-agent.service
+sudo install -m 640 agent.conf.example /etc/bjorn2scan/agent.conf   # then edit to taste
+sudo install -m 644 logrotate.conf /etc/logrotate.d/bjorn2scan-agent
+sudo systemctl daemon-reload
+sudo systemctl enable --now bjorn2scan-agent
+```
+
+> On systemd older than v232, install `bjorn2scan-agent-compat.service` (also in the tarball) as the unit file instead.
 
 ## Usage
 
