@@ -136,12 +136,17 @@ check_permission "clusterrolebindings" "patch"
 echo ""
 echo "=== Validating Template Structure ==="
 
-# Check that updateController permissions are conditional
-print_test "Checking if update-controller permissions are conditional"
-if grep -q "{{- if .Values.updateController.enabled }}" "$CHART_DIR/templates/clusterrole.yaml"; then
-    print_pass "Update-controller permissions are properly gated"
+# Check that the update-controller permissions are conditional on
+# updateController.enabled. They live on a dedicated ServiceAccount/ClusterRole
+# (templates/update-controller-rbac.yaml), kept off the long-running scan-server SA.
+# Verify behaviorally: rendering with the feature disabled must drop the broad
+# write perms (clusterrolebindings is granted only to the update controller).
+print_test "Checking that update-controller permissions are gated on updateController.enabled"
+RENDERED_OFF=$(helm template test "$CHART_DIR" --set updateController.enabled=false 2>/dev/null)
+if echo "$RENDERED_OFF" | grep -q '"clusterrolebindings"'; then
+    print_fail "Update-controller permissions present even with updateController.enabled=false"
 else
-    print_fail "Update-controller permissions should be conditional on updateController.enabled"
+    print_pass "Update-controller permissions are properly gated (absent when disabled)"
 fi
 
 echo ""
