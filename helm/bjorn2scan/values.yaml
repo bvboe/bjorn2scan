@@ -37,16 +37,25 @@ scanServer:
 
   podAnnotations: {}
 
-  podSecurityContext: {}
-    # fsGroup: 2000
+  # Pod Security "restricted"-compliant by default. The scan-server image is the
+  # nonroot Chainguard static base (uid 65532); all writes go to the data PVC,
+  # the grype-cache and tmp volumes — so the root filesystem can stay read-only.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532    # nonroot user in Chainguard images
+    runAsGroup: 65532
+    fsGroup: 65532      # makes the data PVC writable by the nonroot user
+    seccompProfile:
+      type: RuntimeDefault
 
-  securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 65532
+    capabilities:
+      drop:
+        - ALL
 
   service:
     type: ClusterIP

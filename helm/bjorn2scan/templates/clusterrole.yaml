@@ -23,26 +23,9 @@ rules:
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["get"]
-{{- if .Values.updateController.enabled }}
-# Update controller needs to manage config and Helm releases
-- apiGroups: [""]
-  resources: ["configmaps"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-# Update controller needs to manage resources during Helm upgrade
-- apiGroups: ["apps"]
-  resources: ["deployments", "daemonsets", "replicasets"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: [""]
-  resources: ["services", "serviceaccounts", "persistentvolumeclaims"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["batch"]
-  resources: ["cronjobs", "jobs"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["clusterroles", "clusterrolebindings"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-{{- end }}
+# NOTE: the broad write permissions the update controller needs for `helm upgrade`
+# (secrets, clusterrole(binding)s, workloads, etc.) are deliberately NOT granted here.
+# They live on a separate, short-lived CronJob ServiceAccount — see
+# templates/update-controller-rbac.yaml — so the long-running scan-server and
+# pod-scanner never carry that privilege-escalation surface.
 {{- end }}

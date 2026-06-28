@@ -24,7 +24,7 @@ spec:
             {{- include "bjorn2scan.labels" . | nindent 12 }}
             app.kubernetes.io/component: update-controller
         spec:
-          serviceAccountName: {{ include "bjorn2scan.serviceAccountName" . }}
+          serviceAccountName: {{ include "bjorn2scan.fullname" . }}-update-controller
           restartPolicy: OnFailure
           containers:
           - name: update-controller

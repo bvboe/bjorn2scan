@@ -1,0 +1,60 @@
+{{- if .Values.updateController.enabled }}
+# Dedicated identity + RBAC for the update-controller CronJob.
+#
+# The controller runs `helm upgrade` in-cluster, so it needs broad permissions to
+# manage any resource the chart owns — including secrets and
+# clusterroles/clusterrolebindings, which together are a privilege-escalation
+# surface. These permissions are deliberately isolated on this short-lived CronJob
+# ServiceAccount rather than granted to the long-running scan-server / pod-scanner.
+# Disabling auto-update (updateController.enabled=false) removes all of this.
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-update-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: update-controller
+---
+{{- end }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-{{ .Release.Namespace }}-update-controller
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: update-controller
+rules:
+# Manage chart-owned config and Helm release state.
+- apiGroups: [""]
+  resources: ["configmaps", "secrets", "services", "serviceaccounts", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Manage workloads during `helm upgrade`.
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Manage the chart's own RBAC objects during upgrade.
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "bjorn2scan.fullname" . }}-{{ .Release.Namespace }}-update-controller
+  labels:
+    {{- include "bjorn2scan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: update-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "bjorn2scan.fullname" . }}-{{ .Release.Namespace }}-update-controller
+subjects:
+- kind: ServiceAccount
+  name: {{ include "bjorn2scan.fullname" . }}-update-controller
+  namespace: {{ .Release.Namespace }}
+{{- end }}
