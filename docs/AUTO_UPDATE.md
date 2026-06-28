@@ -7,6 +7,7 @@ This guide explains how to configure and use the automatic update feature for bo
 - [Overview](#overview)
 - [Kubernetes Auto-Update](#kubernetes-auto-update)
   - [Enabling Auto-Update](#enabling-auto-update)
+  - [RBAC & Privilege Surface](#rbac--privilege-surface)
   - [Configuration Options](#configuration-options)
   - [Manual Control](#manual-control)
   - [Monitoring](#monitoring)
@@ -78,6 +79,54 @@ helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
   --create-namespace \
   --set updateController.enabled=false
 ```
+
+### RBAC & Privilege Surface
+
+Auto-update is on by default to minimize operational overhead, but it has a real
+cost worth understanding — especially if you want to drive upgrades yourself.
+
+Because the controller performs `helm upgrade` **in-cluster**, it needs broad
+permissions to create/update/delete anything the chart manages. When
+`updateController.enabled: true` (the default), the deployment's ClusterRole gains
+cluster-wide `get,list,watch,create,update,patch,delete` on:
+
+- `configmaps`, `secrets`
+- `apps`: `deployments`, `daemonsets`, `replicasets`
+- `services`, `serviceaccounts`, `persistentvolumeclaims`
+- `batch`: `cronjobs`, `jobs`
+- `rbac.authorization.k8s.io`: `clusterroles`, `clusterrolebindings`
+
+(See [`helm/bjorn2scan/templates/clusterrole.yaml`](../helm/bjorn2scan/templates/clusterrole.yaml).)
+
+> **Security note:** cluster-wide write on **`secrets`** and
+> **`clusterroles`/`clusterrolebindings`** is a privilege-escalation surface — a
+> compromised scan-server pod with this access could read every Secret in the
+> cluster and grant itself arbitrary permissions. These rules are currently attached
+> to the long-running scan-server ServiceAccount (not a separate, short-lived
+> CronJob identity).
+
+**If you want full control / a smaller blast radius, pick one:**
+
+1. **Disable auto-update and upgrade on your own cadence.** This is the simplest way
+   to drop the entire privilege surface: the RBAC block above is gated on
+   `updateController.enabled`, so disabling it leaves the deployment with only the
+   read-only `pods`/`nodes`/`services` access it needs to scan.
+   ```bash
+   helm upgrade --install bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan \
+     -n bjorn2scan --set updateController.enabled=false
+   # then upgrade yourself, whenever you choose:
+   helm upgrade bjorn2scan oci://ghcr.io/bvboe/bjorn2scan/bjorn2scan -n bjorn2scan
+   ```
+
+2. **Keep it, but constrain and audit it.** Pin or bound the version (see
+   [Version Policies](#version-policies)), suspend the CronJob outside maintenance
+   windows (see [Manual Control](#manual-control)), and review the granted access:
+   ```bash
+   kubectl get clusterrole -l app.kubernetes.io/name=bjorn2scan -o yaml
+   ```
+
+The agent has no equivalent surface — it self-updates by replacing its own binary
+and never touches Kubernetes RBAC. Disable it with `auto_update_enabled=false`.
 
 ### Configuration Options
 
@@ -249,9 +298,9 @@ Create or edit `/etc/bjorn2scan/agent.conf` or `./agent.conf`:
 # When enabled, agent will periodically check for new versions and auto-update
 auto_update_enabled=true
 
-# Update check interval (default: 1h)
-# Format: Go duration string (e.g., "1h", "6h", "24h")
-auto_update_check_interval=1h
+# Update check interval (default: 24h)
+# Format: Go duration string (e.g., "6h", "24h")
+auto_update_check_interval=24h
 
 # Allow automatic minor version updates (default: true)
 # Example: 0.1.x → 0.2.x
@@ -542,20 +591,22 @@ The update controller will:
 2. Verify the signature using cosign
 3. Reject installation if signature verification fails
 
-### Agent (Planned)
+### Agent (Enabled by default)
 
-Signature verification is **implemented but not yet enabled** for agent updates:
+Signature verification is **implemented and enabled by default** for agent updates
+(`update_verify_signatures=true`):
 
 ```ini
-# TODO: Enable when cosign verification is fully tested
-update_verify_signatures=false
+update_verify_signatures=true
 ```
 
-Once enabled, the agent will:
-1. Download binary, signature (.sig), and certificate (.cert)
-2. Verify SHA256 checksum
-3. Verify cosign signature
-4. Reject installation if verification fails
+The agent verifies the Sigstore bundle for the downloaded tarball **before**
+extracting or installing it, so an unsigned or tampered release is rejected. Each
+update:
+1. Downloads the binary tarball, its SHA256 checksum, and the `.sigstore` bundle
+2. Verifies the SHA256 checksum
+3. Verifies the cosign/Sigstore signature against the pinned identity + OIDC issuer
+4. Rejects installation if verification fails
 
 ### Manual Verification
 
@@ -645,8 +696,8 @@ helm rollback bjorn2scan 3 -n bjorn2scan
 ls -la /tmp/bjorn2scan-agent.backup
 
 # Manually restore backup
-sudo cp /tmp/bjorn2scan-agent.backup /usr/local/bin/bjorn2scan-agent
-sudo chmod +x /usr/local/bin/bjorn2scan-agent
+sudo cp /tmp/bjorn2scan-agent.backup /var/lib/bjorn2scan/bin/bjorn2scan-agent
+sudo chmod +x /var/lib/bjorn2scan/bin/bjorn2scan-agent
 sudo systemctl restart bjorn2scan-agent
 
 # Verify health
@@ -780,7 +831,7 @@ ls -la /tmp/bjorn2scan-agent.rollback-*
 **Check permissions:**
 ```bash
 # Verify agent can write to binary location
-ls -la /usr/local/bin/bjorn2scan-agent
+ls -la /var/lib/bjorn2scan/bin/bjorn2scan-agent
 ```
 
 **Solution:**
@@ -789,8 +840,8 @@ ls -la /usr/local/bin/bjorn2scan-agent
 sudo rm /tmp/bjorn2scan-agent.rollback-*
 
 # Ensure correct permissions
-sudo chown root:root /usr/local/bin/bjorn2scan-agent
-sudo chmod 755 /usr/local/bin/bjorn2scan-agent
+sudo chown root:root /var/lib/bjorn2scan/bin/bjorn2scan-agent
+sudo chmod 755 /var/lib/bjorn2scan/bin/bjorn2scan-agent
 
 # Trigger update again
 curl -X POST http://localhost:9999/api/update/trigger
@@ -811,8 +862,8 @@ sudo journalctl -u bjorn2scan-agent -n 50
 ```bash
 # Manually restore backup if exists
 if [ -f /tmp/bjorn2scan-agent.backup ]; then
-  sudo cp /tmp/bjorn2scan-agent.backup /usr/local/bin/bjorn2scan-agent
-  sudo chmod +x /usr/local/bin/bjorn2scan-agent
+  sudo cp /tmp/bjorn2scan-agent.backup /var/lib/bjorn2scan/bin/bjorn2scan-agent
+  sudo chmod +x /var/lib/bjorn2scan/bin/bjorn2scan-agent
 fi
 
 # Restart service
