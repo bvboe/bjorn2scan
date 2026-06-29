@@ -578,7 +578,7 @@ window.onclick = function(event) {
     if (event.target === modal) {
         closeDetailsModal();
     }
-}
+};
 
 // Fetch and display vulnerability details
 async function showVulnerabilityDetails(vulnerabilityId, vulnerabilityCVE) {

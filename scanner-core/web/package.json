@@ -8,7 +8,7 @@
     "lint": "npm run lint:html && npm run lint:css && npm run lint:js",
     "lint:html": "htmlhint --config .htmlhintrc ../static/*.html",
     "lint:css": "stylelint --config .stylelintrc.json '../static/*.css'",
-    "lint:js": "cd .. && eslint --config web/eslint.config.js static/*.html",
+    "lint:js": "cd .. && eslint --config web/eslint.config.js static/*.html static/*.js",
     "lint:fix": "npm run lint:css -- --fix"
   },
   "devDependencies": {

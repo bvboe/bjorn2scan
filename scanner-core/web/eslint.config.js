@@ -37,6 +37,8 @@ const sharedGlobals = {
     renderTopBarNav: "readonly",
     renderVersionFooter: "readonly",
     checkForUpdates: "readonly",
+    startAutoRefresh: "readonly",
+    loadImageSummary: "readonly",
     initPage: "readonly",
     // Classes
     CustomMultiSelect: "readonly",
@@ -60,6 +62,29 @@ export default [
         plugins: {
             html,
         },
+        languageOptions: {
+            ecmaVersion: 2022,
+            sourceType: "script",
+            globals: {
+                ...globals.browser,
+                ...sharedGlobals,
+            },
+        },
+        rules: {
+            "indent": "off",
+            "linebreak-style": ["error", "unix"],
+            "quotes": "off",
+            "semi": ["warn", "always"],
+            "no-unused-vars": "off",
+            "no-console": "off",
+            "no-undef": "warn",
+            "no-redeclare": "off",
+        },
+    },
+    {
+        // Standalone JS files (shared.js + per-page scripts). Same browser +
+        // cross-file globals as the inline scripts above; no HTML processor.
+        files: ["**/*.js"],
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: "script",
