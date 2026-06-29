@@ -11,7 +11,10 @@ port=9999
 db_path=/var/lib/bjorn2scan/data/containers.db
 
 # Enable debug mode (default: false)
-# When enabled, adds /debug/sql and /debug/metrics endpoints
+# When enabled, adds /debug/sql and /debug/metrics endpoints, and unlocks the
+# mutating update-control endpoints (POST /api/update/{trigger,pause,resume});
+# while off, those return 403. The listener binds all interfaces unauthenticated,
+# so leaving this off keeps the update controls closed to the network.
 # WARNING: Only enable in development/testing - NOT for production
 # Environment variable: DEBUG_ENABLED
 debug_enabled=false

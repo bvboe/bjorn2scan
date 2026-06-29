@@ -150,7 +150,9 @@ create_test_config() {
 # Test configuration for agent auto-update
 port=$TEST_PORT
 db_path=$TEST_DIR/containers.db
-debug_enabled=false
+# Debug must be on: the mutating /api/update/{trigger,pause,resume} endpoints
+# are gated behind debug mode, and this test exercises them.
+debug_enabled=true
 
 # Auto-update configuration
 auto_update_enabled=true
@@ -291,6 +293,7 @@ test_version_constraints() {
     cat > "$AGENT_CONFIG" <<EOF
 port=$TEST_PORT
 db_path=$TEST_DIR/containers.db
+debug_enabled=true
 auto_update_enabled=true
 auto_update_check_interval=10s
 auto_update_minor_versions=false
@@ -324,6 +327,7 @@ test_version_pinning() {
     cat > "$AGENT_CONFIG" <<EOF
 port=$TEST_PORT
 db_path=$TEST_DIR/containers.db
+debug_enabled=true
 auto_update_enabled=true
 auto_update_check_interval=10s
 auto_update_minor_versions=true

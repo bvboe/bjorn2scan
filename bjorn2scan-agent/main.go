@@ -167,8 +167,11 @@ func (a *AgentInfo) GetGrypeDBBuilt() string {
 	return a.grypeDBStatusGetter()
 }
 
-// registerUpdaterHandlers registers HTTP handlers for the updater
-func registerUpdaterHandlers(mux *http.ServeMux, u *updater.Updater) {
+// registerUpdaterHandlers registers HTTP handlers for the updater.
+// The read-only status endpoint stays always-on; the mutating endpoints
+// (trigger/pause/resume) are gated behind debug mode, since the agent listener
+// binds all interfaces unauthenticated.
+func registerUpdaterHandlers(mux *http.ServeMux, u *updater.Updater, debugConfig *debug.DebugConfig) {
 	// GET /api/update/status - Get current update status
 	mux.HandleFunc("/api/update/status", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -194,6 +197,12 @@ func registerUpdaterHandlers(mux *http.ServeMux, u *updater.Updater) {
 
 	// POST /api/update/trigger - Manually trigger an update check
 	mux.HandleFunc("/api/update/trigger", func(w http.ResponseWriter, r *http.Request) {
+		// Mutating update control on an unauthenticated listener — gate behind debug mode.
+		if !debugConfig.IsEnabled() {
+			http.Error(w, "Debug mode not enabled", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -209,6 +218,12 @@ func registerUpdaterHandlers(mux *http.ServeMux, u *updater.Updater) {
 
 	// POST /api/update/pause - Pause automatic updates
 	mux.HandleFunc("/api/update/pause", func(w http.ResponseWriter, r *http.Request) {
+		// Mutating update control on an unauthenticated listener — gate behind debug mode.
+		if !debugConfig.IsEnabled() {
+			http.Error(w, "Debug mode not enabled", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -224,6 +239,12 @@ func registerUpdaterHandlers(mux *http.ServeMux, u *updater.Updater) {
 
 	// POST /api/update/resume - Resume automatic updates
 	mux.HandleFunc("/api/update/resume", func(w http.ResponseWriter, r *http.Request) {
+		// Mutating update control on an unauthenticated listener — gate behind debug mode.
+		if !debugConfig.IsEnabled() {
+			http.Error(w, "Debug mode not enabled", http.StatusForbidden)
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -621,7 +642,7 @@ func main() {
 
 	// Register updater API endpoints if updater is initialized
 	if agentUpdater != nil {
-		registerUpdaterHandlers(mux, agentUpdater)
+		registerUpdaterHandlers(mux, agentUpdater, debugConfig)
 	}
 
 	// Register debug handlers if debug mode is enabled
