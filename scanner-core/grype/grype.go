@@ -13,16 +13,20 @@ import (
 	"github.com/bvboe/bjorn2scan/scanner-core/logging"
 
 	"github.com/anchore/clio"
+	"github.com/anchore/grype/cmd/grype/cli/options"
 	"github.com/anchore/grype/grype"
 	v6 "github.com/anchore/grype/grype/db/v6"
 	"github.com/anchore/grype/grype/db/v6/distribution"
 	"github.com/anchore/grype/grype/db/v6/installation"
 	"github.com/anchore/grype/grype/matcher"
 	"github.com/anchore/grype/grype/matcher/dotnet"
+	"github.com/anchore/grype/grype/matcher/dpkg"
 	"github.com/anchore/grype/grype/matcher/golang"
+	"github.com/anchore/grype/grype/matcher/hex"
 	"github.com/anchore/grype/grype/matcher/java"
 	"github.com/anchore/grype/grype/matcher/javascript"
 	"github.com/anchore/grype/grype/matcher/python"
+	"github.com/anchore/grype/grype/matcher/rpm"
 	"github.com/anchore/grype/grype/matcher/ruby"
 	"github.com/anchore/grype/grype/matcher/rust"
 	"github.com/anchore/grype/grype/matcher/stock"
@@ -277,38 +281,39 @@ func DeleteDatabase(cfg Config) error {
 	return nil
 }
 
-// DefaultMatcherConfig returns the default matcher configuration that aligns with Grype CLI defaults
-// This configuration is based on Grype v0.104.2 defaults and should be updated when Grype is upgraded
+// DefaultMatcherConfig returns Grype's own default matcher configuration, mapped to
+// the library matcher.Config. The scanner deliberately does NOT customize matching:
+// it should behave exactly like `grype <image>`, and if Grype changes a default
+// (as it did for the Go stdlib in v0.115.0) the scanner's behavior changes with it.
 //
-// Reference: https://github.com/anchore/grype
-// To check current Grype defaults, run: grype <image> -o json | jq .descriptor.configuration.match
+// We derive the values from options.DefaultGrype().Match — the same defaults Grype's
+// CLI uses — and map them the way Grype's own root command does
+// (cmd/grype/cli/commands/root.go: getMatcherConfig), so this tracks Grype on upgrade
+// rather than re-hardcoding values that silently drift.
 func DefaultMatcherConfig() matcher.Config {
+	m := options.DefaultGrype(clio.Identification{}).Match
 	return matcher.Config{
-		// Golang configuration - Critical for Go applications
+		Java:       java.MatcherConfig{UseCPEs: m.Java.UseCPEs},
+		Ruby:       ruby.MatcherConfig{UseCPEs: m.Ruby.UseCPEs},
+		Python:     python.MatcherConfig{UseCPEs: m.Python.UseCPEs},
+		Dotnet:     dotnet.MatcherConfig{UseCPEs: m.Dotnet.UseCPEs},
+		Javascript: javascript.MatcherConfig{UseCPEs: m.Javascript.UseCPEs},
 		Golang: golang.MatcherConfig{
-			UseCPEs: false, // Use direct matching via PURLs for Go modules
-			// CRITICAL: Enable CPE matching for Go stdlib to catch standard library CVEs
-			// Without this, stdlib vulnerabilities (often High/Critical severity) are missed
-			AlwaysUseCPEForStdlib:                  true,
-			AllowMainModulePseudoVersionComparison: false,
+			UseCPEs:                                m.Golang.UseCPEs,
+			AlwaysUseCPEForStdlib:                  m.Golang.AlwaysUseCPEForStdlib,
+			AllowMainModulePseudoVersionComparison: m.Golang.AllowMainModulePseudoVersionComparison,
 		},
-		// Stock configuration - Generic package matching
-		Stock: stock.MatcherConfig{
-			UseCPEs: true, // Use CPE matching for packages without language-specific matchers
+		Rust:  rust.MatcherConfig{UseCPEs: m.Rust.UseCPEs},
+		Hex:   hex.MatcherConfig{UseCPEs: m.Hex.UseCPEs},
+		Stock: stock.MatcherConfig{UseCPEs: m.Stock.UseCPEs},
+		Dpkg: dpkg.MatcherConfig{
+			MissingEpochStrategy: m.Dpkg.MissingEpochStrategy,
+			UseCPEsForEOL:        m.Dpkg.UseCPEsForEOL,
 		},
-		// Language-specific matchers - Use native package matching (not CPEs) by default
-		// These rely on package URLs (PURLs) and native version comparisons which are more accurate
-		Java: java.MatcherConfig{
-			UseCPEs: false,
-			ExternalSearchConfig: java.ExternalSearchConfig{
-				SearchMavenUpstream: false, // Disabled by default - enable if needed for unknown Java deps
-			},
+		Rpm: rpm.MatcherConfig{
+			MissingEpochStrategy: m.Rpm.MissingEpochStrategy,
+			UseCPEsForEOL:        m.Rpm.UseCPEsForEOL,
 		},
-		Dotnet:     dotnet.MatcherConfig{UseCPEs: false},
-		Javascript: javascript.MatcherConfig{UseCPEs: false},
-		Python:     python.MatcherConfig{UseCPEs: false},
-		Ruby:       ruby.MatcherConfig{UseCPEs: false},
-		Rust:       rust.MatcherConfig{UseCPEs: false},
 	}
 }
 
@@ -485,17 +490,17 @@ func ScanVulnerabilitiesWithConfig(ctx context.Context, sbomJSON []byte, cfg Con
 
 	// Build the output document using NewDocument
 	doc, err := models.NewDocument(
-		identification,         // clio.Identification
-		packages,               // packages
-		context,                // context
-		*remainingMatches,      // matches
-		ignoredMatches,         // ignoredMatches
-		vulnProvider,           // metadataProvider
-		nil,                    // appConfig
-		dbInfo,                 // dbInfo
-		models.SortBySeverity,  // sortStrategy
-		false,                  // outputTimestamp
-		distroAlertData,        // distroAlertData (EOL warnings for upstream grype parity)
+		identification,        // clio.Identification
+		packages,              // packages
+		context,               // context
+		*remainingMatches,     // matches
+		ignoredMatches,        // ignoredMatches
+		vulnProvider,          // metadataProvider
+		nil,                   // appConfig
+		dbInfo,                // dbInfo
+		models.SortBySeverity, // sortStrategy
+		false,                 // outputTimestamp
+		distroAlertData,       // distroAlertData (EOL warnings for upstream grype parity)
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create document: %w", err)
