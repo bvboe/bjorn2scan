@@ -87,7 +87,8 @@ cost worth understanding — especially if you want to drive upgrades yourself.
 
 Because the controller performs `helm upgrade` **in-cluster**, it needs broad
 permissions to create/update/delete anything the chart manages. When
-`updateController.enabled: true` (the default), the deployment's ClusterRole gains
+`updateController.enabled: true` (the default), a **dedicated
+`*-update-controller` ServiceAccount + ClusterRole** is created and granted
 cluster-wide `get,list,watch,create,update,patch,delete` on:
 
 - `configmaps`, `secrets`
@@ -96,14 +97,22 @@ cluster-wide `get,list,watch,create,update,patch,delete` on:
 - `batch`: `cronjobs`, `jobs`
 - `rbac.authorization.k8s.io`: `clusterroles`, `clusterrolebindings`
 
-(See [`helm/bjorn2scan/templates/clusterrole.yaml`](../helm/bjorn2scan/templates/clusterrole.yaml).)
+(plus the scanner's read-only `pods`/`pods/status`/`nodes` access, which the
+controller must also hold to rewrite the scan-server ClusterRole during upgrades.)
+This identity is used **only** by the short-lived upgrade CronJob — the
+long-running scan-server / pod-scanner pods do not carry it. See
+[`helm/bjorn2scan/templates/update-controller-rbac.yaml`](../helm/bjorn2scan/templates/update-controller-rbac.yaml).
 
 > **Security note:** cluster-wide write on **`secrets`** and
-> **`clusterroles`/`clusterrolebindings`** is a privilege-escalation surface — a
-> compromised scan-server pod with this access could read every Secret in the
-> cluster and grant itself arbitrary permissions. These rules are currently attached
-> to the long-running scan-server ServiceAccount (not a separate, short-lived
-> CronJob identity).
+> **`clusterroles`/`clusterrolebindings`** is a privilege-escalation surface — an
+> identity with this access could read every Secret in the cluster and grant itself
+> arbitrary permissions. It is deliberately isolated on the dedicated, short-lived
+> update-controller CronJob ServiceAccount rather than the long-running scan-server.
+> _Migration note:_ during the rollout that introduces this dedicated SA, the
+> scan-server ClusterRole **temporarily** retains the same broad block (clearly
+> marked `TRANSITION` in `clusterrole.yaml`) so the first in-cluster auto-update
+> doesn't strip its own permissions mid-upgrade; a follow-up release removes it,
+> leaving the scan-server SA read-only.
 
 **If you want full control / a smaller blast radius, pick one:**
 

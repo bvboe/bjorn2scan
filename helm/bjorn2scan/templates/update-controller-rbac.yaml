@@ -41,6 +41,19 @@ rules:
 - apiGroups: ["rbac.authorization.k8s.io"]
   resources: ["clusterroles", "clusterrolebindings"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Mirror of the scan-server's read permissions (see templates/clusterrole.yaml).
+# `helm upgrade` rewrites the scan-server ClusterRole, and the API server's
+# privilege-escalation check requires the writer to already hold every rule in the
+# role it writes. Without these, any upgrade that changes the scan-server ClusterRole
+# — including the de-privileging step of the RBAC migration — is rejected with
+# "attempting to grant RBAC permissions not currently held". Keep in sync with the
+# scan-server rules above.
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

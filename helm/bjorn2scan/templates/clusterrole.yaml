@@ -23,9 +23,32 @@ rules:
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["get"]
-# NOTE: the broad write permissions the update controller needs for `helm upgrade`
-# (secrets, clusterrole(binding)s, workloads, etc.) are deliberately NOT granted here.
-# They live on a separate, short-lived CronJob ServiceAccount — see
-# templates/update-controller-rbac.yaml — so the long-running scan-server and
-# pod-scanner never carry that privilege-escalation surface.
+{{- if .Values.updateController.enabled }}
+# TRANSITION — remove this block in a follow-up release (see TODO.md "two-step
+# update-controller RBAC migration"). These broad helm-upgrade permissions are also
+# granted to the dedicated update-controller ServiceAccount
+# (templates/update-controller-rbac.yaml), which the CronJob now uses. They are kept
+# on the scan-server SA *temporarily* so the FIRST auto-update from a pre-scoping
+# release — run by the old controller as THIS SA — does not strip its own permissions
+# mid-`helm upgrade` and fail. A later release deletes this block, leaving the
+# scan-server SA read-only (the real end state).
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["services", "serviceaccounts", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+{{- end }}
 {{- end }}
