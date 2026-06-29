@@ -189,7 +189,9 @@ jobs:
       env:
         TEST_NAMESPACE: default
         RELEASE_NAME: bjorn2scan
-        SERVICE_ACCOUNT: bjorn2scan
+        # The broad helm-upgrade permissions live on the dedicated update-controller
+        # SA (not the scan-server SA), so validate that identity.
+        SERVICE_ACCOUNT: bjorn2scan-update-controller
 
     - name: Port forward service
       run: |
