@@ -707,7 +707,7 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:    ":" + port,
+		Addr:    cfg.ListenAddress + ":" + port,
 		Handler: handler,
 	}
 
@@ -716,7 +716,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		logging.For(logging.ComponentHTTP).Info("bjorn2scan-agent listening", "port", port)
+		logging.For(logging.ComponentHTTP).Info("bjorn2scan-agent listening", "address", cfg.ListenAddress, "port", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logging.For(logging.ComponentHTTP).Error("server error", "error", err)
 			os.Exit(1)

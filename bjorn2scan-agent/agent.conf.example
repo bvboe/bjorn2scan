@@ -6,6 +6,14 @@
 # Environment variable: PORT
 port=9999
 
+# Listener bind address (default: 0.0.0.0 = all interfaces)
+# The HTTP API (dashboard + read-only /api/* endpoints) is unauthenticated, so the
+# default exposes the host's scan data to the local network. Metrics are pushed to
+# Prometheus (OTEL), so direct API access is optional — to harden, set 127.0.0.1 to
+# restrict the API to loopback, or disable the web UI entirely with web_ui_enabled=false.
+# Environment variable: LISTEN_ADDRESS
+listen_address=0.0.0.0
+
 # Database path (default: /var/lib/bjorn2scan/data/containers.db)
 # Environment variable: DB_PATH
 db_path=/var/lib/bjorn2scan/data/containers.db

@@ -14,10 +14,13 @@ import (
 
 // Config holds all configuration options for bjorn2scan components.
 type Config struct {
-	Port         string
-	DBPath       string
-	DebugEnabled bool
-	WebUIEnabled bool
+	Port string
+	// ListenAddress is the HTTP listener bind address for the agent
+	// (default "0.0.0.0" = all interfaces; set "127.0.0.1" to restrict to loopback).
+	ListenAddress string
+	DBPath        string
+	DebugEnabled  bool
+	WebUIEnabled  bool
 
 	// Auto-update configuration
 	AutoUpdateEnabled            bool
@@ -93,10 +96,11 @@ type Config struct {
 // defaultConfig returns a Config with hardcoded defaults.
 func defaultConfig() *Config {
 	return &Config{
-		Port:         "9999",
-		DBPath:       "/var/lib/bjorn2scan/data/containers.db",
-		DebugEnabled: false,
-		WebUIEnabled: true,
+		Port:          "9999",
+		ListenAddress: "0.0.0.0",
+		DBPath:        "/var/lib/bjorn2scan/data/containers.db",
+		DebugEnabled:  false,
+		WebUIEnabled:  true,
 
 		// Auto-update defaults
 		AutoUpdateEnabled:            true,
@@ -189,6 +193,11 @@ func LoadConfig(path string) (*Config, error) {
 			// Load port
 			if section.HasKey("port") {
 				cfg.Port = section.Key("port").String()
+			}
+
+			// Load listen address
+			if section.HasKey("listen_address") {
+				cfg.ListenAddress = section.Key("listen_address").String()
 			}
 
 			// Load database path
@@ -422,6 +431,10 @@ func LoadConfig(path string) (*Config, error) {
 	// Override with environment variables
 	if portEnv := os.Getenv("PORT"); portEnv != "" {
 		cfg.Port = portEnv
+	}
+
+	if listenAddrEnv := os.Getenv("LISTEN_ADDRESS"); listenAddrEnv != "" {
+		cfg.ListenAddress = listenAddrEnv
 	}
 
 	if dbPathEnv := os.Getenv("DB_PATH"); dbPathEnv != "" {

@@ -13,6 +13,10 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("Expected default port 9999, got %s", cfg.Port)
 	}
 
+	if cfg.ListenAddress != "0.0.0.0" {
+		t.Errorf("Expected default listen address 0.0.0.0, got %s", cfg.ListenAddress)
+	}
+
 	if cfg.DBPath != "/var/lib/bjorn2scan/data/containers.db" {
 		t.Errorf("Expected default db path, got %s", cfg.DBPath)
 	}
@@ -28,6 +32,7 @@ func TestLoadConfigFromFile(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "test.conf")
 
 	configContent := `port=8080
+listen_address=127.0.0.1
 db_path=/tmp/test.db
 debug_enabled=true
 `
@@ -45,6 +50,10 @@ debug_enabled=true
 	// Verify values from file
 	if cfg.Port != "8080" {
 		t.Errorf("Expected port 8080, got %s", cfg.Port)
+	}
+
+	if cfg.ListenAddress != "127.0.0.1" {
+		t.Errorf("Expected listen address 127.0.0.1, got %s", cfg.ListenAddress)
 	}
 
 	if cfg.DBPath != "/tmp/test.db" {
@@ -306,10 +315,10 @@ func TestOTELDirectBatchSizeValidation(t *testing.T) {
 		expectedValue int // Expected value (default if invalid)
 	}{
 		{"valid positive", "3000", 3000},
-		{"zero", "0", 5000},           // Invalid, should keep default
-		{"negative", "-100", 5000},    // Invalid, should keep default
-		{"non-numeric", "abc", 5000},  // Invalid, should keep default
-		{"empty", "", 5000},           // Invalid, should keep default
+		{"zero", "0", 5000},          // Invalid, should keep default
+		{"negative", "-100", 5000},   // Invalid, should keep default
+		{"non-numeric", "abc", 5000}, // Invalid, should keep default
+		{"empty", "", 5000},          // Invalid, should keep default
 	}
 
 	for _, tt := range tests {

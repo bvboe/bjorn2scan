@@ -127,8 +127,21 @@ curl http://localhost:9999/info
 
 ### Configuration
 
-Environment variables:
-- `PORT`: HTTP server port (default: 9999)
+The agent reads `/etc/bjorn2scan/agent.conf` (or `./agent.conf`); environment
+variables override the file. See [`agent.conf.example`](agent.conf.example) for the
+full list. Common options:
+
+- `port` / `PORT`: HTTP server port (default: 9999)
+- `listen_address` / `LISTEN_ADDRESS`: listener bind address (default: `0.0.0.0` — all interfaces)
+- `debug_enabled` / `DEBUG_ENABLED`: enable debug endpoints and the mutating `/api/update/{trigger,pause,resume}` controls (default: false)
+- `web_ui_enabled` / `WEB_UI_ENABLED`: serve the dashboard + API (default: true)
+
+> **Security:** the dashboard and read-only `/api/*` endpoints are unauthenticated and
+> bind all interfaces by default, so the host's scan data is reachable on the local
+> network. Metrics are pushed to Prometheus, so direct API access is optional. To
+> harden, set `listen_address=127.0.0.1` (loopback only) or `web_ui_enabled=false` to
+> disable the API entirely. The mutating update controls are already gated behind
+> `debug_enabled` (off by default).
 
 ## Development
 
