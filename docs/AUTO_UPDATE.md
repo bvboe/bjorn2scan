@@ -107,12 +107,9 @@ long-running scan-server / pod-scanner pods do not carry it. See
 > **`clusterroles`/`clusterrolebindings`** is a privilege-escalation surface — an
 > identity with this access could read every Secret in the cluster and grant itself
 > arbitrary permissions. It is deliberately isolated on the dedicated, short-lived
-> update-controller CronJob ServiceAccount rather than the long-running scan-server.
-> _Migration note:_ during the rollout that introduces this dedicated SA, the
-> scan-server ClusterRole **temporarily** retains the same broad block (clearly
-> marked `TRANSITION` in `clusterrole.yaml`) so the first in-cluster auto-update
-> doesn't strip its own permissions mid-upgrade; a follow-up release removes it,
-> leaving the scan-server SA read-only.
+> update-controller CronJob ServiceAccount; the long-running scan-server /
+> pod-scanner ServiceAccount holds only read-only `pods`/`pods/status`/`nodes`/`services`
+> access.
 
 **If you want full control / a smaller blast radius, pick one:**
 
