@@ -42,6 +42,10 @@ async function initPage() {
     updateCVEExportLink();
     updateCVESortIndicators();
     renderVersionFooter();
+
+    // Live updates: reload the table + summary when the dataset changes,
+    // matching the list pages' auto-refresh.
+    startAutoRefresh(() => { loadCVEsTable(); loadImageSummary(); });
 }
 
 // Populate the four filter multiselects from /api/node-filter-options.

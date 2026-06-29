@@ -884,6 +884,30 @@ async function checkForUpdates() {
     }
 }
 
+// Generic auto-refresh: poll the global last-updated timestamp and invoke
+// reloadFn whenever it changes. Pages that define their own initPage (e.g. the
+// CVE and detail views) call this to get the same live updates as the list pages.
+function startAutoRefresh(reloadFn, intervalMs = 2000) {
+    let lastTimestamp = null;
+    setInterval(async () => {
+        try {
+            const response = await fetch("/api/lastupdated");
+            if (!response.ok) {
+                return;
+            }
+            const newTimestamp = await response.text();
+            if (lastTimestamp === null) {
+                lastTimestamp = newTimestamp;
+            } else if (newTimestamp !== lastTimestamp) {
+                lastTimestamp = newTimestamp;
+                reloadFn();
+            }
+        } catch (error) {
+            console.error("Error checking for updates:", error);
+        }
+    }, intervalMs);
+}
+
 // Initialize page
 async function initPage() {
     await loadConfig();
