@@ -44,7 +44,7 @@ jobs:
     # Cache for Kind binary and cluster images
     - name: Cache Kind
       if: inputs.cluster_type == 'kind'
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: |
           ~/.kind
@@ -56,7 +56,7 @@ jobs:
     # Cache for Minikube binary and cluster data
     - name: Cache Minikube
       if: inputs.cluster_type == 'minikube'
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: |
           ~/.minikube
@@ -67,7 +67,7 @@ jobs:
 
     # Cache for Helm binary and repositories
     - name: Cache Helm
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: |
           ~/.cache/helm
@@ -78,7 +78,7 @@ jobs:
 
     # Cache for kubectl binary
     - name: Cache kubectl
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ~/.kube/cache
         key: ${{ runner.os }}-kubectl-cache
