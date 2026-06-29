@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Functional test for Helm upgrade with restricted RBAC permissions
-# This test validates that the bjorn2scan ServiceAccount has sufficient permissions
-# to perform a Helm upgrade, which is what the update-controller does.
+# This test validates that the ServiceAccount the update-controller actually runs
+# as has sufficient permissions to perform an in-cluster Helm upgrade. (Those broad
+# permissions live on a dedicated update-controller SA, not the scan-server SA.)
 #
 # Configuration via environment variables:
 #   TEST_NAMESPACE     - Kubernetes namespace (default: default)
@@ -23,7 +24,14 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
 NAMESPACE="${TEST_NAMESPACE:-default}"
 RELEASE_NAME="${RELEASE_NAME:-bjorn2scan}"
-SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-bjorn2scan}"
+# Default to the SA the update-controller CronJob actually runs as. The broad
+# helm-upgrade permissions were moved off the scan-server SA onto this dedicated
+# one, so that's the identity whose permissions we need to validate. Discover it
+# from the deployed CronJob, falling back to the conventional name.
+if [ -z "${SERVICE_ACCOUNT:-}" ]; then
+    SERVICE_ACCOUNT="$(kubectl get cronjob -n "$NAMESPACE" -l app.kubernetes.io/component=update-controller -o jsonpath='{.items[0].spec.jobTemplate.spec.template.spec.serviceAccountName}' 2>/dev/null || true)"
+    SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-${RELEASE_NAME}-update-controller}"
+fi
 CHART_PATH="${CHART_PATH:-$SCRIPT_DIR/helm/bjorn2scan}"
 
 echo "========================================"
