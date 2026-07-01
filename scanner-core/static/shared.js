@@ -564,7 +564,7 @@ function onFilterChange() {
     loadDataTable();
     loadImageSummary();
     updateCSVLink();
-    renderSidebarNav(); // Update navigation links with current filters
+    renderTopBarNav(); // Update top-nav links to carry the current filters
 }
 
 // Pagination functions
@@ -744,26 +744,25 @@ async function checkDBStatus() {
     }
 }
 
-// Get current filter query string for navigation links
-function getCurrentFilterQueryString() {
+// Get current filter query string for navigation links. Pass excludeKeys to
+// drop params that don't apply to the target page — e.g. the Nodes link omits
+// 'namespaces' and 'severity' since the nodes list has no such filters.
+function getCurrentFilterQueryString(excludeKeys = []) {
     const params = new URLSearchParams();
 
-    const namespaces = getSelectedValues('namespaceFilter');
-    if (namespaces.length) params.append('namespaces', namespaces.join(','));
+    const add = (key, values) => {
+        if (!excludeKeys.includes(key) && values.length) {
+            params.append(key, values.join(','));
+        }
+    };
 
-    const vulnStatuses = getSelectedValues('vulnerabilityStatusFilter');
-    if (vulnStatuses.length) params.append('vulnStatuses', vulnStatuses.join(','));
-
-    const packageTypes = getSelectedValues('packageTypeFilter');
-    if (packageTypes.length) params.append('packageTypes', packageTypes.join(','));
-
-    const osNames = getSelectedValues('osNameFilter');
-    if (osNames.length) params.append('osNames', osNames.join(','));
-
+    add('namespaces', getSelectedValues('namespaceFilter'));
+    add('vulnStatuses', getSelectedValues('vulnerabilityStatusFilter'));
+    add('packageTypes', getSelectedValues('packageTypeFilter'));
+    add('osNames', getSelectedValues('osNameFilter'));
     // Severity exists only on the CVE pages (no severityFilter elsewhere → []).
     // The deployment-metrics / node-metrics summaries now honor it.
-    const severities = getSelectedValues('severityFilter');
-    if (severities.length) params.append('severity', severities.join(','));
+    add('severity', getSelectedValues('severityFilter'));
 
     const queryString = params.toString();
     return queryString ? '?' + queryString : '';
@@ -822,10 +821,10 @@ function renderTopBarNav() {
     const showContainerScans = appConfig.scanContainers;
     const showNodeScans = appConfig.scanNodes;
 
-    function addNavItem(title, url, includeFilters = false) {
+    function addNavItem(title, url, includeFilters = false, excludeKeys = []) {
         const basePage = url.split('?')[0];
         const isCurrentPage = basePage === pageConfig.currentPageUrl;
-        const fullUrl = includeFilters ? basePage + getCurrentFilterQueryString() : url;
+        const fullUrl = includeFilters ? basePage + getCurrentFilterQueryString(excludeKeys) : url;
 
         const a = document.createElement('a');
         a.href = fullUrl;
@@ -841,7 +840,9 @@ function renderTopBarNav() {
         addNavItem('Container CVEs', 'container_cves.html', true);
     }
     if (showNodeScans) {
-        addNavItem('Nodes', 'nodes.html');
+        // Nodes aren't namespaced and the list has no severity filter, so drop
+        // those params; vuln status / package type / OS still carry over.
+        addNavItem('Nodes', 'nodes.html', true, ['namespaces', 'severity']);
         addNavItem('Node CVEs', 'node_cves.html', true);
     }
 }
