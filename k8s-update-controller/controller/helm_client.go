@@ -6,10 +6,12 @@ import (
 	"os"
 	"time"
 
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/chart/loader"
+	"helm.sh/helm/v4/pkg/cli"
+	"helm.sh/helm/v4/pkg/kube"
+	relcommon "helm.sh/helm/v4/pkg/release/common"
+	release "helm.sh/helm/v4/pkg/release/v1"
 	"k8s.io/client-go/rest"
 )
 
@@ -52,7 +54,13 @@ func (hc *HelmClient) GetCurrentRelease() (*release.Release, error) {
 		return nil, fmt.Errorf("failed to get release %s: %w", hc.releaseName, err)
 	}
 
-	return rel, nil
+	// Helm v4 actions return release.Releaser (an `any`); the driver stores
+	// v1 releases, so assert back to the concrete type.
+	r, ok := rel.(*release.Release)
+	if !ok {
+		return nil, fmt.Errorf("unexpected release type %T for %s", rel, hc.releaseName)
+	}
+	return r, nil
 }
 
 // UpgradeRelease performs a Helm upgrade
@@ -73,16 +81,20 @@ func (hc *HelmClient) UpgradeRelease(ctx context.Context, chartPath string, vers
 	// Create upgrade action
 	upgradeAction := action.NewUpgrade(actionConfig)
 	upgradeAction.Namespace = hc.namespace
-	upgradeAction.Wait = true
+	upgradeAction.WaitStrategy = kube.StatusWatcherStrategy
 	upgradeAction.Timeout = 10 * time.Minute
 
 	// Perform upgrade
-	rel, err := upgradeAction.Run(hc.releaseName, chart, nil)
+	rel, err := upgradeAction.RunWithContext(ctx, hc.releaseName, chart, nil)
 	if err != nil {
 		return fmt.Errorf("failed to upgrade release: %w", err)
 	}
 
-	log.Info("upgraded release", "name", rel.Name, "version", rel.Chart.Metadata.Version)
+	if r, ok := rel.(*release.Release); ok {
+		log.Info("upgraded release", "name", r.Name, "version", r.Chart.Metadata.Version)
+	} else {
+		log.Info("upgraded release", "name", hc.releaseName, "version", version)
+	}
 	return nil
 }
 
@@ -96,7 +108,7 @@ func (hc *HelmClient) RollbackRelease() error {
 	}
 
 	rollbackAction := action.NewRollback(actionConfig)
-	rollbackAction.Wait = true
+	rollbackAction.WaitStrategy = kube.StatusWatcherStrategy
 	rollbackAction.Timeout = 5 * time.Minute
 
 	if err := rollbackAction.Run(hc.releaseName); err != nil {
@@ -117,11 +129,19 @@ func (hc *HelmClient) GetReleaseHistory() ([]*release.Release, error) {
 	historyAction := action.NewHistory(actionConfig)
 	historyAction.Max = 10
 
-	releases, err := historyAction.Run(hc.releaseName)
+	rels, err := historyAction.Run(hc.releaseName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get release history: %w", err)
 	}
 
+	releases := make([]*release.Release, 0, len(rels))
+	for _, r := range rels {
+		rr, ok := r.(*release.Release)
+		if !ok {
+			return nil, fmt.Errorf("unexpected release type %T in history", r)
+		}
+		releases = append(releases, rr)
+	}
 	return releases, nil
 }
 
@@ -133,7 +153,7 @@ func (hc *HelmClient) IsReleaseHealthy() (bool, error) {
 	}
 
 	// Check release status
-	if rel.Info.Status != release.StatusDeployed {
+	if rel.Info.Status != relcommon.StatusDeployed {
 		return false, fmt.Errorf("release status is %s, expected deployed", rel.Info.Status)
 	}
 
@@ -142,13 +162,11 @@ func (hc *HelmClient) IsReleaseHealthy() (bool, error) {
 
 // getActionConfig creates a Helm action configuration
 func (hc *HelmClient) getActionConfig() (*action.Configuration, error) {
-	log := log
 	actionConfig := new(action.Configuration)
 
-	// Initialize with Kubernetes client
-	if err := actionConfig.Init(hc.settings.RESTClientGetter(), hc.namespace, os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
-		log.Debug("helm debug", "message", fmt.Sprintf(format, v...))
-	}); err != nil {
+	// Initialize with Kubernetes client. Helm v4 dropped the debug-log
+	// parameter from Init (logging now goes through log/slog).
+	if err := actionConfig.Init(hc.settings.RESTClientGetter(), hc.namespace, os.Getenv("HELM_DRIVER")); err != nil {
 		return nil, fmt.Errorf("failed to initialize Helm action config: %w", err)
 	}
 

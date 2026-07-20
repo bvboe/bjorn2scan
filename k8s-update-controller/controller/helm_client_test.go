@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/release"
+	chart "helm.sh/helm/v4/pkg/chart/v2"
+	relcommon "helm.sh/helm/v4/pkg/release/common"
+	release "helm.sh/helm/v4/pkg/release/v1"
 )
 
 // Note: Most HelmClient tests require a Kubernetes cluster and are better suited
@@ -95,31 +96,31 @@ func TestHelmClient_HistoryMax(t *testing.T) {
 func TestReleaseHealthCheck(t *testing.T) {
 	tests := []struct {
 		name         string
-		releaseStatus release.Status
+		releaseStatus relcommon.Status
 		wantHealthy  bool
 		wantErr      bool
 	}{
 		{
 			name:          "Deployed status is healthy",
-			releaseStatus: release.StatusDeployed,
+			releaseStatus: relcommon.StatusDeployed,
 			wantHealthy:   true,
 			wantErr:       false,
 		},
 		{
 			name:          "Pending status is unhealthy",
-			releaseStatus: release.StatusPendingInstall,
+			releaseStatus: relcommon.StatusPendingInstall,
 			wantHealthy:   false,
 			wantErr:       true,
 		},
 		{
 			name:          "Failed status is unhealthy",
-			releaseStatus: release.StatusFailed,
+			releaseStatus: relcommon.StatusFailed,
 			wantHealthy:   false,
 			wantErr:       true,
 		},
 		{
 			name:          "Uninstalling status is unhealthy",
-			releaseStatus: release.StatusUninstalling,
+			releaseStatus: relcommon.StatusUninstalling,
 			wantHealthy:   false,
 			wantErr:       true,
 		},
@@ -129,8 +130,8 @@ func TestReleaseHealthCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Simulate the health check logic
 			status := tt.releaseStatus
-			healthy := status == release.StatusDeployed
-			hasErr := status != release.StatusDeployed
+			healthy := status == relcommon.StatusDeployed
+			hasErr := status != relcommon.StatusDeployed
 
 			if healthy != tt.wantHealthy {
 				t.Errorf("Health check = %v, want %v", healthy, tt.wantHealthy)
@@ -188,7 +189,7 @@ func TestHistoryConfiguration(t *testing.T) {
 }
 
 // Mock release helper for testing
-func createMockRelease(name, namespace, version string, status release.Status) *release.Release {
+func createMockRelease(name, namespace, version string, status relcommon.Status) *release.Release {
 	return &release.Release{
 		Name:      name,
 		Namespace: namespace,
@@ -206,7 +207,7 @@ func createMockRelease(name, namespace, version string, status release.Status) *
 
 func TestMockRelease_Structure(t *testing.T) {
 	// Test helper function to ensure mock releases are correctly structured
-	rel := createMockRelease("test", "default", "1.0.0", release.StatusDeployed)
+	rel := createMockRelease("test", "default", "1.0.0", relcommon.StatusDeployed)
 
 	if rel.Name != "test" {
 		t.Errorf("Release name = %q, want %q", rel.Name, "test")
@@ -217,8 +218,8 @@ func TestMockRelease_Structure(t *testing.T) {
 	if rel.Chart.Metadata.Version != "1.0.0" {
 		t.Errorf("Release version = %q, want %q", rel.Chart.Metadata.Version, "1.0.0")
 	}
-	if rel.Info.Status != release.StatusDeployed {
-		t.Errorf("Release status = %v, want %v", rel.Info.Status, release.StatusDeployed)
+	if rel.Info.Status != relcommon.StatusDeployed {
+		t.Errorf("Release status = %v, want %v", rel.Info.Status, relcommon.StatusDeployed)
 	}
 }
 
