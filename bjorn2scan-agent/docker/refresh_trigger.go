@@ -6,8 +6,7 @@ import (
 
 	"github.com/bvboe/bjorn2scan/scanner-core/containers"
 
-	containertypes "github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 
@@ -31,7 +30,7 @@ func (t *RefreshTrigger) TriggerRefresh() error {
 	log.Info("starting Docker container reconciliation")
 
 	// Create a new Docker client for this refresh operation
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		return err
 	}
@@ -41,13 +40,13 @@ func (t *RefreshTrigger) TriggerRefresh() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err = cli.Ping(ctx)
+	_, err = cli.Ping(ctx, client.PingOptions{})
 	if err != nil {
 		return err
 	}
 
 	// List all running containers
-	containerList, err := cli.ContainerList(ctx, containertypes.ListOptions{
+	containerList, err := cli.ContainerList(ctx, client.ContainerListOptions{
 		All: false, // Only running containers
 	})
 	if err != nil {
@@ -56,7 +55,7 @@ func (t *RefreshTrigger) TriggerRefresh() error {
 
 	// Extract container details
 	var allContainers []containers.Container
-	for _, dc := range containerList {
+	for _, dc := range containerList.Items {
 		c, err := extractContainer(ctx, cli, dc.ID)
 		if err != nil {
 			log.Warn("failed to extract container", "container_id", dc.ID[:12], "error", err)

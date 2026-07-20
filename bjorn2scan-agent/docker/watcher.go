@@ -11,10 +11,7 @@ import (
 	"github.com/bvboe/bjorn2scan/scanner-core/containers"
 	"github.com/bvboe/bjorn2scan/scanner-core/logging"
 
-	containertypes "github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 var log = logging.For(logging.ComponentContainers)
@@ -37,10 +34,11 @@ func extractContainer(ctx context.Context, cli *client.Client, containerID strin
 	}
 
 	// Get detailed container info
-	containerJSON, err := cli.ContainerInspect(ctx, containerID)
+	inspect, err := cli.ContainerInspect(ctx, containerID, client.ContainerInspectOptions{})
 	if err != nil {
 		return containers.Container{}, err
 	}
+	containerJSON := inspect.Container
 
 	reference := extractImageReference(containerJSON.Config.Image)
 
@@ -76,7 +74,7 @@ func extractContainer(ctx context.Context, cli *client.Client, containerID strin
 
 // IsDockerAvailable checks if Docker daemon is accessible
 func IsDockerAvailable() bool {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		return false
 	}
@@ -85,13 +83,13 @@ func IsDockerAvailable() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err = cli.Ping(ctx)
+	_, err = cli.Ping(ctx, client.PingOptions{})
 	return err == nil
 }
 
 // WatchContainers watches for Docker container events and updates the container manager
 func WatchContainers(ctx context.Context, manager *containers.Manager) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		return err
 	}
@@ -99,7 +97,7 @@ func WatchContainers(ctx context.Context, manager *containers.Manager) error {
 
 	// Test connection
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	_, err = cli.Ping(pingCtx)
+	_, err = cli.Ping(pingCtx, client.PingOptions{})
 	cancel()
 	if err != nil {
 		return err
@@ -120,12 +118,13 @@ func WatchContainers(ctx context.Context, manager *containers.Manager) error {
 			return nil
 		default:
 			// Watch for container events
-			eventFilters := filters.NewArgs()
-			eventFilters.Add("type", "container")
+			eventFilters := client.Filters{}.Add("type", "container")
 
-			eventsChan, errChan := cli.Events(ctx, events.ListOptions{
+			eventsResult := cli.Events(ctx, client.EventsListOptions{
 				Filters: eventFilters,
 			})
+			eventsChan := eventsResult.Messages
+			errChan := eventsResult.Err
 
 			log.Info("Docker watcher started")
 
@@ -191,7 +190,7 @@ func WatchContainers(ctx context.Context, manager *containers.Manager) error {
 func syncInitialContainers(ctx context.Context, cli *client.Client, manager *containers.Manager) error {
 	log.Info("Docker watcher performing initial container sync")
 
-	containerList, err := cli.ContainerList(ctx, containertypes.ListOptions{
+	containerList, err := cli.ContainerList(ctx, client.ContainerListOptions{
 		All: false, // Only running containers
 	})
 	if err != nil {
@@ -199,7 +198,7 @@ func syncInitialContainers(ctx context.Context, cli *client.Client, manager *con
 	}
 
 	var allContainers []containers.Container
-	for _, dc := range containerList {
+	for _, dc := range containerList.Items {
 		c, err := extractContainer(ctx, cli, dc.ID)
 		if err != nil {
 			log.Warn("failed to extract container", "container_id", dc.ID[:12], "error", err)

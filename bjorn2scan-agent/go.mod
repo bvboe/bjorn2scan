@@ -7,6 +7,7 @@ require (
 	github.com/anchore/syft v1.48.0
 	github.com/bvboe/bjorn2scan/sbom-generator-shared v0.0.0-20260318203456-d47caeb6547a
 	github.com/bvboe/bjorn2scan/scanner-core v0.0.0-20251229133410-246b755cc828
+	github.com/moby/moby/client v0.5.0
 	github.com/sigstore/sigstore-go v1.2.2
 )
 
@@ -217,8 +218,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/locker v1.0.1 // indirect
-	github.com/moby/moby/api v1.54.2 // indirect
-	github.com/moby/moby/client v0.4.1 // indirect
+	github.com/moby/moby/api v1.55.0 // indirect
 	github.com/moby/sys/mountinfo v0.7.2 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
@@ -342,7 +342,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
