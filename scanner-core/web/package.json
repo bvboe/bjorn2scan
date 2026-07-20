@@ -16,7 +16,7 @@
     "eslint-plugin-html": "^8.1.4",
     "globals": "^17.7.0",
     "htmlhint": "^1.9.2",
-    "stylelint": "^17.14.0",
+    "stylelint": "^17.14.1",
     "stylelint-config-standard": "^40.0.0"
   }
 }
