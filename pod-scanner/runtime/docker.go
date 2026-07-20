@@ -9,8 +9,7 @@ import (
 	"github.com/anchore/syft/syft"
 	"github.com/anchore/syft/syft/format"
 	"github.com/anchore/syft/syft/format/syftjson"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 
@@ -21,7 +20,7 @@ type DockerClient struct {
 
 // NewDockerClient creates a new Docker runtime client
 func NewDockerClient() *DockerClient {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		log.Warn("failed to create Docker client", "error", err)
 		return &DockerClient{cli: nil}
@@ -38,7 +37,7 @@ func (d *DockerClient) IsAvailable() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err := d.cli.Ping(ctx)
+	_, err := d.cli.Ping(ctx, client.PingOptions{})
 	return err == nil
 }
 
@@ -54,14 +53,14 @@ func (d *DockerClient) GenerateSBOM(ctx context.Context, digest string) ([]byte,
 	}
 
 	// List all images to find one with matching digest
-	images, err := d.cli.ImageList(ctx, image.ListOptions{All: true})
+	imageList, err := d.cli.ImageList(ctx, client.ImageListOptions{All: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Docker images: %w", err)
 	}
 
 	// Find image with matching digest
 	var imageRef string
-	for _, img := range images {
+	for _, img := range imageList.Items {
 		// Check if this image's ID matches the digest
 		if img.ID == digest || img.ID == "sha256:"+digest {
 			// Found the image, use first RepoTag if available
