@@ -7,8 +7,8 @@ require (
 	github.com/google/go-containerregistry v0.21.7
 	github.com/sigstore/sigstore-go v1.2.2
 	helm.sh/helm/v4 v4.2.3
-	k8s.io/apimachinery v0.36.2
-	k8s.io/client-go v0.36.2
+	k8s.io/apimachinery v0.36.3
+	k8s.io/client-go v0.36.3
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -162,7 +162,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gotest.tools/v3 v3.4.0 // indirect
-	k8s.io/api v0.36.2 // indirect
+	k8s.io/api v0.36.3 // indirect
 	k8s.io/apiextensions-apiserver v0.36.2 // indirect
 	k8s.io/apiserver v0.36.2 // indirect
 	k8s.io/cli-runtime v0.36.2 // indirect
@@ -177,5 +177,5 @@ require (
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 )
