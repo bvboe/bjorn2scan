@@ -1398,5 +1398,12 @@
     "built": "2026-07-30T07:06:39Z",
     "path": "vulnerability-db_v6.1.9_2026-07-30T00:34:33Z_1785395199.tar.zst",
     "checksum": "sha256:01f74465808d907551d96d6cc3fa3c52b659402b24b88fc6010dfbc674eab159"
+  },
+  {
+    "status": "active",
+    "schemaVersion": "v6.1.9",
+    "built": "2026-07-31T07:09:24Z",
+    "path": "vulnerability-db_v6.1.9_2026-07-31T00:38:39Z_1785481764.tar.zst",
+    "checksum": "sha256:20a9c092cb3ef2b67b061b953ebddf2f95bc290631da4f6e760a4e12792040c7"
   }
 ]
