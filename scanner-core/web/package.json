@@ -14,7 +14,7 @@
   "devDependencies": {
     "eslint": "^10.8.0",
     "eslint-plugin-html": "^8.1.4",
-    "globals": "^17.8.0",
+    "globals": "^17.9.0",
     "htmlhint": "^1.9.2",
     "stylelint": "^17.14.1",
     "stylelint-config-standard": "^40.0.0"
