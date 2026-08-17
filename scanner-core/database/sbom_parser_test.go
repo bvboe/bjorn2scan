@@ -599,3 +599,118 @@ func TestParseVulnerabilityData_KnownExploits(t *testing.T) {
 		t.Errorf("epss_percentile = %v, want 0.99", epssPercentile)
 	}
 }
+
+// TestFormatFixVersions covers the case that motivated this helper: grype can
+// report several fixed versions for one match (a backport plus a later
+// release), and the installed version may sit between them. Reporting only the
+// first made such a vulnerability look already fixed.
+func TestFormatFixVersions(t *testing.T) {
+	tests := []struct {
+		name     string
+		versions []string
+		want     string
+	}{
+		{
+			name:     "multiple fixed versions are all reported",
+			versions: []string{"1.42", "1.44"},
+			want:     "1.42, 1.44",
+		},
+		{
+			name:     "single version unchanged",
+			versions: []string{"1.42"},
+			want:     "1.42",
+		},
+		{
+			name:     "no fix available",
+			versions: nil,
+			want:     "",
+		},
+		{
+			name:     "duplicates dropped",
+			versions: []string{"1.42", "1.44", "1.42"},
+			want:     "1.42, 1.44",
+		},
+		{
+			name:     "empty entries skipped",
+			versions: []string{"", "1.42", ""},
+			want:     "1.42",
+		},
+		{
+			name:     "grype ordering preserved, not sorted",
+			versions: []string{"2.10", "1.9"},
+			want:     "2.10, 1.9",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatFixVersions(tt.versions); got != tt.want {
+				t.Errorf("formatFixVersions(%q) = %q, want %q", tt.versions, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseVulnerabilityData_MultipleFixVersions is a regression test for the
+// real-world GO-2026-5158 case: grype reported fixes in both 1.42.0 and 1.44.0
+// for go.opentelemetry.io/otel v1.43.0. Storing only the first made the UI show
+// "Fixed in 1.42.0" against an installed 1.43.0, implying it was already fixed
+// when the upgrade to 1.44.0 was actually still required.
+func TestParseVulnerabilityData_MultipleFixVersions(t *testing.T) {
+	dbPath := "/tmp/test_multi_fix_" + time.Now().Format("20060102150405") + ".db"
+	db, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create test database: %v", err)
+	}
+	defer func() {
+		_ = Close(db)
+		_ = os.Remove(dbPath)
+	}()
+
+	imageID := int64(1)
+	if _, err = db.conn.Exec(`INSERT INTO images (id, digest) VALUES (?, ?)`,
+		imageID, "sha256:multifix"); err != nil {
+		t.Fatalf("Failed to insert test image: %v", err)
+	}
+
+	vulnJSON := `{
+		"matches": [
+			{
+				"vulnerability": {
+					"id": "GO-2026-5158",
+					"severity": "Medium",
+					"fix": {"versions": ["1.42.0", "1.44.0"], "state": "fixed"},
+					"risk": 0.122,
+					"epss": [],
+					"knownExploited": []
+				},
+				"artifact": {
+					"name": "go.opentelemetry.io/otel",
+					"version": "v1.43.0",
+					"type": "go-module"
+				},
+				"matchDetails": [{"type": "exact-direct-match"}]
+			}
+		]
+	}`
+
+	if err = parseVulnerabilityData(db, imageID, []byte(vulnJSON)); err != nil {
+		t.Fatalf("parseVulnerabilityData failed: %v", err)
+	}
+
+	var fixedVersion, fixStatus string
+	if err = db.conn.QueryRow(`
+		SELECT fixed_version, fix_status
+		FROM image_vulnerabilities
+		WHERE image_id = ? AND cve_id = ?`,
+		imageID, "GO-2026-5158").Scan(&fixedVersion, &fixStatus); err != nil {
+		t.Fatalf("Failed to query vulnerability: %v", err)
+	}
+
+	if want := "1.42.0, 1.44.0"; fixedVersion != want {
+		t.Errorf("fixed_version = %q, want %q (all fixed versions must be reported)", fixedVersion, want)
+	}
+	if fixStatus != "fixed" {
+		t.Errorf("fix_status = %q, want %q", fixStatus, "fixed")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // SyftPackage represents a package from Syft SBOM
@@ -143,6 +144,28 @@ type GrypeRelatedVuln struct {
 type GrypeFix struct {
 	Versions []string `json:"versions"`
 	State    string   `json:"state"`
+}
+
+// formatFixVersions renders every fixed version grype reported for a match as a
+// single display string. Grype often reports more than one — a backport on an
+// older line plus a later release — and keeping only the first is misleading:
+// an installed version can sit between two of them, making the vulnerability
+// look already fixed. Duplicates are dropped and grype's own ordering is kept,
+// matching how the grype CLI renders the "FIXED IN" column.
+func formatFixVersions(versions []string) string {
+	seen := make(map[string]struct{}, len(versions))
+	unique := make([]string, 0, len(versions))
+	for _, v := range versions {
+		if v == "" {
+			continue
+		}
+		if _, dup := seen[v]; dup {
+			continue
+		}
+		seen[v] = struct{}{}
+		unique = append(unique, v)
+	}
+	return strings.Join(unique, ", ")
 }
 
 // GrypeMatchDetail represents match details
@@ -405,10 +428,7 @@ func parseVulnerabilityData(db *DB, imageID int64, vulnJSON []byte) error {
 				fixStatus = "not-fixed"
 			}
 		}
-		fixedVersion := ""
-		if len(m.Vulnerability.Fix.Versions) > 0 {
-			fixedVersion = m.Vulnerability.Fix.Versions[0]
-		}
+		fixedVersion := formatFixVersions(m.Vulnerability.Fix.Versions)
 		epssScore, epssPercentile := 0.0, 0.0
 		if len(m.Vulnerability.EPSS) > 0 {
 			epssScore = m.Vulnerability.EPSS[0].Score

@@ -819,10 +819,7 @@ func (db *DB) StoreNodeVulnerabilities(name string, vulnJSON []byte, grypeDBBuil
 				existing.KnownExploited = ke
 			}
 		} else {
-			fixVersion := ""
-			if len(pm.Vulnerability.Fix.Versions) > 0 {
-				fixVersion = pm.Vulnerability.Fix.Versions[0]
-			}
+			fixVersion := formatFixVersions(pm.Vulnerability.Fix.Versions)
 			vulnGroups[key] = &vulnData{
 				Severity:       pm.Vulnerability.Severity,
 				Risk:           pm.Vulnerability.Risk,
