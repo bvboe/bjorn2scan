@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/google/go-containerregistry v0.21.9
 	github.com/sigstore/sigstore-go v1.3.0
-	helm.sh/helm/v4 v4.2.3
+	helm.sh/helm/v4 v4.2.4
 	k8s.io/apimachinery v0.36.3
 	k8s.io/client-go v0.36.3
 	sigs.k8s.io/yaml v1.6.0
@@ -159,7 +159,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260523011958-0a33c5d7ca68 // indirect
 	google.golang.org/grpc v1.82.1 // indirect
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gotest.tools/v3 v3.4.0 // indirect
