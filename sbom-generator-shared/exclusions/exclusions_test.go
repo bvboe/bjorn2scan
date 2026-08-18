@@ -14,6 +14,8 @@ func TestDefaultHostExclusionsContainsRequiredPatterns(t *testing.T) {
 		"**/var/lib/containerd/**",
 		"**/var/lib/docker/**",
 		"**/var/lib/rancher/**",
+		// CNI plugin binaries (installed on the host by a CNI DaemonSet)
+		"**/opt/cni/bin/**",
 		// System virtual filesystems
 		"**/proc/**",
 		"**/sys/**",

@@ -295,7 +295,8 @@ host_scanning_interval=24h
 
 # Additional exclusion patterns for host scanning (default: empty)
 # Comma-separated list of glob patterns to exclude from scanning
-# These are added to the default exclusions (container runtimes, virtual filesystems, etc.)
+# These are added to the default exclusions (container runtimes, CNI plugin
+# binaries in /opt/cni/bin, virtual filesystems, etc.)
 # Example: /home/**,/backup/**,/data/**
 # Environment variable: HOST_SCANNING_EXTRA_EXCLUSIONS
 host_scanning_extra_exclusions=

@@ -169,7 +169,9 @@ scanServer:
       # Auto-detect network filesystem mounts (NFS, CIFS, etc.) and exclude them
       autoDetectNFS: true
       # Additional exclusion patterns for host scanning (added to defaults)
-      # Defaults already include: container runtimes, virtual filesystems, /mnt/**, /media/**, /srv/**
+      # Defaults already include: container runtimes, /opt/cni/bin/** (CNI plugin
+      # binaries — reported by the CNI DaemonSet's own image scan),
+      # virtual filesystems, /mnt/**, /media/**, /srv/**
       extraExclusions: []
         # - "**/home/**"
         # - "**/backup/**"

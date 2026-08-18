@@ -14,6 +14,13 @@ var DefaultHostExclusions = []string{
 	"**/var/lib/containerd/**",   // containerd data
 	"**/var/lib/docker/**",       // docker data
 	"**/var/lib/rancher/**",      // k3s/rancher data
+	// CNI plugin binaries. These live on the host but are installed there by a
+	// CNI DaemonSet (AWS VPC CNI, Calico, Cilium, Flannel, ...) copying them out
+	// of its own image, so the container image scan already reports them — and
+	// does so with better attribution, since it names the image to upgrade
+	// rather than just a node and a path. Excluding them avoids reporting the
+	// same CVEs once per plugin binary on every node.
+	"**/opt/cni/bin/**",
 	// System virtual filesystems
 	"**/proc/**", // proc filesystem
 	"**/sys/**",  // sys filesystem
