@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/anchore/syft/syft"
@@ -60,15 +61,16 @@ func HostSBOMHandler(cfg HostSBOMConfig) http.HandlerFunc {
 	// Build exclusions once at handler creation time
 	exclusionPatterns := cfg.BuildExclusions()
 
-	// Log exclusion configuration for debugging
+	// Log the exclusion configuration including the fully resolved pattern list.
+	// The list is logged at INFO (once, at startup) because the effective set is
+	// otherwise impossible to determine from outside the process: the defaults are
+	// compiled in and the network-mount patterns are auto-detected at runtime.
 	log.Info("host SBOM exclusion config",
 		"autoDetectNFS", cfg.AutoDetectNFS,
 		"extraExclusions", len(cfg.ExtraExclusions),
 		"extraNetworkFSTypes", len(cfg.ExtraNetworkFSTypes),
-		"totalPatterns", len(exclusionPatterns))
-	for _, pattern := range exclusionPatterns {
-		log.Debug("exclusion pattern", "pattern", pattern)
-	}
+		"totalPatterns", len(exclusionPatterns),
+		"patterns", strings.Join(exclusionPatterns, ","))
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Info("host SBOM request received")

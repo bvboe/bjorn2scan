@@ -3,6 +3,7 @@ package syft
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/anchore/syft/syft"
 	"github.com/anchore/syft/syft/format"
@@ -124,17 +125,19 @@ func GenerateHostSBOM(ctx context.Context) ([]byte, error) {
 		log.Warn("failed to detect network mounts", "error", err)
 	}
 
-	// Log exclusion configuration for debugging
+	// Log the exclusion configuration including the fully resolved pattern list.
+	// The list is logged at INFO because the effective set is otherwise impossible
+	// to determine from outside the process: the defaults are compiled in and the
+	// network-mount patterns are auto-detected at runtime.
 	log.Info("host SBOM exclusion config",
 		"auto_detect_nfs", hostScanConfig.AutoDetectNFS,
 		"extra_exclusions_count", len(hostScanConfig.ExtraExclusions),
-		"extra_network_fs_types_count", len(hostScanConfig.ExtraNetworkFSTypes))
+		"extra_network_fs_types_count", len(hostScanConfig.ExtraNetworkFSTypes),
+		"exclusion_pattern_count", len(exclusionPatterns),
+		"patterns", strings.Join(exclusionPatterns, ","))
 	log.Info("generating SBOM for host filesystem",
 		"path", hostPath,
 		"exclusion_pattern_count", len(exclusionPatterns))
-	for _, pattern := range exclusionPatterns {
-		log.Debug("exclusion pattern", "pattern", pattern)
-	}
 
 	// Configure source with exclusions for container filesystems
 	cfg := syft.DefaultGetSourceConfig().
