@@ -1,9 +1,12 @@
 package metrics
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +15,9 @@ import (
 	"testing"
 	"time"
 
+	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	metricsv1 "go.opentelemetry.io/proto/otlp/metrics/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestDirectOTLPConfig_Defaults(t *testing.T) {
@@ -863,4 +868,84 @@ func TestNoJSONUsed(t *testing.T) {
 	// This is a compile-time check that json is not imported for marshaling metrics
 	// The json import in this test file is only for testing the error response
 	var _ json.Marshaler // Use json package reference to silence unused import
+}
+
+// TestGzipCompressRoundTrip guards the trap in gzipCompress: gzip.Writer.Close()
+// flushes the final block, so deferring it (the usual reflex, and what errcheck
+// nudges you toward) silently produces a truncated payload that the receiver
+// rejects. Round-tripping a real marshaled MetricsData catches that.
+func TestGzipCompressRoundTrip(t *testing.T) {
+	// Build a payload with the repetition that makes compression worthwhile.
+	metrics := make([]*metricsv1.Metric, 0, 50)
+	for i := 0; i < 50; i++ {
+		metrics = append(metrics, &metricsv1.Metric{
+			Name: "bjorn2scan_image_vulnerability",
+			Data: &metricsv1.Metric_Gauge{Gauge: &metricsv1.Gauge{
+				DataPoints: []*metricsv1.NumberDataPoint{{
+					Attributes: []*commonv1.KeyValue{
+						stringKV("deployment_uuid", "3d740379-6c15-41ba-9f24-ceb30acc5ddf"),
+						stringKV("vulnerability", "CVE-2026-12345"),
+						stringKV("package_name", "golang.org/x/crypto"),
+					},
+					Value: &metricsv1.NumberDataPoint_AsDouble{AsDouble: 1},
+				}},
+			}},
+		})
+	}
+	original, err := proto.Marshal(&metricsv1.MetricsData{
+		ResourceMetrics: []*metricsv1.ResourceMetrics{{
+			ScopeMetrics: []*metricsv1.ScopeMetrics{{Metrics: metrics}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	compressed, err := gzipCompress(original)
+	if err != nil {
+		t.Fatalf("gzipCompress failed: %v", err)
+	}
+	if len(compressed) >= len(original) {
+		t.Errorf("compressed (%d B) not smaller than original (%d B)", len(compressed), len(original))
+	}
+
+	zr, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		t.Fatalf("failed to open gzip reader (truncated payload?): %v", err)
+	}
+	defer func() { _ = zr.Close() }()
+	decompressed, err := io.ReadAll(zr)
+	if err != nil {
+		t.Fatalf("failed to decompress (truncated payload?): %v", err)
+	}
+	if !bytes.Equal(decompressed, original) {
+		t.Errorf("round-trip mismatch: got %d bytes, want %d", len(decompressed), len(original))
+	}
+	// The payload must still be a parseable OTLP message after the round trip.
+	var out metricsv1.MetricsData
+	if err := proto.Unmarshal(decompressed, &out); err != nil {
+		t.Errorf("decompressed payload is not valid OTLP: %v", err)
+	}
+}
+
+// TestGzipEnabled documents the fail-safe: only an explicit "none" disables
+// compression, so an empty or misspelled value keeps the beneficial default.
+func TestGzipEnabled(t *testing.T) {
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{"gzip", true},
+		{"GZIP", true},
+		{"", true},         // unset → default on
+		{"nonsense", true}, // typo → default on rather than silently uncompressed
+		{"none", false},
+		{"NONE", false},
+		{" none ", false},
+	}
+	for _, tt := range tests {
+		if got := gzipEnabled(tt.value); got != tt.want {
+			t.Errorf("gzipEnabled(%q) = %v, want %v", tt.value, got, tt.want)
+		}
+	}
 }

@@ -580,6 +580,7 @@ func main() {
 			Protocol:        metrics.OTELProtocol(cfg.OTELMetricsProtocol),
 			PushInterval:    cfg.OTELMetricsPushInterval,
 			Insecure:        cfg.OTELMetricsInsecure,
+			Compression:     cfg.OTELMetricsCompression,
 			UseDirectExport: cfg.OTELUseDirectExport,
 			DirectBatchSize: cfg.OTELDirectBatchSize,
 		}

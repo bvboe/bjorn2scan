@@ -64,6 +64,7 @@ type Config struct {
 	OTELMetricsProtocol     string // "grpc" or "http"
 	OTELMetricsPushInterval time.Duration
 	OTELMetricsInsecure     bool
+	OTELMetricsCompression  string // "gzip" (default) or "none" — turn off for debugging
 	OTELUseDirectExport     bool // Use direct OTLP export for high-cardinality metrics (bypasses SDK buffering)
 	OTELDirectBatchSize     int  // Batch size for direct export (default 5000)
 
@@ -144,6 +145,7 @@ func defaultConfig() *Config {
 		OTELMetricsProtocol:     "grpc", // Use "http" for Prometheus native OTLP
 		OTELMetricsPushInterval: 15 * time.Minute,
 		OTELMetricsInsecure:     false,
+		OTELMetricsCompression:  "gzip",
 		OTELUseDirectExport:     true, // Bypass SDK buffering for high-cardinality node metrics
 		OTELDirectBatchSize:     5000, // Batch size for direct export
 
@@ -358,6 +360,11 @@ func LoadConfig(path string) (*Config, error) {
 				val := strings.ToLower(section.Key("otel_metrics_insecure").String())
 				cfg.OTELMetricsInsecure = val == "true" || val == "1" || val == "yes"
 			}
+			if section.HasKey("otel_metrics_compression") {
+				if compression, ok := normalizeOTELCompression(section.Key("otel_metrics_compression").String()); ok {
+					cfg.OTELMetricsCompression = compression
+				}
+			}
 			if section.HasKey("otel_use_direct_export") {
 				val := strings.ToLower(section.Key("otel_use_direct_export").String())
 				cfg.OTELUseDirectExport = val == "true" || val == "1" || val == "yes"
@@ -528,6 +535,11 @@ func LoadConfig(path string) (*Config, error) {
 		val := strings.ToLower(insecureEnv)
 		cfg.OTELMetricsInsecure = val == "true" || val == "1" || val == "yes"
 	}
+	if compressionEnv := os.Getenv("OTEL_METRICS_COMPRESSION"); compressionEnv != "" {
+		if compression, ok := normalizeOTELCompression(compressionEnv); ok {
+			cfg.OTELMetricsCompression = compression
+		}
+	}
 	if useDirectExportEnv := os.Getenv("OTEL_USE_DIRECT_EXPORT"); useDirectExportEnv != "" {
 		val := strings.ToLower(useDirectExportEnv)
 		cfg.OTELUseDirectExport = val == "true" || val == "1" || val == "yes"
@@ -615,6 +627,19 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// normalizeOTELCompression validates an OTLP compression setting, returning the
+// canonical lowercase value and whether it was recognised. Unrecognised values are
+// rejected so the caller keeps the default ("gzip") rather than silently sending
+// every payload uncompressed on a typo.
+func normalizeOTELCompression(s string) (string, bool) {
+	switch v := strings.ToLower(strings.TrimSpace(s)); v {
+	case "gzip", "none":
+		return v, true
+	default:
+		return "", false
+	}
 }
 
 // parseCommaSeparated splits a comma-separated string into a slice of trimmed strings.

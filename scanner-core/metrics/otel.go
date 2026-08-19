@@ -23,6 +23,7 @@ type OTELConfig struct {
 	Protocol     OTELProtocol
 	PushInterval time.Duration
 	Insecure     bool
+	Compression  string // "gzip" (default) or "none"
 	// UseDirectExport is deprecated. Direct export is now always used. This field is ignored.
 	UseDirectExport bool
 	DirectBatchSize int // Batch size for direct export (default 5000)
@@ -67,6 +68,7 @@ func NewOTELExporter(
 		Timeout:        30 * time.Second,
 		MaxRetries:     3,
 		Insecure:       config.Insecure,
+		Compression:    config.Compression,
 		ServiceName:    "bjorn2scan",
 		ServiceVersion: infoProvider.GetVersion(),
 		DeploymentName: infoProvider.GetDeploymentName(),

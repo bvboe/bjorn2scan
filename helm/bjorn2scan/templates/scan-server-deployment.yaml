@@ -77,6 +77,8 @@ spec:
           value: {{ .Values.scanServer.config.otelMetrics.pushInterval | quote }}
         - name: OTEL_METRICS_INSECURE
           value: {{ .Values.scanServer.config.otelMetrics.insecure | quote }}
+        - name: OTEL_METRICS_COMPRESSION
+          value: {{ .Values.scanServer.config.otelMetrics.compression | default "gzip" | quote }}
         - name: OTEL_USE_DIRECT_EXPORT
           value: {{ .Values.scanServer.config.otelMetrics.useDirectExport | quote }}
         - name: OTEL_DIRECT_BATCH_SIZE

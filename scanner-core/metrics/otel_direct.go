@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcgzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/protobuf/proto"
 
 	colmetricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
@@ -26,6 +28,7 @@ import (
 type DirectOTLPConfig struct {
 	Endpoint       string        // e.g., "http://prometheus:9090/api/v1/otlp" or "otel-collector:4317"
 	Protocol       string        // "http" or "grpc"
+	Compression    string        // "gzip" (default) or "none"
 	BatchSize      int           // Number of data points per batch (default 5000)
 	Timeout        time.Duration // HTTP timeout per request
 	MaxRetries     int           // Maximum retry attempts (default 3)
@@ -34,6 +37,39 @@ type DirectOTLPConfig struct {
 	ServiceVersion string
 	DeploymentName string
 	DeploymentUUID string
+}
+
+// Supported values for DirectOTLPConfig.Compression. Mirrors the OTEL
+// convention for OTEL_EXPORTER_OTLP_COMPRESSION.
+const (
+	CompressionGzip = "gzip"
+	CompressionNone = "none"
+)
+
+// gzipEnabled reports whether payloads should be gzip-compressed. Anything other
+// than an explicit "none" enables compression, so an empty or unrecognised value
+// keeps the (beneficial) default rather than silently sending uncompressed.
+func gzipEnabled(compression string) bool {
+	return !strings.EqualFold(strings.TrimSpace(compression), CompressionNone)
+}
+
+// gzipCompress returns data gzip-compressed at the default level.
+// The writer must be closed before the buffer is read — deferring the Close
+// would yield a truncated payload.
+func gzipCompress(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw, err := gzip.NewWriterLevel(&buf, gzip.DefaultCompression)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip writer: %w", err)
+	}
+	if _, err := zw.Write(data); err != nil {
+		_ = zw.Close()
+		return nil, fmt.Errorf("failed to gzip metrics payload: %w", err)
+	}
+	if err := zw.Close(); err != nil {
+		return nil, fmt.Errorf("failed to finalize gzip payload: %w", err)
+	}
+	return buf.Bytes(), nil
 }
 
 // DirectOTLPSender is the interface for sending metrics directly via OTLP
@@ -111,6 +147,12 @@ func newGRPCDirectOTLPSender(config DirectOTLPConfig, resource *resourcev1.Resou
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
+	}
+
+	if gzipEnabled(config.Compression) {
+		// Registered by importing google.golang.org/grpc/encoding/gzip. gRPC sets
+		// the grpc-encoding header and negotiates with the server itself.
+		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(grpcgzip.Name)))
 	}
 
 	conn, err := grpc.NewClient(config.Endpoint, opts...)
@@ -191,12 +233,23 @@ func (s *HTTPDirectOTLPSender) sendOnce(ctx context.Context, metrics []*metricsv
 		endpoint += "api/v1/otlp/v1/metrics"
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(data))
+	body := data
+	compressed := gzipEnabled(s.config.Compression)
+	if compressed {
+		if body, err = gzipCompress(data); err != nil {
+			return err
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/x-protobuf")
+	if compressed {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
