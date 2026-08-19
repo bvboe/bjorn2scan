@@ -66,6 +66,48 @@ From the 2026-06-18 follow-up review. These need *new* work, not just default fl
 - [ ] **Self-observability + alerting** — expand operational metrics (queue depth, scan-duration histogram, last-successful-scan age, DB/WAL size) and ship example Prometheus alert rules / SLOs. (Some exist today: `vuln_scan_failed`, `scan_status`.)
 - [ ] **Production deployment guide** (`docs/`) — prod install guide covering resource sizing by cluster size, the singleton/HA constraints, hardening, **documented scale limits** (max images/nodes the SQLite singleton is tested to), and PVC capacity planning. _(On hold 2026-06-28 — planned as new `docs/PRODUCTION.md`: sizing, the SQLite singleton/no-HA constraint + PDB guidance (absorbs the PDB item above), the hardened posture (securityContext + scoped update-controller RBAC + NetworkPolicy), documented scale limits, PVC capacity, and the auto-update/rollback story.)_
 
+### Data & OTEL Architecture (2026-08-19 review)
+
+Full analysis, measurements, options, and trade-offs: **`docs/OTEL-DATA-ARCHITECTURE.md`**.
+Short version: the bottleneck is not the storage engine (reads are already cached,
+staleness is already diff-based) but the **export encoding** — 99.8% of the 666k
+series on kubeadm are per-finding gauges whose value is always 1, forcing 288
+retransmissions/day of data that changes once a day. Measured `/metrics`: kubeadm
+**383 MB / 666,445 series**; chainguard 313 KB / 943 (same code — volume tracks
+finding count). Constraint: aggregating detail away is **not** acceptable as a
+default — carrying full vulnerability detail over OTEL is the project's hypothesis,
+and with agent UIs disabled upstream is the only place to answer "which deployments
+have CVE-X" / "what's in container Y".
+
+**Do first — no fidelity loss, non-breaking:**
+- [ ] **Enable OTLP wire compression** — there is none today (`otel_direct.go` sets only `Content-Type: application/x-protobuf`; the gRPC client sets no compressor). Payload is pathologically compressible (`deployment_uuid` appears in 7 attributes on every one of 666k datapoints). Highest value/effort ratio in this whole list.
+- [ ] **Stop duplicating invariant attributes** — `deployment.name`/`deployment.uuid` are on the OTLP Resource *and* repeated on every datapoint; move everything deployment-invariant to the Resource only.
+
+- [ ] **Delete `deployment_uuid_namespace_image_digest`** — emitted on every image datapoint, **used by zero dashboard panels** (audited 2026-08-19). Non-breaking.
+- [ ] **Fix the dead `deployment_uuid_namespace_image_id` reference** in `docs/grafana-*-dashboard.json` — referenced by dashboards, never emitted by code (drift from an old rename).
+- [ ] **One OTLP Resource per scanned entity** — 83% of payload is node findings carrying 7 per-node invariants (`os_release`, `kernel_version`, `hostname`, `node`, `architecture`, …) on all 630k datapoints. Today there's a single Resource for the whole scan-server, so subject identity is stuffed into every datapoint; OTLP allows multiple `ResourceMetrics` per request. Verify how the target backend surfaces resource attributes first (Prometheus uses `target_info` / `promote_resource_attributes`).
+
+**Breaking — needs a dashboard migration (see the doc's Migration section):**
+- [ ] **Drop the 5 remaining composite `deployment_uuid_*` attributes** — they are Grafana `joinByField` keys (that transform joins on a single field only), not query denormalization. Replace with PromQL `label_join(...)` at query time: same capability, zero wire cost, multi-panel edit. Note these are only ~11% of payload — the node-side Resource fix above is the bigger win. Update `docs/grafana-*-dashboard.json` + `docs/PROMETHEUS_METRICS.md` in lockstep.
+- [ ] **Add the OTLP logs signal for findings** (currently metrics-only) and move to a tiered export: aggregates always on, findings-as-events default on, SBOM opt-in. Preserves both required queries; removes the cardinality penalty.
+- [ ] **Match cadence to change rate** — emit on change + daily resync aligned with the 24h rescan (~288× volume reduction, zero fidelity loss). Requires specifying the delta/resync contract.
+
+**Larger restructuring:**
+- [ ] **Content-address scan results** by `(artifact_digest, grype_db_version)`; instances reference a result. Measures homogeneity rather than assuming it (kubeadm's 6 nodes → 2 distinct package sets), so it stays correct under host-filesystem drift and doubles as a drift detector. Keep per-instance observation timestamps separate from per-content scan timestamps.
+- [ ] **Split hot aggregate tier from cold detail tier** — rollups drive UI/metrics; full findings + SBOM stay as compressed blobs read only for detail pages. Unlocked by the logs-signal work above.
+- [ ] **Decide SBOM-over-OTEL encoding before building it** — a real node SBOM is 15.6 MB; 100 nodes × per-cycle push ≈ 1.5 GB/cycle. Recommended: event carries digest+URI, object storage carries bytes. Note gRPC's 4 MB default max message size.
+- [ ] Consider aligning finding events to **OCSF Vulnerability Finding** + OTel security semantic conventions (ingestible by Splunk/Elastic/Security Lake with no custom mapping).
+- [ ] **Storage engine change: explicitly deferred** — re-measure only after the above. Postgres buys write concurrency we don't need (singleton writer).
+
+**Prerequisite measurements (currently missing — everything above is estimated without them):**
+- [ ] **DB + WAL size metric** — not exported today (see also the Self-observability item above, which lists it).
+- [ ] Distinct `(digest, grype_db)` pairs vs total instance rows → exact dedup ratio.
+- [ ] pprof one push cycle → confirms export-vs-DB split; note ~666k `map[string]string` allocations per cycle in the label builders.
+
+**Schema / migration debt — investigated 2026-08-19, less than it appeared:**
+- The `*_new` tables are **not** leftovers: each is created and `RENAME TO`'d away inside the same migration (standard SQLite table-rewrite idiom — no `ALTER COLUMN`). Actual state is 50 migrations over ~14 coherent tables, documented in `docs/SCANNER-CORE-DESIGN.md`. **No cleanup needed.**
+- [ ] **Squash the migration chain to a single baseline — but bundle it with the data-model redesign, not as standalone cleanup.** A schema reset is a one-time budget; squashing now and restructuring later pays it twice. The wipe-on-mismatch machinery is already the agreed plan for the auto-update rollback item. Real costs: a wipe means full rescan (node scans 30–100s each, 1.5–2 GB peak, OOM history), and rollback across the reset boundary becomes impossible. Strongest argument in favor is reduced upgrade-time risk — the v25 migration bug caused 30k+ pod restarts.
+
 ### Code Quality
 - [x] **[BUG] `sbom-generator-shared` appears with unknown version in SBOM output**
   - [x] Investigate how version is embedded at build time for this module
