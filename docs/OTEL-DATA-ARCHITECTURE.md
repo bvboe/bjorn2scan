@@ -100,21 +100,80 @@ every finding** — `os_release="Ubuntu 24.04.3 LTS"`, `kernel_version`,
 
 **Composite label audit (2026-08-19):**
 
-| Attribute | Emitted | Used by dashboards | Verdict |
-|---|---|---|---|
-| `deployment_uuid_namespace_image_digest` | yes | **0 uses** | **dead — delete** |
-| `deployment_uuid_namespace_image_id` | **no** | 2 refs | **dead dashboard reference** (rename drift) |
-| `deployment_uuid_namespace` | yes | 20 | load-bearing |
-| `deployment_uuid_namespace_pod` | yes | 14 | load-bearing |
-| `deployment_uuid_namespace_pod_container` | yes | 12 | load-bearing |
-| `deployment_uuid_namespace_image` | yes | 4 | load-bearing |
-| `deployment_uuid_host_name` | yes | 2 | load-bearing |
+Classification is by **exact-token** reference and by **kind** of reference.
+Both matter, and getting either wrong flips the verdict — see the two
+methodology notes below.
 
-The load-bearing ones exist as **synthetic join keys for Grafana's
-`joinByField` transformation**, which can only join on a single field — they are
-not query denormalization. Replacing them means constructing the key at query
-time with PromQL `label_join(...)`, which preserves the capability at zero wire
-cost but requires editing many panels.
+| Attribute | Emitted | Functional use | Bytes | Verdict |
+|---|---|---|---|---|
+| `deployment_uuid_namespace_pod_container` | yes | **9 PromQL + the `joinByField` key** | 4.19 MB | needs `label_join` first |
+| `deployment_uuid_namespace_image_digest` | yes | none at all | 5.44 MB | **removable** |
+| `deployment_uuid_namespace_image` | yes | cosmetic only | 3.82 MB | **removable** |
+| `deployment_uuid_namespace_pod` | yes | cosmetic only | 3.48 MB | **removable** |
+| `deployment_uuid_namespace` | yes | cosmetic only | 2.61 MB | **removable** |
+| `deployment_uuid_host_name` | yes | cosmetic only | 2.75 MB | **removable** |
+| `deployment_uuid_namespace_image_id` | **no** | 2 cosmetic refs | — | **dead dashboard reference** (rename drift) |
+
+**Only ONE composite is functional.** All six are emitted by two label builders
+(`buildContainerBaseLabels`, `buildContainerVulnerabilityLabels`), so they appear
+on `image_scanned`, `image_vulnerability`, `image_vulnerability_risk`, and
+`image_vulnerability_exploited` — never on node metrics. All references live in
+the **container dashboard only**; the node dashboard has none. There are no
+Prometheus alert or recording rules in the repo.
+
+*Methodology note 1 — match exact tokens, not substrings.* An earlier revision
+claimed `deployment_uuid_namespace` and `..._pod` each had 9 PromQL uses. They
+have none: both are **prefixes** of `..._pod_container`, so one set of 9
+expressions was counted three times. Use a token-boundary regex
+(`(?<![A-Za-z0-9_])name(?![A-Za-z0-9_])`), not `in`/`grep`.
+
+*Methodology note 2 — classify by kind of reference.* An even earlier revision
+counted raw string hits and marked `_image` and `_host_name` as load-bearing.
+References inside a panel's `organize` transformation (`excludeByName` /
+`indexByName` / `renameByName`) only hide, order, or rename table columns and are
+harmless when the field never arrives — so they do **not** make an attribute
+required. Only `expr` (PromQL) and `joinByField.byField` references are
+functional.
+
+The one functional composite exists as a **synthetic join key for Grafana's
+`joinByField` transformation**, which can only join on a single field — it is not
+query denormalization.
+
+### Measured cost (kubeadm, one scrape of 365.4 MB)
+
+| Group | Bytes | Share |
+|---|---|---|
+| the 5 removable with **no dashboard query changes** | **18.10 MB** | **4.95%** |
+| `deployment_uuid_namespace_pod_container` (needs `label_join` first) | 4.19 MB | 1.15% |
+| **all 6 composites** | **22.28 MB** | **6.10%** |
+
+Note that removing an attribute changes a series' fingerprint, so affected
+series get new identities once. Existing queries keep working (PromQL matches
+only the labels it names), but expect a one-time discontinuity in the TSDB.
+
+### `vulnerability_id` — intentional, do not remove
+
+`vulnerability_id` is `fmt.Sprintf("%s.%d", deploymentUUID, v.VulnID)` where
+`VulnID` is the `INTEGER PRIMARY KEY AUTOINCREMENT` row id. Rescans
+`DELETE`+`INSERT` rather than upsert (`sbom_parser.go:397`, `nodes.go:166/864`),
+and `AUTOINCREMENT` never reuses ids, so the value changes on **every rescan**
+(~daily). Measured on MicroK8s node findings: distinct `vulnerability_id` values
+grow 91,882 (30m) → 160,246 (24h) → 277,886 (3d), while distinct
+`(cve, package, version)` stays flat at ~46,000 — roughly 62k dead series
+accumulating per day on a 2-node cluster. It costs **41.2 MB (11.3%)** per
+scrape and is referenced by zero dashboard panels.
+
+**It is nevertheless deliberate and stays (decision 2026-08-19).** Its purpose is
+to correlate a specific finding *at a specific point in time* across the three
+metric families emitted from the same row (`_vulnerability`, `_risk`,
+`_exploited`); the per-rescan change is what pins it to a scan generation. Do not
+propose deleting it as dead weight.
+
+If a *stable* per-finding identity is ever wanted alongside it, the right
+construction is a content hash of
+`(deployment_uuid, artifact_digest, cve, package_name, package_version)` —
+deterministic across rescans and rebuilds. Option D (content addressing) would
+produce exactly that key as a by-product.
 
 ### Node data is duplicated but *not* guaranteed homogeneous
 
@@ -219,9 +278,12 @@ logs path but needs care for a Prometheus destination.
 
 ### A″. Drop the remaining composite attributes (breaking)
 
-The five load-bearing composites are Grafana `joinByField` keys. Replace with
-PromQL `label_join(...)` at query time — same capability, zero wire cost, but a
-multi-panel dashboard edit. See Migration below.
+The three functional composites (`deployment_uuid_namespace`, `..._pod`,
+`..._pod_container`) are Grafana `joinByField` keys. Replace with PromQL
+`label_join(...)` at query time — same capability, zero wire cost, but a
+multi-panel dashboard edit. See Migration below. The other two
+(`..._namespace_image`, `deployment_uuid_host_name`) need no dashboard work at
+all — see the audit above.
 
 ### B. Use the right OTEL signal per data shape
 
@@ -403,6 +465,45 @@ Suggested path: emit old and new shapes concurrently for one release behind a
 flag, then retire the old. Composite-attribute removal (A3) and the metrics
 family changes (B) are the breaking pieces; A1 (compression) and A2 (Resource
 attributes) are not.
+
+**Composite removal turned out not to need a lockstep migration**, because
+`label_join` can be written to the *same* label name — which overwrites with an
+identical value while the label is still emitted, verified as a no-op. So the
+dashboard change and the code change are fully decoupled: ship either first, in
+either order, with no dual-emit period and no cutover window.
+
+### Status: dashboard side done (2026-08-19)
+
+`docs/grafana-container-dashboard.json` — all 9 expressions now derive
+`deployment_uuid_namespace_pod_container` via `label_join(...)` (9 insertions,
+9 deletions; `joinByField`, `organize`, panels, `schemaVersion`, and `uid`
+untouched). Verified three ways, all identical to the pre-change results
+(233/155/190/166/153/51/126/190/41 series):
+
+1. direct Prometheus, all 9 expressions;
+2. through Grafana's own `/api/ds/query`;
+3. re-read from the edited file.
+
+Also **deployed to the live Grafana** at 192.168.2.57 (uid `adtgfct`, now
+version 2; v1 remains in Grafana's version history for rollback). All 9 panel
+queries return data with no errors.
+
+Two gotchas worth remembering for any future import:
+
+- The committed JSON is Grafana **export format** with `${DS_PROMETHEUS}`
+  placeholders, which only resolve through the import wizard. A raw
+  `POST /api/dashboards/db` of that file leaves every panel pointing at a
+  nonexistent datasource. The deploy was done by applying the rewrite to the
+  **live** dashboard object instead, preserving datasource bindings and version
+  lineage.
+- Grafana here has **no PVC and no external database** (`/var/lib/grafana` is an
+  emptyDir), so the live dashboard is lost whenever that pod is *recreated*. It
+  has survived so far only because the pod has not been replaced since
+  2026-06-22. Provisioning the dashboards as `grafana_dashboard=1` ConfigMaps
+  would fix this; deferred by decision while the dashboard is still changing.
+
+**Phase 2 (removing the six composites from the Go code) is unblocked** — no
+dashboard depends on the emitted labels any more.
 
 ---
 
