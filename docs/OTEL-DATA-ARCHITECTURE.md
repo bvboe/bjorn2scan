@@ -240,6 +240,25 @@ wrong sink for finding-level detail."
 
 ## Options
 
+### Status as of 2026-08-19
+
+| Option | State |
+|---|---|
+| A1 — OTLP wire compression (gzip) | **DONE** (`cac37db`) — configurable, on by default; 50–66× measured |
+| A2 — stop duplicating invariant attributes | **BLOCKED** by the `/metrics` consistency constraint below |
+| A3/A4 — dead composite + dead dashboard ref | **DONE** — folded into the full composite removal |
+| A″ — drop all six composite attributes | **DONE** (`8900d2d`, `0b4154a`) — 22.28 MB / 6.1% |
+| — per-node invariants off vuln metrics | **DONE** (`f12dfcd`) — 46.32 MB / 12.7%, plus ~35 MB less cache memory |
+| A′ — one Resource per scanned entity | **REJECTED** — see below |
+| B — right OTEL signal per data shape | open (the hypothesis work) |
+| C — match cadence to change rate | **open — largest remaining win, and constraint-compatible** |
+| D — content-address scan results | open |
+| E — hot/cold tier split | open (unlocked by B) |
+| F — storage engine change | deferred by decision |
+
+Cumulative shipped reduction before compression: ~68 MB off a 383 MB payload,
+then gzip on the remainder. All of it lands on the next release.
+
 ### A. Free wins — no fidelity loss, no breaking change
 
 1. **Enable OTLP wire compression.** There is none today: the HTTP sender sets
@@ -248,33 +267,88 @@ wrong sink for finding-level detail."
    pathologically compressible given the repetition described above. Expect a
    large multiple for a config change. **Do this regardless of any other
    decision.**
-2. **Stop duplicating invariant attributes.** `deployment.name` and
-   `deployment.uuid` are already on the OTLP Resource *and* repeated on all
-   666k datapoints. Everything invariant per deployment belongs on the Resource
-   only.
+2. **Stop duplicating invariant attributes — BLOCKED, not free after all.**
+   `deployment.name` and `deployment.uuid` are on the OTLP Resource *and*
+   repeated on all 666k datapoints as `deployment_name`/`deployment_uuid`
+   (48.73 MB / 13.3%). Dropping the datapoint copies looks like pure waste
+   elimination, but it is the same mistake as A′: `/metrics` has no Resource to
+   fall back on, so the two paths would report different label sets. Blocked by
+   the consistency constraint below. Listed here as a trap, not a task.
 3. **Delete `deployment_uuid_namespace_image_digest`** — emitted on every image
    datapoint, used by nothing (see the audit above). Non-breaking.
 4. **Fix the dead `deployment_uuid_namespace_image_id` dashboard reference** —
    referenced by the committed dashboards but never emitted by the code; drift
    from an old rename.
 
-### A′. One OTLP Resource per scanned entity (the node-side fix)
+### A′. One OTLP Resource per scanned entity — REJECTED (2026-08-19)
 
-The 83% of payload that is node findings is bloated by seven per-node invariants
-repeated on 630k datapoints. Those cannot move to the current Resource, because
-today there is a **single Resource for the whole scan-server** while the
-telemetry describes *many* nodes and containers — subject identity is not
-producer identity.
+*This option was investigated, measured, and rejected. It is kept here with the
+reasoning so it does not get re-proposed on the strength of its headline number.*
 
-OTLP permits **multiple `ResourceMetrics` per request**. Emitting one Resource
-per scanned entity (node/container), with that entity's attributes on the
-Resource and its findings as datapoints beneath, is the idiomatic modeling and
-would hoist those attributes out of 630k datapoints into ~6 Resources.
+The idea: OTLP permits multiple `ResourceMetrics` per request, and Resource
+attributes are transmitted once per block rather than once per datapoint. Today
+there is a **single Resource for the whole scan-server**, so each of ~630k node
+datapoints repeats the subject's identity. Emitting one Resource per scanned node
+would hoist those attributes into ~6 Resource blocks.
 
-**Verify first:** how the receiving backend surfaces OTLP resource attributes.
-Prometheus handles them specially (`target_info`, or opt-in
-`promote_resource_attributes`), so this is clean for OTLP-native sinks and the
-logs path but needs care for a Prometheus destination.
+Measured prize on kubeadm (live, one scrape of 365.4 MB):
+
+| Scope | Attributes | Bytes | Share |
+|---|---|---|---|
+| Deployment-scoped | `deployment_uuid` (33.09 MB) + `deployment_name` (15.64 MB) | **48.73 MB** | 13.3% |
+| Node-scoped | `node` (14.78) + `hostname` (17.19) + `os_release` (19.25) | **51.22 MB** | 14.0% |
+| **total** | | **99.96 MB** | **27.4%** |
+
+**Why it was rejected — three reasons, in order of decisiveness:**
+
+1. **It is backend-specific by construction.** The point of Resource attributes
+   is that the *receiver* decides how to surface them. Verified empirically
+   against Prometheus 3.12.0: a probe with `node`/`hostname`/`os_release` on the
+   Resource produced a series carrying only
+   `{job, instance, severity, vulnerability}` — the resource attributes were
+   dropped from the series and synthesized into a separate `target_info` series
+   instead. A Collector→Elastic pipeline flattens them onto documents; Splunk
+   differs again. So this does not yield one portable query model, it yields
+   per-backend semantics. Prometheus 3.x can opt in via
+   `promote_resource_attributes`, but requiring receiver-side config in every
+   consumer contradicts the deliberately-unspecified destination.
+2. **`/metrics` cannot express it.** Prometheus text exposition has no Resource
+   concept — every label must appear on every series. Per-entity Resources would
+   make the OTLP push and the `/metrics` scrape describe the same data with
+   *different* label sets. See the consistency constraint below.
+3. **One deployment has many nodes, so the useful half is the blocked half.**
+   The deployment-scoped attributes are genuinely redundant today (the Resource
+   already carries `deployment.uuid`/`deployment.name`; the datapoints repeat
+   them as `deployment_uuid`/`deployment_name`) — but they cannot be dropped
+   from datapoints without breaking `/metrics` consistency. The node-scoped
+   attributes are exactly the ones a single per-deployment Resource cannot
+   carry, so hoisting them requires multi-Resource emission and deepens the
+   divergence.
+
+---
+
+## Design constraint: the OTLP push and `/metrics` must agree
+
+**Any change to the exported shape must produce the same logical data on both the
+OTLP push path and the `/metrics` scrape path.** They are two encodings of one
+model, not two independent products; a consumer must not need different queries
+depending on which path the data arrived by.
+
+This rules out anything that relies on a transport-specific container the other
+path cannot represent — per-entity Resources being the concrete example above.
+It does *not* constrain changes to **what** is generated or **how often** it is
+sent, which is why cadence (option C) and content addressing (option D) remain
+viable while resource-hoisting does not.
+
+A corollary: prefer reductions that are visible identically in both encodings —
+dropping a redundant attribute, deriving a value at query time, sending less
+often — over anything that moves information between structural layers.
+
+### A″. Drop the remaining composite attributes (breaking)
+
+The three functional composites (`deployment_uuid_namespace`, `..._pod`,
+`..._pod_container`) are Grafana `joinByField` keys. Replace with PromQL
+`label_join(...)` at query time — same capability, zero wire cost, but a
 
 ### A″. Drop the remaining composite attributes (breaking)
 
