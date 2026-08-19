@@ -64,11 +64,9 @@ func TestNewMetricsHandler_ReturnsMetrics(t *testing.T) {
 			NodeName:       "node-1",
 			Hostname:       "node-1.local",
 			OSRelease:      "Ubuntu 22.04",
-			KernelVersion:  "5.15.0",
-			Architecture:   "amd64",
 			CVEID:          "CVE-2024-1234",
 			Severity:       "Critical",
-			Risk:          9.8,
+			Risk:           9.8,
 			FixStatus:      "fixed",
 			FixVersion:     "1.0.1",
 			KnownExploited: 1,
@@ -146,5 +144,84 @@ func TestNewMetricsHandler_DisabledNodeMetrics(t *testing.T) {
 	body := w.Body.String()
 	if strings.Contains(body, "bjorn2scan_node_") {
 		t.Error("Should not have node metrics when all node metrics are disabled")
+	}
+}
+
+// TestNodeMetricLabelPlacement pins where the per-node invariants live: they
+// belong on bjorn2scan_node_scanned only, not repeated on every vulnerability
+// datapoint. On a large cluster the vulnerability families carry hundreds of
+// thousands of series, so repeating kernel_version / architecture / instance_type
+// there cost ~46 MB (12.7%) of the payload for no added information —
+// see docs/OTEL-DATA-ARCHITECTURE.md.
+//
+// os_release deliberately stays on the vulnerability families: the node
+// dashboard's "Vulnerabilities by OS" panel does sum by (os_release) directly on
+// them.
+func TestNodeMetricLabelPlacement(t *testing.T) {
+	info := &MockInfoProvider{deploymentName: "test-cluster", deploymentType: "kubernetes", version: "1.0.0"}
+	provider := newMockStreamingProvider()
+	provider.scannedNodes = []nodes.NodeWithStatus{
+		{Node: nodes.Node{
+			Name: "node-1", Hostname: "node-1.local",
+			OSRelease: "Ubuntu 22.04", KernelVersion: "5.15.0", Architecture: "amd64",
+		}},
+	}
+	provider.nodeVulns = []database.NodeVulnerabilityForMetrics{
+		{
+			NodeName: "node-1", Hostname: "node-1.local", OSRelease: "Ubuntu 22.04",
+			CVEID: "CVE-2024-1234", Severity: "Critical", Risk: 9.8,
+			FixStatus: "fixed", FixVersion: "1.0.1", KnownExploited: 1,
+			PackageName: "openssl", PackageVersion: "3.0.2", PackageType: "deb", Count: 1,
+		},
+	}
+	config := UnifiedConfig{
+		NodeScannedEnabled:                true,
+		NodeVulnerabilitiesEnabled:        true,
+		NodeVulnerabilityRiskEnabled:      true,
+		NodeVulnerabilityExploitedEnabled: true,
+	}
+	handler := NewMetricsHandler(info, "test-uuid", provider, config, newTestStalenessStore(provider))
+	w := httptest.NewRecorder()
+	handler(w, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	var nodeScanned, nodeVuln []string
+	for _, line := range strings.Split(w.Body.String(), "\n") {
+		switch {
+		case strings.HasPrefix(line, "bjorn2scan_node_scanned{"):
+			nodeScanned = append(nodeScanned, line)
+		case strings.HasPrefix(line, "bjorn2scan_node_vulnerability"):
+			nodeVuln = append(nodeVuln, line)
+		}
+	}
+	if len(nodeScanned) == 0 || len(nodeVuln) == 0 {
+		t.Fatalf("expected both families to be emitted: node_scanned=%d node_vulnerability=%d",
+			len(nodeScanned), len(nodeVuln))
+	}
+
+	// Per-node invariants must appear ONLY on node_scanned.
+	invariants := []string{"kernel_version", "architecture", "instance_type"}
+	for _, label := range invariants {
+		for _, line := range nodeScanned {
+			if !strings.Contains(line, label+`="`) {
+				t.Errorf("node_scanned must carry %s: %s", label, line)
+			}
+		}
+		for _, line := range nodeVuln {
+			if strings.Contains(line, label+`="`) {
+				t.Errorf("node_vulnerability must NOT carry %s (per-node invariant): %s", label, line)
+			}
+		}
+	}
+
+	// The vulnerability families must still carry what identifies the finding and
+	// what the dashboards join on.
+	required := []string{"node", "hostname", "os_release", "severity", "vulnerability",
+		"package_name", "package_version", "package_type", "fix_status", "fixed_version"}
+	for _, label := range required {
+		for _, line := range nodeVuln {
+			if !strings.Contains(line, label+`="`) {
+				t.Errorf("node_vulnerability must carry %s: %s", label, line)
+			}
+		}
 	}
 }

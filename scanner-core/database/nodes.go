@@ -1440,11 +1440,9 @@ type NodeFilterOptions struct {
 // This struct combines node, package, and vulnerability data in a single row
 type NodeVulnerabilityForMetrics struct {
 	// Node info
-	NodeName      string
-	Hostname      string
-	OSRelease     string
-	KernelVersion string
-	Architecture  string
+	NodeName  string
+	Hostname  string
+	OSRelease string
 	// Vulnerability info
 	VulnID         int64
 	CVEID          string
@@ -1468,8 +1466,6 @@ func (db *DB) GetNodeVulnerabilitiesForMetrics() ([]NodeVulnerabilityForMetrics,
 			n.name,
 			COALESCE(n.hostname, '') as hostname,
 			COALESCE(n.os_release, '') as os_release,
-			COALESCE(n.kernel_version, '') as kernel_version,
-			COALESCE(n.architecture, '') as architecture,
 			nv.id as vuln_id,
 			nv.cve_id,
 			COALESCE(nv.severity, 'Unknown') as severity,
@@ -1496,7 +1492,7 @@ func (db *DB) GetNodeVulnerabilitiesForMetrics() ([]NodeVulnerabilityForMetrics,
 	for rows.Next() {
 		var v NodeVulnerabilityForMetrics
 		err := rows.Scan(
-			&v.NodeName, &v.Hostname, &v.OSRelease, &v.KernelVersion, &v.Architecture,
+			&v.NodeName, &v.Hostname, &v.OSRelease,
 			&v.VulnID, &v.CVEID, &v.Severity, &v.Risk, &v.FixStatus, &v.FixVersion, &v.KnownExploited,
 			&v.PackageName, &v.PackageVersion, &v.PackageType, &v.Count,
 		)
@@ -1544,8 +1540,6 @@ func (db *DB) readNodeVulnsFromDB(callback func(v NodeVulnerabilityForMetrics) e
 			n.name,
 			COALESCE(n.hostname, '') as hostname,
 			COALESCE(n.os_release, '') as os_release,
-			COALESCE(n.kernel_version, '') as kernel_version,
-			COALESCE(n.architecture, '') as architecture,
 			nv.id as vuln_id,
 			nv.cve_id,
 			COALESCE(nv.severity, 'Unknown') as severity,
@@ -1569,7 +1563,7 @@ func (db *DB) readNodeVulnsFromDB(callback func(v NodeVulnerabilityForMetrics) e
 	for rows.Next() {
 		var v NodeVulnerabilityForMetrics
 		if err := rows.Scan(
-			&v.NodeName, &v.Hostname, &v.OSRelease, &v.KernelVersion, &v.Architecture,
+			&v.NodeName, &v.Hostname, &v.OSRelease,
 			&v.VulnID, &v.CVEID, &v.Severity, &v.Risk, &v.FixStatus, &v.FixVersion, &v.KnownExploited,
 			&v.PackageName, &v.PackageVersion, &v.PackageType, &v.Count,
 		); err != nil {

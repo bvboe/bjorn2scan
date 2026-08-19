@@ -1185,12 +1185,9 @@ func TestGetNodeVulnerabilitiesForMetrics(t *testing.T) {
 	if criticalVuln.OSRelease != "Ubuntu 22.04" {
 		t.Errorf("OSRelease = %s, want Ubuntu 22.04", criticalVuln.OSRelease)
 	}
-	if criticalVuln.KernelVersion != "5.15.0-91-generic" {
-		t.Errorf("KernelVersion = %s, want 5.15.0-91-generic", criticalVuln.KernelVersion)
-	}
-	if criticalVuln.Architecture != "amd64" {
-		t.Errorf("Architecture = %s, want amd64", criticalVuln.Architecture)
-	}
+	// kernel_version and architecture are deliberately not carried on node
+	// vulnerability rows — they are per-node invariants that live only on
+	// bjorn2scan_node_scanned. See docs/OTEL-DATA-ARCHITECTURE.md.
 
 	// Verify vulnerability info
 	if criticalVuln.Severity != "Critical" {
