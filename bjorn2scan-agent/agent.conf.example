@@ -178,7 +178,7 @@ otel_metrics_endpoint=localhost:4317
 # Environment variable: OTEL_METRICS_PROTOCOL
 otel_metrics_protocol=grpc
 
-# Metrics push interval (default: 5m)
+# Metrics push interval (default: 15m)
 # Format: Go duration string (e.g., "1m", "5m", "10m")
 # Environment variable: OTEL_METRICS_PUSH_INTERVAL
 otel_metrics_push_interval=15m
