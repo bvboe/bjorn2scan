@@ -1,11 +1,7 @@
 // Package metrics provides Prometheus metrics exposition for bjorn2scan.
 package metrics
 
-import (
-	"fmt"
-)
-
-// containerInfo holds common container information used for building hierarchical labels
+// containerInfo holds common container information used for building metric labels
 type containerInfo struct {
 	NodeName  string
 	Namespace string
@@ -17,27 +13,12 @@ type containerInfo struct {
 	Arch      string
 }
 
-// hierarchicalLabels holds the pre-computed hierarchical label values
-type hierarchicalLabels struct {
-	DeploymentUUIDHostName              string
-	DeploymentUUIDNamespace             string
-	DeploymentUUIDNamespaceImage        string
-	DeploymentUUIDNamespaceImageDigest  string
-	DeploymentUUIDNamespacePod          string
-	DeploymentUUIDNamespacePodContainer string
-}
-
-// buildHierarchicalLabels computes hierarchical labels from deployment UUID and container info
-func buildHierarchicalLabels(deploymentUUID string, info containerInfo) hierarchicalLabels {
-	return hierarchicalLabels{
-		DeploymentUUIDHostName:              fmt.Sprintf("%s.%s", deploymentUUID, info.NodeName),
-		DeploymentUUIDNamespace:             fmt.Sprintf("%s.%s", deploymentUUID, info.Namespace),
-		DeploymentUUIDNamespaceImage:        fmt.Sprintf("%s.%s.%s", deploymentUUID, info.Namespace, info.Reference),
-		DeploymentUUIDNamespaceImageDigest:  fmt.Sprintf("%s.%s.%s", deploymentUUID, info.Namespace, info.Digest),
-		DeploymentUUIDNamespacePod:          fmt.Sprintf("%s.%s.%s", deploymentUUID, info.Namespace, info.Pod),
-		DeploymentUUIDNamespacePodContainer: fmt.Sprintf("%s.%s.%s.%s", deploymentUUID, info.Namespace, info.Pod, info.Name),
-	}
-}
+// Note: the pre-joined "hierarchical" attributes (deployment_uuid_namespace,
+// deployment_uuid_namespace_pod_container, ...) used to be built here and emitted
+// on every container/image datapoint. They were synthetic join keys for Grafana's
+// joinByField transform, which can only join on a single field. Dashboards now
+// derive them at query time with PromQL label_join(...), so they are no longer
+// exported — see docs/OTEL-DATA-ARCHITECTURE.md.
 
 // InfoProvider provides deployment information for metrics labels
 type InfoProvider interface {

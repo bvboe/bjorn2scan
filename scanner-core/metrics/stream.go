@@ -103,25 +103,18 @@ func buildDeploymentLabels(info InfoProvider, deploymentUUID, deploymentName str
 
 // buildContainerBaseLabels creates the common label map for container metrics.
 func buildContainerBaseLabels(deploymentUUID, deploymentName string, info containerInfo) map[string]string {
-	hl := buildHierarchicalLabels(deploymentUUID, info)
 	return map[string]string{
-		"deployment_uuid":                         deploymentUUID,
-		"deployment_name":                         deploymentName,
-		"deployment_uuid_host_name":               hl.DeploymentUUIDHostName,
-		"deployment_uuid_namespace":               hl.DeploymentUUIDNamespace,
-		"deployment_uuid_namespace_image":         hl.DeploymentUUIDNamespaceImage,
-		"deployment_uuid_namespace_image_digest":  hl.DeploymentUUIDNamespaceImageDigest,
-		"deployment_uuid_namespace_pod":           hl.DeploymentUUIDNamespacePod,
-		"deployment_uuid_namespace_pod_container": hl.DeploymentUUIDNamespacePodContainer,
-		"host_name":                               info.NodeName,
-		"namespace":                               info.Namespace,
-		"pod":                                     info.Pod,
-		"container":                               info.Name,
-		"distro":                                  info.OSName,
-		"architecture":                            info.Arch,
-		"image_reference":                         info.Reference,
-		"image_digest":                            info.Digest,
-		"instance_type":                           "CONTAINER",
+		"deployment_uuid": deploymentUUID,
+		"deployment_name": deploymentName,
+		"host_name":       info.NodeName,
+		"namespace":       info.Namespace,
+		"pod":             info.Pod,
+		"container":       info.Name,
+		"distro":          info.OSName,
+		"architecture":    info.Arch,
+		"image_reference": info.Reference,
+		"image_digest":    info.Digest,
+		"instance_type":   "CONTAINER",
 	}
 }
 
@@ -136,33 +129,26 @@ func buildContainerVulnerabilityLabels(deploymentUUID, deploymentName string, v 
 		Digest:    v.Digest,
 		OSName:    v.OSName,
 	}
-	hl := buildHierarchicalLabels(deploymentUUID, info)
 	vulnerabilityID := fmt.Sprintf("%s.%d", deploymentUUID, v.VulnID)
 
 	return map[string]string{
-		"deployment_uuid":                         deploymentUUID,
-		"deployment_name":                         deploymentName,
-		"deployment_uuid_host_name":               hl.DeploymentUUIDHostName,
-		"deployment_uuid_namespace":               hl.DeploymentUUIDNamespace,
-		"deployment_uuid_namespace_image":         hl.DeploymentUUIDNamespaceImage,
-		"deployment_uuid_namespace_image_digest":  hl.DeploymentUUIDNamespaceImageDigest,
-		"deployment_uuid_namespace_pod":           hl.DeploymentUUIDNamespacePod,
-		"deployment_uuid_namespace_pod_container": hl.DeploymentUUIDNamespacePodContainer,
-		"host_name":                               info.NodeName,
-		"namespace":                               info.Namespace,
-		"pod":                                     info.Pod,
-		"container":                               info.Name,
-		"distro":                                  info.OSName,
-		"image_reference":                         info.Reference,
-		"image_digest":                            info.Digest,
-		"instance_type":                           "CONTAINER",
-		"severity":                                v.Severity,
-		"vulnerability":                           v.CVEID,
-		"vulnerability_id":                        vulnerabilityID,
-		"package_name":                            v.PackageName,
-		"package_version":                         v.PackageVersion,
-		"fix_status":                              v.FixStatus,
-		"fixed_version":                           v.FixedVersion,
+		"deployment_uuid":  deploymentUUID,
+		"deployment_name":  deploymentName,
+		"host_name":        info.NodeName,
+		"namespace":        info.Namespace,
+		"pod":              info.Pod,
+		"container":        info.Name,
+		"distro":           info.OSName,
+		"image_reference":  info.Reference,
+		"image_digest":     info.Digest,
+		"instance_type":    "CONTAINER",
+		"severity":         v.Severity,
+		"vulnerability":    v.CVEID,
+		"vulnerability_id": vulnerabilityID,
+		"package_name":     v.PackageName,
+		"package_version":  v.PackageVersion,
+		"fix_status":       v.FixStatus,
+		"fixed_version":    v.FixedVersion,
 	}
 }
 

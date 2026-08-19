@@ -4,6 +4,35 @@
 
 This document describes the Prometheus metrics endpoint implementation for bjorn2scan, enabling monitoring and alerting on vulnerability data.
 
+### Removed labels (2026-08-19) — breaking
+
+The six pre-joined "hierarchical" labels are **no longer exported**:
+
+```
+deployment_uuid_host_name                deployment_uuid_namespace_image_digest
+deployment_uuid_namespace                deployment_uuid_namespace_pod
+deployment_uuid_namespace_image          deployment_uuid_namespace_pod_container
+```
+
+They were synthetic join keys for Grafana's `joinByField` transform (which can
+only join on a single field), and cost ~22 MB — 6.1% — of a large deployment's
+scrape while carrying no information not already present in the atomic labels.
+
+**Migration:** derive them at query time with `label_join`, writing to the same
+label name so nothing else in a dashboard needs to change:
+
+```promql
+sum by(deployment_uuid_namespace_pod_container) (
+  label_join(<your original inner expression>,
+    "deployment_uuid_namespace_pod_container", ".",
+    "deployment_uuid", "namespace", "pod", "container"))
+```
+
+The separator is `.` and the component order matches the old label name, so the
+generated values are byte-identical to what was previously exported. Build any of
+the six the same way from `deployment_uuid`, `namespace`, `pod`, `container`,
+`host_name`, `image_reference`, and `image_digest`.
+
 ## Metrics Endpoint
 
 - **Path**: `/metrics`
@@ -70,12 +99,6 @@ Gauge metric for each container instance (value always 1 per instance). Includes
 
 **Labels**:
 - `deployment_uuid`: Unique deployment identifier
-- `deployment_uuid_host_name`: Hierarchical label combining deployment UUID and host name
-- `deployment_uuid_namespace`: Hierarchical label combining deployment UUID and namespace
-- `deployment_uuid_namespace_image`: Hierarchical label for deployment, namespace, and image
-- `deployment_uuid_namespace_image_digest`: Hierarchical label for deployment, namespace, and image digest
-- `deployment_uuid_namespace_pod`: Hierarchical label for deployment, namespace, and pod
-- `deployment_uuid_namespace_pod_container`: Full hierarchical label for container instance
 - `host_name`: Node where container runs
 - `namespace`: Kubernetes namespace (or "default" for Docker containers)
 - `pod`: Pod name (or "standalone" for Docker containers)
