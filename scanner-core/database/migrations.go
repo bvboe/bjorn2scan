@@ -265,6 +265,11 @@ var migrations = []migration{
 		name:    "node_cve_listing_indexes",
 		up:      migrateToV50,
 	},
+	{
+		version: 51,
+		name:    "scan_status_rank_active_above_pending",
+		up:      migrateToV51,
+	},
 }
 
 // ensureSchemaVersion checks the current schema version and applies necessary migrations
@@ -2922,5 +2927,42 @@ func migrateToV50(conn *sql.DB) error {
 		return fmt.Errorf("failed to create node CVE listing indexes: %w", err)
 	}
 	log.Info("migration v50: node CVE listing indexes created")
+	return nil
+}
+
+// migrateToV51 reorders scan_status so images actively being scanned rank above
+// images merely queued.
+//
+// The original ordering put 'pending' (2) ahead of both in-progress states, so a
+// image at "Retrieving SBOM" sorted below every "Pending scan" row — the opposite
+// of what the list is for. status.sort_order is the first ORDER BY term on the
+// image and container listings, so it decides the grouping the user sees.
+//
+// New ranking is by how far each image has progressed: done, actively scanning,
+// queued, then the terminal failures.
+//
+// It also adds the missing 'sbom_failed' row. That status is written for real —
+// scanning/queue.go sets it on images when SBOM generation fails, and on nodes
+// when the host SBOM retriever fails — but it was never seeded, and the image
+// listing joins scan_status with an inner join. An image whose SBOM generation
+// failed therefore disappeared from the listing and its detail page entirely,
+// rather than showing up as failed.
+func migrateToV51(conn *sql.DB) error {
+	_, err := conn.Exec(`
+		INSERT OR IGNORE INTO scan_status (status, description, sort_order) VALUES
+			('sbom_failed', 'SBOM generation failed', 5);
+
+		UPDATE scan_status SET sort_order = 1 WHERE status = 'completed';
+		UPDATE scan_status SET sort_order = 2 WHERE status = 'scanning_vulnerabilities';
+		UPDATE scan_status SET sort_order = 3 WHERE status = 'generating_sbom';
+		UPDATE scan_status SET sort_order = 4 WHERE status = 'pending';
+		UPDATE scan_status SET sort_order = 5 WHERE status = 'sbom_failed';
+		UPDATE scan_status SET sort_order = 6 WHERE status = 'sbom_unavailable';
+		UPDATE scan_status SET sort_order = 7 WHERE status = 'vuln_scan_failed';
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to reorder scan_status: %w", err)
+	}
+	log.Info("migration v51: ranked in-progress scan statuses above pending, added sbom_failed")
 	return nil
 }

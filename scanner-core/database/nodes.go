@@ -1225,11 +1225,18 @@ func (db *DB) GetNodeSummariesFiltered(filters NodeSummaryFilters) ([]nodes.Node
 
 	// Single pass over node_vulnerabilities using conditional aggregation —
 	// replaces 9 correlated subqueries that each re-scanned the table per node.
+	//
+	// Ordering matches the image listing: scan_status.sort_order first (so nodes
+	// actively being scanned rank above merely queued ones), name as tie-breaker.
+	// The join is a LEFT JOIN, unlike the image listing's inner join — a node whose
+	// status has no scan_status row sorts last instead of disappearing from the
+	// list entirely.
 	query := `
 	SELECT
 		n.name,
 		COALESCE(n.os_release, '') as os_release,
 		COALESCE(n.status, 'unknown') as status,
+		COALESCE(st.sort_order, 999) as status_sort_order,
 		COALESCE(p.package_count, 0) as package_count,
 		COALESCE(v.critical, 0) as critical,
 		COALESCE(v.high, 0) as high,
@@ -1262,8 +1269,9 @@ func (db *DB) GetNodeSummariesFiltered(filters NodeSummaryFilters) ([]nodes.Node
 		SELECT node_id, SUM(number_of_instances) as package_count
 		FROM node_packages
 		GROUP BY node_id
-	) p ON p.node_id = n.id` + nodeWhere + `
-	ORDER BY n.name`
+	) p ON p.node_id = n.id
+	LEFT JOIN scan_status st ON st.status = n.status` + nodeWhere + `
+	ORDER BY COALESCE(st.sort_order, 999), n.name`
 
 	args := make([]interface{}, 0, len(vulnFilterArgs)+len(nodeFilterArgs))
 	args = append(args, vulnFilterArgs...)
@@ -1279,7 +1287,7 @@ func (db *DB) GetNodeSummariesFiltered(filters NodeSummaryFilters) ([]nodes.Node
 	summaries := make([]nodes.NodeSummary, 0)
 	for rows.Next() {
 		var summary nodes.NodeSummary
-		err := rows.Scan(&summary.NodeName, &summary.OSRelease, &summary.Status, &summary.PackageCount, &summary.Critical, &summary.High,
+		err := rows.Scan(&summary.NodeName, &summary.OSRelease, &summary.Status, &summary.StatusSortOrder, &summary.PackageCount, &summary.Critical, &summary.High,
 			&summary.Medium, &summary.Low, &summary.Negligible, &summary.Unknown, &summary.Total, &summary.UniqueCVEs, &summary.TotalRisk, &summary.ExploitCount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan summary row: %w", err)

@@ -96,9 +96,14 @@ type NodeVulnerability struct {
 
 // NodeSummary provides aggregated vulnerability counts by severity
 type NodeSummary struct {
-	NodeName          string  `json:"node_name"`
-	OSRelease         string  `json:"os_release"`
-	Status            string  `json:"status"`
+	NodeName  string `json:"node_name"`
+	OSRelease string `json:"os_release"`
+	Status    string `json:"status"`
+	// StatusSortOrder is scan_status.sort_order for Status, ranking nodes by how
+	// far the scan has progressed. The nodes table is sorted client-side, so this
+	// has to travel to the browser for the listing to group by scan status the way
+	// the image listing does. 999 for a status with no scan_status row.
+	StatusSortOrder   int     `json:"status_sort_order"`
 	StatusDescription string  `json:"status_description"`
 	PackageCount      int     `json:"package_count"`
 	Critical          int     `json:"critical"`

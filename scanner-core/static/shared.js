@@ -478,6 +478,15 @@ async function loadDataTable() {
         if (Array.isArray(data)) {
             items = data.slice();
             items.sort((a, b) => {
+                // Scan status always groups first, ahead of the user's chosen
+                // column — the same rule the server applies to the image and
+                // container listings ("ORDER BY status.sort_order ASC, ..."), so
+                // a node being scanned right now stays above one merely queued
+                // instead of sinking to the bottom on a total_risk sort.
+                if (a.status_sort_order !== b.status_sort_order &&
+                    a.status_sort_order !== undefined && b.status_sort_order !== undefined) {
+                    return a.status_sort_order - b.status_sort_order;
+                }
                 let av = a[sortBy], bv = b[sortBy];
                 if (typeof av === 'string') {
                     av = av.toLowerCase();

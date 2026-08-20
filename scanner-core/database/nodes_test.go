@@ -588,6 +588,96 @@ func TestStoreNodeVulnerabilities_InlinePackageFields(t *testing.T) {
 	}
 }
 
+// TestGetNodeSummariesOrdering verifies the node listing groups by scan progress
+// the same way the image listing does — actively-scanning nodes above merely
+// queued ones — with the node name only as a tie-breaker within a status.
+//
+// Node names are chosen so alphabetical order contradicts status order: if the
+// ORDER BY were still just n.name, "a-pending" would come first.
+func TestGetNodeSummariesOrdering(t *testing.T) {
+	db, cleanup := createTestDB(t)
+	defer cleanup()
+
+	for _, n := range []string{"a-pending", "b-scanning", "c-completed", "d-failed", "e-completed"} {
+		if _, err := db.AddNode(nodes.Node{Name: n, Hostname: n}); err != nil {
+			t.Fatalf("AddNode %s: %v", n, err)
+		}
+	}
+	// a-pending keeps the default "pending" status.
+	for name, status := range map[string]Status{
+		"b-scanning":  StatusGeneratingSBOM,
+		"c-completed": StatusCompleted,
+		"d-failed":    StatusVulnScanFailed,
+		"e-completed": StatusCompleted,
+	} {
+		if err := db.UpdateNodeStatus(name, status, ""); err != nil {
+			t.Fatalf("UpdateNodeStatus %s: %v", name, err)
+		}
+	}
+
+	summaries, err := db.GetNodeSummaries()
+	if err != nil {
+		t.Fatalf("GetNodeSummaries failed: %v", err)
+	}
+
+	// completed (1) < generating_sbom (3) < pending (4) < vuln_scan_failed (7),
+	// with the two completed nodes sorted by name.
+	want := []string{"c-completed", "e-completed", "b-scanning", "a-pending", "d-failed"}
+	if len(summaries) != len(want) {
+		t.Fatalf("Expected %d summaries, got %d", len(want), len(summaries))
+	}
+	for i, name := range want {
+		if summaries[i].NodeName != name {
+			got := make([]string, len(summaries))
+			for j, s := range summaries {
+				got[j] = s.NodeName
+			}
+			t.Fatalf("Node ordering wrong at position %d: want %v, got %v", i, want, got)
+		}
+	}
+}
+
+// TestGetNodeSummariesUnknownStatus verifies a node whose status has no row in
+// the scan_status lookup table still appears in the listing (sorted last) rather
+// than being dropped. The image listing uses an inner join here and does drop
+// such rows; the node listing deliberately uses a LEFT JOIN so a status the table
+// does not know about degrades to bad ordering instead of an invisible node.
+func TestGetNodeSummariesUnknownStatus(t *testing.T) {
+	db, cleanup := createTestDB(t)
+	defer cleanup()
+
+	for _, n := range []string{"known", "unknown"} {
+		if _, err := db.AddNode(nodes.Node{Name: n, Hostname: n}); err != nil {
+			t.Fatalf("AddNode %s: %v", n, err)
+		}
+	}
+	if err := db.UpdateNodeStatus("known", StatusCompleted, ""); err != nil {
+		t.Fatalf("UpdateNodeStatus known: %v", err)
+	}
+	// Write a status that has no scan_status row, bypassing the Status constants.
+	if _, err := db.conn.Exec(`UPDATE nodes SET status = 'some_future_status' WHERE name = 'unknown'`); err != nil {
+		t.Fatalf("Failed to set unknown status: %v", err)
+	}
+
+	summaries, err := db.GetNodeSummaries()
+	if err != nil {
+		t.Fatalf("GetNodeSummaries failed: %v", err)
+	}
+	if len(summaries) != 2 {
+		t.Fatalf("Expected 2 summaries (node with unknown status must not be dropped), got %d", len(summaries))
+	}
+	if summaries[1].NodeName != "unknown" {
+		t.Errorf("Expected the unknown-status node to sort last, got %q", summaries[1].NodeName)
+	}
+	// The rank travels to the browser, which sorts the node table client-side.
+	if summaries[1].StatusSortOrder != 999 {
+		t.Errorf("Unknown status should rank 999, got %d", summaries[1].StatusSortOrder)
+	}
+	if summaries[0].StatusSortOrder != 1 {
+		t.Errorf("Completed status should rank 1, got %d", summaries[0].StatusSortOrder)
+	}
+}
+
 // TestGetNodeSummaries tests getting vulnerability summaries
 func TestGetNodeSummaries(t *testing.T) {
 	db, cleanup := createTestDB(t)
