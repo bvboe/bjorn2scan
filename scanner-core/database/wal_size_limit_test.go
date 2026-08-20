@@ -59,6 +59,63 @@ func TestWALSizeLimitAppliedToEveryConnection(t *testing.T) {
 				"pragma reached only some connections and the WAL can still grow unbounded)",
 				i, limit, walSizeLimitBytes)
 		}
+
+		var busy int64
+		if err := c.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&busy); err != nil {
+			t.Fatalf("Failed to read busy_timeout on connection %d: %v", i, err)
+		}
+		if busy != busyTimeoutMillis {
+			t.Errorf("connection %d: busy_timeout = %d, want %d (a 0 here means the connection "+
+				"gives up on a contended lock immediately instead of waiting)",
+				i, busy, busyTimeoutMillis)
+		}
+	}
+}
+
+// TestSynchronousLeftAtDefault records a deliberate decision, so that a future
+// reader does not "restore" the PRAGMA synchronous = NORMAL line that was removed.
+//
+// synchronous is per-connection, so that line only ever reached 1 of the 5 pooled
+// connections; the other 4 have always run SQLite's FULL default. Making NORMAL
+// universal would reduce durability for no measurable gain, because writes batch
+// into a few large transactions rather than many small commits. If this ever needs
+// revisiting, the number to check first is commit count, not database size.
+func TestSynchronousLeftAtDefault(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "sync_default.db")
+
+	db, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create database: %v", err)
+	}
+	defer func() { _ = Close(db) }()
+
+	ctx := context.Background()
+	conns := make([]*sql.Conn, 0, 5)
+	defer func() {
+		for _, c := range conns {
+			_ = c.Close()
+		}
+	}()
+	for i := 0; i < 5; i++ {
+		c, err := db.conn.Conn(ctx)
+		if err != nil {
+			t.Fatalf("Failed to grab connection %d: %v", i, err)
+		}
+		conns = append(conns, c)
+	}
+
+	// 2 is FULL, SQLite's default. The point is uniformity: every connection
+	// agrees, rather than one differing because a PRAGMA reached only it.
+	const synchronousFull = 2
+	for i, c := range conns {
+		var got int64
+		if err := c.QueryRowContext(ctx, "PRAGMA synchronous").Scan(&got); err != nil {
+			t.Fatalf("Failed to read synchronous on connection %d: %v", i, err)
+		}
+		if got != synchronousFull {
+			t.Errorf("connection %d: synchronous = %d, want %d — connections disagree, which is "+
+				"what a per-connection PRAGMA through the pool causes", i, got, synchronousFull)
+		}
 	}
 }
 

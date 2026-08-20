@@ -249,16 +249,32 @@ func deleteDatabase(dbPath string) error {
 // absolute rather than proportional to the database.
 const walSizeLimitBytes = 256 * 1024 * 1024
 
+// busyTimeoutMillis is how long a connection waits for a lock before giving up
+// with SQLITE_BUSY. Without it the default is 0 — fail immediately.
+//
+// writeMu serializes application writes, so this is not about writers colliding
+// with each other. It matters for the WAL monitor, which checkpoints without
+// taking writeMu while a write transaction can hold SQLite's writer lock for
+// minutes (apply_staleness_diff averages 177s on the kubeadm deployment). At a
+// timeout of 0 a checkpoint landing inside one of those windows fails on the
+// spot, gets logged and skipped, and the WAL keeps growing until the next
+// 30-minute tick. Waiting is strictly better than giving up here.
+const busyTimeoutMillis = 30000
+
 // dsn builds the SQLite connection string.
 //
-// journal_size_limit has to travel in the DSN rather than a PRAGMA statement:
-// it is per-connection, this pool holds 5 (SetMaxOpenConns below), and an Exec
-// through database/sql lands on whichever connection the pool hands out. The
-// checkpoint that consults the limit runs on an arbitrary connection, so setting
-// it once would leave it unset on the connection that actually needs it. The
-// driver applies _pragma to every connection it opens.
+// These pragmas have to travel in the DSN rather than in a PRAGMA statement,
+// because they are per-connection and this pool holds 5 (SetMaxOpenConns below).
+// An Exec through database/sql runs on whichever connection the pool hands out,
+// so a PRAGMA sets the value on exactly one of the five and leaves the rest at
+// their defaults — measured: busy_timeout was 30000 on one connection and 0 on
+// the other four. The connections that need these settings (the checkpointer for
+// journal_size_limit, any writer for busy_timeout) are not the one that ran the
+// statement. The driver applies _pragma on every connection it opens.
 func dsn(dbPath string) string {
-	return "file:" + dbPath + "?_pragma=journal_size_limit(" + strconv.Itoa(walSizeLimitBytes) + ")"
+	return "file:" + dbPath +
+		"?_pragma=journal_size_limit(" + strconv.Itoa(walSizeLimitBytes) + ")" +
+		"&_pragma=busy_timeout(" + strconv.Itoa(busyTimeoutMillis) + ")"
 }
 
 // New creates a new database connection
@@ -299,12 +315,21 @@ func New(dbPath string) (*DB, error) {
 	conn.SetMaxOpenConns(5)
 	conn.SetMaxIdleConns(5)
 
-	// Configure SQLite for better concurrency
-	_, err = conn.Exec(`
-		PRAGMA journal_mode = WAL;
-		PRAGMA busy_timeout = 30000;
-		PRAGMA synchronous = NORMAL;
-	`)
+	// journal_mode is the only pragma set here. It is persistent — stored in the
+	// database header and therefore in force on every connection — unlike the
+	// per-connection ones, which are in the DSN so they reach all 5 connections.
+	//
+	// synchronous used to be set to NORMAL here and was removed rather than moved.
+	// Being per-connection, it only ever applied to 1 of the 5, so 4 connections
+	// have always run SQLite's FULL default, and that is what this workload has in
+	// fact been running on. Making NORMAL universal would trade durability for a
+	// speedup measured at roughly nothing: writes batch into large transactions
+	// (~950 commits in 10 hours on the busiest deployment), so the extra fsync
+	// costs at most tens of seconds against ~3,350 seconds of write time. Left at
+	// the default, explicitly, rather than kept as a line that implies otherwise.
+	//
+	// This Exec is also the corruption probe — see the error handling below.
+	_, err = conn.Exec(`PRAGMA journal_mode = WAL;`)
 	if err != nil {
 		_ = conn.Close()
 
