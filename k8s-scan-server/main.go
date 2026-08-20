@@ -357,9 +357,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start pod watcher - performs initial sync via informer cache then watches for changes
-	go k8s.WatchPods(ctx, clientset, manager)
-
 	// Create pod-scanner client for SBOM routing
 	podScannerClient := podscanner.NewClient()
 
@@ -369,9 +366,6 @@ func main() {
 		logging.For(logging.ComponentK8s).Info("host scanning enabled", "initializing", "node manager")
 		nodeManager = nodes.NewManager()
 		nodeManager.SetDatabase(db)
-
-		// Start node watcher - performs initial sync via informer cache then watches for changes
-		go k8s.WatchNodes(ctx, clientset, nodeManager)
 	}
 
 	// Create SBOM retriever function that uses pod-scanner
@@ -420,6 +414,25 @@ func main() {
 		scanQueue.SetHostSBOMRetriever(hostSBOMRetriever)
 		nodeManager.SetScanQueue(scanQueue)
 		logging.For(logging.ComponentK8s).Info("host scanning configured and ready")
+	}
+
+	// Start the watchers only now that both managers hold the scan queue.
+	//
+	// The watchers used to start before the queue existed, so every AddContainer /
+	// AddNode event delivered during that window hit a nil scanQueue and enqueued
+	// nothing. The two managers then recovered asymmetrically: AddNode re-enqueues
+	// on any later event where the node is new, so a host scan started within
+	// milliseconds of the queue being wired, whereas containers could only be
+	// picked up by CatchUpScans() — which runs after WaitForCacheSync and
+	// ReconcileDB. The single non-preemptible worker therefore committed to a node
+	// scan while the image queue was still empty, defeating the image-first
+	// priority in scanning.JobQueue.worker().
+	//
+	// Starting the watchers last closes that window: both managers enqueue at add
+	// time, so image jobs are present from the first event.
+	go k8s.WatchPods(ctx, clientset, manager)
+	if nodeManager != nil {
+		go k8s.WatchNodes(ctx, clientset, nodeManager)
 	}
 
 	// Initialize scheduler for periodic jobs

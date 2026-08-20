@@ -393,6 +393,23 @@ func main() {
 	// Same for the container × image_vulnerability join.
 	db.StartContainerVulnCacheRefresh(ctx)
 
+	// Start container discovery before enqueuing the host scan. The scan worker is
+	// single-threaded and a job is not preemptible, so whichever job lands first
+	// holds it for its full duration — and a host scan is far slower than an image
+	// scan. Starting the watcher first lets image jobs reach the queue, where
+	// JobQueue.worker() already prefers them.
+	// Check if Docker is available and start watcher
+	if docker.IsDockerAvailable() {
+		logging.For(logging.ComponentContainers).Info("Docker detected, starting container watcher")
+		go func() {
+			if err := docker.WatchContainers(ctx, manager); err != nil {
+				logging.For(logging.ComponentContainers).Error("Docker watcher error", "error", err)
+			}
+		}()
+	} else {
+		logging.For(logging.ComponentContainers).Info("Docker not available or not accessible, container watching disabled")
+	}
+
 	// Configure host scanning if enabled
 	if cfg.HostScanningEnabled {
 		logging.For(logging.ComponentNodes).Info("host scanning enabled, configuring host SBOM retriever")
@@ -467,18 +484,6 @@ func main() {
 			// Enqueue initial host scan
 			scanQueue.EnqueueHostScan(hostname)
 		}()
-	}
-
-	// Check if Docker is available and start watcher
-	if docker.IsDockerAvailable() {
-		logging.For(logging.ComponentContainers).Info("Docker detected, starting container watcher")
-		go func() {
-			if err := docker.WatchContainers(ctx, manager); err != nil {
-				logging.For(logging.ComponentContainers).Error("Docker watcher error", "error", err)
-			}
-		}()
-	} else {
-		logging.For(logging.ComponentContainers).Info("Docker not available or not accessible, container watching disabled")
 	}
 
 	// Initialize auto-updater if enabled

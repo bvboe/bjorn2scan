@@ -218,9 +218,13 @@ func WatchPods(ctx context.Context, clientset kubernetes.Interface, manager *con
 	// (those pods' delete events were missed while the watcher was not running).
 	manager.ReconcileDB()
 
-	// Run catch-up now that all containers are in the manager. Handles images whose
-	// AddContainer events raced with SetScanQueue, and images reset to pending by
-	// ResetInterruptedScans at startup.
+	// Run catch-up now that all containers are in the manager. Handles images reset
+	// to pending by ResetInterruptedScans after an unclean shutdown, and any image
+	// left in scanning/failed.
+	//
+	// It no longer has to cover AddContainer events racing with SetScanQueue: main
+	// wires the scan queue into both managers before starting the watchers, so an
+	// add event can never see a nil queue.
 	manager.CatchUpScans()
 
 	// Block until context is cancelled
