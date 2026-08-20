@@ -229,11 +229,13 @@ func (u *Updater) performUpdate(ctx context.Context, release *Release) error {
 
 	// Pass cleanup function to Install() - it will cleanup after copying the binary but before exit
 	// The defer cleanup (line 175) will still run on error paths
-	if err := installer.Install(extractedPath, downloader.Cleanup); err != nil {
-		return fmt.Errorf("installation failed: %w", err)
-	}
-
-	return nil
+	//
+	// Install() calls os.Exit(0) once the new binary is in place, so it only ever
+	// returns when the install failed. Checking the error against nil would be a
+	// comparison that is always true (staticcheck SA4023) — reaching this point at
+	// all is the failure signal.
+	err = installer.Install(extractedPath, downloader.Cleanup)
+	return fmt.Errorf("installation failed: %w", err)
 }
 
 // Stop stops the updater
