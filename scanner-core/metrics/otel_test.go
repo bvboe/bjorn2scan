@@ -13,11 +13,11 @@ import (
 
 // MockDirectOTLPSender is a test double for DirectOTLPSender.
 type MockDirectOTLPSender struct {
-	mu          sync.Mutex
-	sendCalls   int
-	closeCalls  int
-	allMetrics  [][]*metricsv1.Metric
-	sendErr     error
+	mu         sync.Mutex
+	sendCalls  int
+	closeCalls int
+	allMetrics [][]*metricsv1.Metric
+	sendErr    error
 }
 
 func newMockDirectOTLPSender() *MockDirectOTLPSender {
@@ -44,6 +44,8 @@ func (m *MockDirectOTLPSender) Close() error {
 	m.closeCalls++
 	return nil
 }
+
+func (m *MockDirectOTLPSender) Stats() SenderStats { return SenderStats{} }
 
 func (m *MockDirectOTLPSender) TotalDataPoints() int {
 	m.mu.Lock()

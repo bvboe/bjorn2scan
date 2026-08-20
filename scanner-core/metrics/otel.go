@@ -42,6 +42,11 @@ type OTELExporter struct {
 	infoProvider   InfoProvider
 	deploymentUUID string
 	staleness      *StalenessStore
+
+	// Sender counters are cumulative; these hold the previous reading so each
+	// log line reports the delta for that cycle.
+	lastBytesUncompressed uint64
+	lastBytesCompressed   uint64
 }
 
 // NewOTELExporter creates a new OTEL metrics exporter.
@@ -135,10 +140,12 @@ func (e *OTELExporter) recordMetrics() {
 	cycleStartUnix := cycleStart.Unix()
 	timeUnixNano := uint64(cycleStart.UnixNano())
 
+	stalenessStart := time.Now()
 	staleRows, err := e.staleness.QueryStale(cycleStart)
 	if err != nil {
 		log.Error("failed to query stale metrics for OTEL", "error", err)
 	}
+	stalenessMS := time.Since(stalenessStart).Milliseconds()
 
 	batchSize := e.config.DirectBatchSize
 	if batchSize <= 0 {
@@ -164,7 +171,32 @@ func (e *OTELExporter) recordMetrics() {
 		e.staleness.DeleteExpired(cycleStart)
 	}()
 
-	log.Info("OTEL export complete", "duration_ms", time.Since(cycleStart).Milliseconds())
+	// Collection and sending interleave — a full batch flushes mid-collection — so
+	// wire time is measured inside the accumulator and collection is the remainder.
+	// bytes_compressed is 0 for gRPC, which compresses inside its own framing.
+	batches, points := accumulator.Totals()
+	sendMS := accumulator.SendDuration().Milliseconds()
+	totalMS := time.Since(cycleStart).Milliseconds()
+	stats := e.sender.Stats()
+
+	fields := []any{
+		"duration_ms", totalMS,
+		"staleness_ms", stalenessMS,
+		"send_ms", sendMS,
+		"collect_ms", totalMS - sendMS - stalenessMS,
+		"batches", batches,
+		"data_points", points,
+		"bytes_uncompressed", stats.BytesUncompressed - e.lastBytesUncompressed,
+		"bytes_compressed", stats.BytesCompressed - e.lastBytesCompressed,
+	}
+	if sent := stats.BytesCompressed - e.lastBytesCompressed; sent > 0 {
+		fields = append(fields, "compression_ratio",
+			float64(stats.BytesUncompressed-e.lastBytesUncompressed)/float64(sent))
+	}
+	e.lastBytesUncompressed = stats.BytesUncompressed
+	e.lastBytesCompressed = stats.BytesCompressed
+
+	log.Info("OTEL export complete", fields...)
 }
 
 // Shutdown gracefully shuts down the OTEL exporter

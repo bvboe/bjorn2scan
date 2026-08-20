@@ -428,6 +428,8 @@ func (m *mockDirectSender) Send(_ context.Context, metrics []*metricsv1.Metric) 
 
 func (m *mockDirectSender) Close() error { return nil }
 
+func (m *mockDirectSender) Stats() SenderStats { return SenderStats{} }
+
 func (m *mockDirectSender) totalDataPoints() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -947,5 +949,84 @@ func TestGzipEnabled(t *testing.T) {
 		if got := gzipEnabled(tt.value); got != tt.want {
 			t.Errorf("gzipEnabled(%q) = %v, want %v", tt.value, got, tt.want)
 		}
+	}
+}
+
+// TestHTTPSenderStatsRecordWireVolume checks the byte accounting that the export
+// log line reports. Getting this wrong would be quiet and misleading: the numbers
+// would still look plausible while over- or under-stating the gzip saving.
+func TestHTTPSenderStatsRecordWireVolume(t *testing.T) {
+	var received [][]byte
+	var encodings []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		received = append(received, body)
+		encodings = append(encodings, r.Header.Get("Content-Encoding"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	metrics := []*metricsv1.Metric{{
+		Name: "bjorn2scan_test",
+		Data: &metricsv1.Metric_Gauge{Gauge: &metricsv1.Gauge{
+			DataPoints: []*metricsv1.NumberDataPoint{{
+				Attributes: []*commonv1.KeyValue{
+					stringKV("deployment_uuid", "3d740379-6c15-41ba-9f24-ceb30acc5ddf"),
+					stringKV("vulnerability", "CVE-2026-1"),
+				},
+				Value: &metricsv1.NumberDataPoint_AsDouble{AsDouble: 1},
+			}},
+		}},
+	}}
+
+	for _, tc := range []struct {
+		name           string
+		compression    string
+		wantEncoding   string
+		wantCompressed bool
+	}{
+		{"gzip", CompressionGzip, "gzip", true},
+		{"none", CompressionNone, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			received, encodings = nil, nil
+			sender, err := NewDirectOTLPSender(DirectOTLPConfig{
+				Endpoint: srv.URL, Protocol: "http", Compression: tc.compression, Insecure: true,
+			})
+			if err != nil {
+				t.Fatalf("failed to build sender: %v", err)
+			}
+			if s := sender.Stats(); s.BytesUncompressed != 0 || s.BytesCompressed != 0 {
+				t.Errorf("expected zero stats before sending, got %+v", s)
+			}
+			if err := sender.Send(context.Background(), metrics); err != nil {
+				t.Fatalf("send failed: %v", err)
+			}
+
+			stats := sender.Stats()
+			if len(received) != 1 {
+				t.Fatalf("expected 1 request, got %d", len(received))
+			}
+			if encodings[0] != tc.wantEncoding {
+				t.Errorf("Content-Encoding = %q, want %q", encodings[0], tc.wantEncoding)
+			}
+			// BytesCompressed must equal what the server actually received.
+			if got, want := stats.BytesCompressed, uint64(len(received[0])); got != want {
+				t.Errorf("BytesCompressed = %d, want %d (bytes the server received)", got, want)
+			}
+			if stats.BytesUncompressed == 0 {
+				t.Error("BytesUncompressed should be non-zero")
+			}
+			if tc.wantCompressed {
+				if stats.BytesCompressed >= stats.BytesUncompressed {
+					t.Errorf("compressed (%d) should be < uncompressed (%d)",
+						stats.BytesCompressed, stats.BytesUncompressed)
+				}
+			} else if stats.BytesCompressed != stats.BytesUncompressed {
+				// With compression off the two must agree, or the ratio is a lie.
+				t.Errorf("with compression off, compressed (%d) must equal uncompressed (%d)",
+					stats.BytesCompressed, stats.BytesUncompressed)
+			}
+		})
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
@@ -22,7 +23,6 @@ import (
 
 	colmetricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 )
-
 
 // DirectOTLPConfig holds configuration for direct OTLP export
 type DirectOTLPConfig struct {
@@ -76,6 +76,16 @@ func gzipCompress(data []byte) ([]byte, error) {
 type DirectOTLPSender interface {
 	Send(ctx context.Context, metrics []*metricsv1.Metric) error
 	Close() error
+	// Stats returns cumulative wire volume since the sender was created.
+	Stats() SenderStats
+}
+
+// SenderStats reports how much data a sender has put on the wire. Compressed is
+// 0 when the transport compresses opaquely (gRPC does its own framing), so
+// callers must treat 0 as "unknown", not "nothing sent".
+type SenderStats struct {
+	BytesUncompressed uint64
+	BytesCompressed   uint64
 }
 
 // HTTPDirectOTLPSender sends metrics directly via OTLP HTTP
@@ -83,6 +93,9 @@ type HTTPDirectOTLPSender struct {
 	config     DirectOTLPConfig
 	httpClient *http.Client
 	resource   *resourcev1.Resource
+
+	bytesUncompressed atomic.Uint64
+	bytesCompressed   atomic.Uint64
 }
 
 // GRPCDirectOTLPSender sends metrics directly via OTLP gRPC
@@ -91,6 +104,10 @@ type GRPCDirectOTLPSender struct {
 	conn     *grpc.ClientConn
 	client   colmetricspb.MetricsServiceClient
 	resource *resourcev1.Resource
+
+	// gRPC compresses inside its own framing, so only the pre-compression size
+	// is observable here.
+	bytesUncompressed atomic.Uint64
 }
 
 // NewDirectOTLPSender creates the appropriate sender based on protocol
@@ -240,6 +257,10 @@ func (s *HTTPDirectOTLPSender) sendOnce(ctx context.Context, metrics []*metricsv
 			return err
 		}
 	}
+	// Counted per attempt, so retries are included — these are bytes genuinely
+	// put on the wire, not logical payload size.
+	s.bytesUncompressed.Add(uint64(len(data)))
+	s.bytesCompressed.Add(uint64(len(body)))
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -268,6 +289,14 @@ func (s *HTTPDirectOTLPSender) sendOnce(ctx context.Context, metrics []*metricsv
 // Close closes the HTTP client (no-op for HTTP)
 func (s *HTTPDirectOTLPSender) Close() error {
 	return nil
+}
+
+// Stats reports cumulative wire volume for this sender.
+func (s *HTTPDirectOTLPSender) Stats() SenderStats {
+	return SenderStats{
+		BytesUncompressed: s.bytesUncompressed.Load(),
+		BytesCompressed:   s.bytesCompressed.Load(),
+	}
 }
 
 // Send sends metrics via gRPC with retry logic
@@ -312,6 +341,8 @@ func (s *GRPCDirectOTLPSender) sendOnce(ctx context.Context, metrics []*metricsv
 		},
 	}
 
+	s.bytesUncompressed.Add(uint64(proto.Size(request)))
+
 	_, err := s.client.Export(ctx, request)
 	if err != nil {
 		return fmt.Errorf("gRPC export failed: %w", err)
@@ -326,6 +357,13 @@ func (s *GRPCDirectOTLPSender) Close() error {
 		return s.conn.Close()
 	}
 	return nil
+}
+
+// Stats reports cumulative wire volume. BytesCompressed is 0 because gRPC
+// compresses inside its own framing, where the post-compression size is not
+// visible to the client.
+func (s *GRPCDirectOTLPSender) Stats() SenderStats {
+	return SenderStats{BytesUncompressed: s.bytesUncompressed.Load()}
 }
 
 // DirectOTLPExporter sends metrics directly via OTLP without SDK buffering
@@ -374,7 +412,18 @@ type DirectEmitAccumulator struct {
 	pendingCount int
 	batchesSent  int
 	totalPoints  int
-	err          error // first send error; subsequent Records are no-ops
+	sendDuration time.Duration // cumulative time inside sender.Send
+	err          error         // first send error; subsequent Records are no-ops
+}
+
+// SendDuration reports how much of the cycle was spent in sender.Send. Collection
+// and sending interleave (a full batch flushes mid-collection), so this is the
+// only way to separate wire time from serialisation time.
+func (a *DirectEmitAccumulator) SendDuration() time.Duration { return a.sendDuration }
+
+// Totals reports what was pushed this cycle.
+func (a *DirectEmitAccumulator) Totals() (batches, points int) {
+	return a.batchesSent, a.totalPoints
 }
 
 // NewDirectEmitAccumulator creates an accumulator for a single metrics collection cycle.
@@ -462,7 +511,10 @@ func (a *DirectEmitAccumulator) flush() error {
 		return nil
 	}
 
-	if err := a.sender.Send(a.ctx, metrics); err != nil {
+	sendStart := time.Now()
+	err := a.sender.Send(a.ctx, metrics)
+	a.sendDuration += time.Since(sendStart)
+	if err != nil {
 		return fmt.Errorf("failed to send batch %d: %w", a.batchesSent, err)
 	}
 
