@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -220,11 +221,51 @@ func deleteDatabase(dbPath string) error {
 	return nil
 }
 
+// walSizeLimitBytes caps the WAL file size, so the file cannot keep growing.
+//
+// The truncation fires when the WAL resets — the first write after a checkpoint
+// has merged everything — not at checkpoint time. A measured probe: 1,030,032
+// bytes of WAL, unchanged by wal_checkpoint(FULL), then exactly the limit after a
+// single further insert. That suits this workload, which always has more writes
+// coming; it does mean an idle process keeps its oversized WAL until the next one.
+//
+// Without it the WAL only ever shrinks on the TRUNCATE checkpoints at startup and
+// in Close(). The 30-minute monitor uses wal_checkpoint(FULL), which merges frames
+// but deliberately does not reset the WAL write position (RESTART's exclusive lock
+// was timing out the health check — see StartWALMonitor). While any reader is
+// active, and this process always has one during /metrics streaming and OTEL
+// export reads, writes keep appending instead of rewinding to the start. The
+// kubeadm deployment reached a 1.31GB WAL against a 3.7GB database in 10 hours
+// this way, all of it merged — the cost is crash recovery, which has to replay
+// the whole WAL over NFS before the integrity check even begins.
+//
+// 256MB is sized off write volume, not database size: kubeadm, the busiest
+// deployment, writes ~63MB per 30-minute checkpoint window, so the limit clears
+// its bursts about 4x over and truncation stays rare. Sizing it below the per-
+// window write volume would cause truncate-then-re-extend churn on every
+// checkpoint. Deployments are far from uniform (48MB to 3.5GB databases), but the
+// limit is a ceiling rather than a target, so it is simply inert on the small
+// ones, and the cost it bounds — bytes to replay after an unclean shutdown — is
+// absolute rather than proportional to the database.
+const walSizeLimitBytes = 256 * 1024 * 1024
+
+// dsn builds the SQLite connection string.
+//
+// journal_size_limit has to travel in the DSN rather than a PRAGMA statement:
+// it is per-connection, this pool holds 5 (SetMaxOpenConns below), and an Exec
+// through database/sql lands on whichever connection the pool hands out. The
+// checkpoint that consults the limit runs on an arbitrary connection, so setting
+// it once would leave it unset on the connection that actually needs it. The
+// driver applies _pragma to every connection it opens.
+func dsn(dbPath string) string {
+	return "file:" + dbPath + "?_pragma=journal_size_limit(" + strconv.Itoa(walSizeLimitBytes) + ")"
+}
+
 // New creates a new database connection
 // If the database is corrupted, it will be deleted and recreated
 func New(dbPath string) (*DB, error) {
 	// Try to open the database
-	conn, err := sql.Open("sqlite", dbPath)
+	conn, err := sql.Open("sqlite", dsn(dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -242,7 +283,7 @@ func New(dbPath string) (*DB, error) {
 			}
 
 			// Try again with fresh database
-			conn, err = sql.Open("sqlite", dbPath)
+			conn, err = sql.Open("sqlite", dsn(dbPath))
 			if err != nil {
 				return nil, fmt.Errorf("failed to create new database: %w", err)
 			}
