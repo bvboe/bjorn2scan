@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"helm.sh/helm/v4/pkg/kube"
+
 	"github.com/bvboe/bjorn2scan/k8s-update-controller/config"
 	"github.com/bvboe/bjorn2scan/k8s-update-controller/controller"
 )
@@ -44,7 +46,31 @@ func initLogging() {
 	slog.SetDefault(slog.New(handler))
 }
 
+// helmFieldManager is the managedFields owner this controller applies as.
+//
+// It must stay "helm", matching the Helm CLI, which pins the same value in its own
+// main() — see helm.sh/helm/v4/cmd/helm/helm.go.
+//
+// Helm v4 defaults to server-side apply, which enforces field ownership, and
+// derives the field manager from filepath.Base(os.Args[0]) when it is not set.
+// That made this binary apply as "k8s-update-controller" and conflict with the
+// "helm"-owned labels on every chart resource, failing every upgrade with
+// `conflicts with "helm"` on app.kubernetes.io/version and helm.sh/chart. Helm v3
+// used client-side apply, where ownership is recorded but not enforced, which is
+// why the same code worked before the v4 migration.
+//
+// Pinning it makes this controller and the CLI interchangeable: either can upgrade
+// a release the other created.
+const helmFieldManager = "helm"
+
+// pinHelmFieldManager sets the managedFields owner. Called before any Helm action.
+func pinHelmFieldManager() {
+	kube.ManagedFieldsManager = helmFieldManager
+}
+
 func main() {
+	pinHelmFieldManager()
+
 	// Initialize structured logging from environment variables
 	initLogging()
 

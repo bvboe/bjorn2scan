@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	relcommon "helm.sh/helm/v4/pkg/release/common"
+
 	"github.com/bvboe/bjorn2scan/k8s-update-controller/config"
 )
 
@@ -63,6 +65,33 @@ func (c *Controller) CheckAndUpdate(ctx context.Context) (*UpdateResult, error) 
 		return nil, fmt.Errorf("failed to get current release: %w", err)
 	}
 	result.CurrentVersion = currentRelease.Chart.Metadata.Version
+
+	// A release that is not "deployed" records the version it was trying to reach,
+	// not the one that is running. Taking it at face value is what turns a single
+	// failed upgrade into permanent silence: the recorded version matches the
+	// registry's latest, so every later run reports "up to date" and exits 0 while
+	// the cluster stays on the old release. Fall back to the last revision that
+	// actually deployed, so the retry happens and a persistent failure stays loud.
+	if status := currentRelease.Info.Status; status != relcommon.StatusDeployed {
+		deployedVersion, deployedRevision, ok, err := c.helmClient.LastDeployedVersion()
+		switch {
+		case err != nil:
+			log.Error("release is not deployed and its history could not be read; "+
+				"proceeding with the recorded version, which may be inaccurate",
+				"status", status, "recorded_version", result.CurrentVersion, "error", err)
+		case !ok:
+			log.Error("release is not deployed and no revision in its history ever deployed; "+
+				"proceeding with the recorded version, which may be inaccurate",
+				"status", status, "recorded_version", result.CurrentVersion)
+		default:
+			log.Warn("release is not deployed; using the last deployed revision as the current version",
+				"status", status, "recorded_version", result.CurrentVersion,
+				"actual_version", deployedVersion, "deployed_revision", deployedRevision,
+				"failed_revision", currentRelease.Version)
+			result.CurrentVersion = deployedVersion
+		}
+	}
+
 	log.Info("current version", "version", result.CurrentVersion)
 
 	// 2. List available versions from registry

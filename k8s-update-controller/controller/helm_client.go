@@ -15,7 +15,6 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-
 // HelmClient wraps Helm operations
 type HelmClient struct {
 	namespace   string
@@ -61,6 +60,48 @@ func (hc *HelmClient) GetCurrentRelease() (*release.Release, error) {
 		return nil, fmt.Errorf("unexpected release type %T for %s", rel, hc.releaseName)
 	}
 	return r, nil
+}
+
+// LastDeployedVersion returns the chart version of the most recent revision that
+// actually reached "deployed", along with its revision number.
+//
+// This exists because a failed upgrade still writes a release record stamped with
+// the version it was *trying* to reach. Reading that version back as the current
+// state makes the controller believe an upgrade succeeded when it did not, and
+// since the recorded version then matches the registry's latest, every subsequent
+// run concludes there is nothing to do. One failure turns into permanent silence.
+// The last deployed revision is what is actually running.
+//
+// Returns ok=false when no revision in the retained history ever deployed.
+func (hc *HelmClient) LastDeployedVersion() (version string, revision int, ok bool, err error) {
+	history, err := hc.GetReleaseHistory()
+	if err != nil {
+		return "", 0, false, err
+	}
+	version, revision, ok = lastDeployedFrom(history)
+	return version, revision, ok, nil
+}
+
+// lastDeployedFrom picks the highest-numbered revision with status "deployed".
+// Split out from LastDeployedVersion so the selection can be tested without a
+// cluster. History order is not guaranteed, so this compares revision numbers
+// rather than trusting position, and skips malformed entries instead of panicking
+// on them — this runs in the failure path, where the data is already suspect.
+func lastDeployedFrom(history []*release.Release) (version string, revision int, ok bool) {
+	for _, rel := range history {
+		if rel == nil || rel.Info == nil || rel.Chart == nil || rel.Chart.Metadata == nil {
+			continue
+		}
+		if rel.Info.Status != relcommon.StatusDeployed {
+			continue
+		}
+		if !ok || rel.Version > revision {
+			version = rel.Chart.Metadata.Version
+			revision = rel.Version
+			ok = true
+		}
+	}
+	return version, revision, ok
 }
 
 // UpgradeRelease performs a Helm upgrade

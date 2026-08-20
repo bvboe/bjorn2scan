@@ -15,6 +15,10 @@ CLUSTER_NAME="${CLUSTER_NAME:-bjorn2scan-test}"
 NAMESPACE="${NAMESPACE:-bjorn2scan-test}"
 TEST_VERSION_OLD="${TEST_VERSION_OLD:-0.1.34}"
 TEST_VERSION_NEW="${TEST_VERSION_NEW:-0.1.35}"
+# Chart version the release is installed at. Must be lower than the latest
+# published version so the controller has a genuine upgrade to perform, and share
+# its major so autoUpdateMinor permits it.
+INSTALL_CHART_VERSION="${INSTALL_CHART_VERSION:-2.0.0}"
 TIMEOUT="${TIMEOUT:-600}" # 10 minutes
 
 # Counters
@@ -162,17 +166,26 @@ build_test_images() {
 }
 
 install_bjorn2scan() {
-    log_info "Installing bjorn2scan version $TEST_VERSION_OLD..."
+    log_info "Installing bjorn2scan version $TEST_VERSION_OLD (chart $INSTALL_CHART_VERSION)..."
 
     # Create namespace
     kubectl create namespace "$NAMESPACE"
 
-    # Create values file for test installation
+    # Create values file for test installation.
+    #
+    # digest: "" is load-bearing. The release pipeline pins images by digest in the
+    # published chart, and the template prefers digest over tag, so after the
+    # controller upgrades to the published chart the pods would resolve to
+    # <local-repo>@sha256:<published-digest> — an image that exists nowhere and
+    # cannot be pulled. User-supplied values survive an upgrade, so clearing the
+    # digest here keeps the locally built, kind-loaded images in use on both sides
+    # of the upgrade.
     cat > /tmp/test-values.yaml <<EOF
 scanServer:
   image:
     repository: k8s-scan-server
     tag: "$TEST_VERSION_OLD"
+    digest: ""
     pullPolicy: IfNotPresent
   replicaCount: 1
 
@@ -180,6 +193,7 @@ podScanner:
   image:
     repository: pod-scanner
     tag: "$TEST_VERSION_OLD"
+    digest: ""
     pullPolicy: IfNotPresent
 
 updateController:
@@ -187,6 +201,7 @@ updateController:
   image:
     repository: k8s-update-controller
     tag: "$TEST_VERSION_OLD"
+    digest: ""
     pullPolicy: IfNotPresent
   schedule: "*/2 * * * *"  # Every 2 minutes for testing
   successfulJobsHistoryLimit: 5
@@ -200,8 +215,29 @@ updateController:
     verificationEnabled: false  # Disable for testing
 EOF
 
-    # Install using Helm (without --wait to avoid CronJob pod issues)
-    helm install bjorn2scan ./helm/bjorn2scan \
+    # Package the chart at a deliberately old version so the controller has a real
+    # upgrade to perform against the published registry.
+    #
+    # Installing ./helm/bjorn2scan directly gives the release the repo's current
+    # chart version, which after a release equals the latest published version. The
+    # controller then finds nothing newer, performs no upgrade, and every assertion
+    # about the outcome passes vacuously — which is how a fleet-wide upgrade failure
+    # shipped with this suite green. An update controller test has to actually make
+    # it update.
+    local pkg_dir="/tmp/bjorn2scan-chart-pkg"
+    rm -rf "$pkg_dir" && mkdir -p "$pkg_dir"
+    helm package ./helm/bjorn2scan \
+        --version "$INSTALL_CHART_VERSION" \
+        --app-version "$INSTALL_CHART_VERSION" \
+        -d "$pkg_dir" >/dev/null
+
+    # Install using Helm (without --wait to avoid CronJob pod issues).
+    # Note this is the Helm CLI, which applies as field manager "helm" and — on
+    # Helm v4 — defaults to server-side apply. That is exactly the production
+    # shape: the CLI installs, the controller upgrades. If the controller applies
+    # under a different identity, the upgrade conflicts and the release ends up
+    # "failed", which assert_update_outcome catches.
+    helm install bjorn2scan "$pkg_dir/bjorn2scan-$INSTALL_CHART_VERSION.tgz" \
         -n "$NAMESPACE" \
         -f /tmp/test-values.yaml
 
@@ -251,6 +287,16 @@ verify_installation() {
 test_manual_trigger() {
     log_info "Testing manual update trigger..."
 
+    # Capture the release state before the run so the outcome can be compared
+    # against it afterwards. Asserting only that the Job exits 0 is what let a
+    # fleet-wide upgrade failure ship: the controller's first attempt failed, the
+    # OnFailure restart read the failed release's recorded version, concluded
+    # "up to date", and exited 0. The Job succeeded; nothing had been upgraded.
+    local before_revision before_version
+    before_revision=$(helm list -n "$NAMESPACE" -o json | jq -r '.[0].revision // "0"')
+    before_version=$(helm list -n "$NAMESPACE" -o json | jq -r '.[0].chart // ""' | sed 's/bjorn2scan-//')
+    log_info "Release before trigger: revision=$before_revision version=$before_version"
+
     # Trigger update check manually
     kubectl create job --from=cronjob/bjorn2scan-update-controller \
         "manual-test-$(date +%s)" \
@@ -263,9 +309,12 @@ test_manual_trigger() {
     local job_name=$(kubectl get jobs -n "$NAMESPACE" -l app.kubernetes.io/component=update-controller --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
     assert_not_empty "$job_name" "Update job was created"
 
-    # Wait for job completion (with timeout)
+    # Wait for job completion. The budget covers a real upgrade, not just a version
+    # check: Helm waits for the new pods to become ready, and the controller then
+    # sleeps healthCheckDelay (1m in these values) before its rollback check. A
+    # 120s budget expired mid-upgrade and reported the release as "pending-upgrade".
     local waited=0
-    while [ $waited -lt 120 ]; do
+    while [ $waited -lt 420 ]; do
         local status=$(kubectl get job "$job_name" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || echo "")
         local failed=$(kubectl get job "$job_name" -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo "")
         if [ "$status" = "True" ] || [ "$failed" = "True" ]; then
@@ -308,6 +357,67 @@ test_manual_trigger() {
             TESTS_PASSED=$((TESTS_PASSED + 1))
         else
             log_error "✗ FAIL: Update job did not complete successfully (succeeded='$succeeded')"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+        fi
+    fi
+
+    assert_update_outcome "$before_revision" "$before_version" "$job_name"
+}
+
+# assert_update_outcome checks what the run did to the release, not whether the
+# process exited 0.
+#
+# The load-bearing assertion is the first one: the release must never be left in a
+# non-deployed state. That holds no matter what the controller decided to do — a
+# successful upgrade ends "deployed" at a new revision, and finding no work to do
+# leaves it "deployed" at the same one. A "failed" release is always a bug, and it
+# is exactly what a server-side apply field-manager conflict produces, which is the
+# failure that reached four clusters while this test stayed green.
+assert_update_outcome() {
+    local before_revision="$1"
+    local before_version="$2"
+    local job_name="$3"
+
+    local status after_revision after_version
+    status=$(helm list -n "$NAMESPACE" -o json | jq -r '.[0].status // "missing"')
+    after_revision=$(helm list -n "$NAMESPACE" -o json | jq -r '.[0].revision // "0"')
+    after_version=$(helm list -n "$NAMESPACE" -o json | jq -r '.[0].chart // ""' | sed 's/bjorn2scan-//')
+    log_info "Release after trigger: revision=$after_revision version=$after_version status=$status"
+
+    assert_equals "deployed" "$status" \
+        "Release left in a deployed state (revision $before_revision -> $after_revision)"
+
+    if [ "$status" != "deployed" ]; then
+        log_error "  The update controller left the release in '$status'."
+        log_error "  Helm records the version it was TRYING to reach, so later runs may"
+        log_error "  read it back as current and silently report 'up to date' forever."
+        log_error "  Controller logs:"
+        kubectl logs -l job-name="$job_name" -n "$NAMESPACE" --tail=40 2>/dev/null | sed 's/^/    /' || true
+    fi
+
+    # An upgrade must move both the revision and the chart version together.
+    # A revision bump with an unchanged version means Helm wrote a new record
+    # without the intended chart actually landing.
+    TESTS_RUN=$((TESTS_RUN + 1))
+    if [ "$after_revision" != "$before_revision" ] && [ "$after_version" = "$before_version" ]; then
+        log_error "✗ FAIL: revision advanced $before_revision -> $after_revision but the chart version stayed $after_version"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+    else
+        log_info "✓ PASS: revision and chart version are consistent ($before_revision/$before_version -> $after_revision/$after_version)"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    fi
+
+    # If the controller reported performing an upgrade, the release must show it.
+    # This catches the inverse failure: claiming success while changing nothing.
+    local logs
+    logs=$(kubectl logs -l job-name="$job_name" -n "$NAMESPACE" --tail=200 2>/dev/null || echo "")
+    if echo "$logs" | grep -qi "upgrade completed"; then
+        TESTS_RUN=$((TESTS_RUN + 1))
+        if [ "$after_revision" != "$before_revision" ]; then
+            log_info "✓ PASS: controller reported an upgrade and the revision advanced"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+        else
+            log_error "✗ FAIL: controller logged 'upgrade completed' but the revision stayed at $after_revision"
             TESTS_FAILED=$((TESTS_FAILED + 1))
         fi
     fi
