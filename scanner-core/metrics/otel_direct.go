@@ -86,6 +86,22 @@ type DirectOTLPSender interface {
 type SenderStats struct {
 	BytesUncompressed uint64
 	BytesCompressed   uint64
+
+	// Cumulative time inside each phase of a send. The exporter logs per-cycle
+	// deltas of these.
+	//
+	// Without the split, "send" is one number covering three unrelated costs —
+	// protobuf marshalling, gzip and the HTTP round-trip — which is not enough to
+	// tell a CPU problem from a network one. On a large deployment sending took 18
+	// of a 30-second export, and the total told you nothing about which of the
+	// three to attack.
+	//
+	// Marshal and compress are CPU on the sending pod; HTTP covers the wire plus
+	// however long the receiver takes to accept the batch. They are counted per
+	// attempt, so retries are included — matching the byte counters above.
+	MarshalNanos  uint64
+	CompressNanos uint64
+	HTTPNanos     uint64
 }
 
 // HTTPDirectOTLPSender sends metrics directly via OTLP HTTP
@@ -96,6 +112,10 @@ type HTTPDirectOTLPSender struct {
 
 	bytesUncompressed atomic.Uint64
 	bytesCompressed   atomic.Uint64
+
+	marshalNanos  atomic.Uint64
+	compressNanos atomic.Uint64
+	httpNanos     atomic.Uint64
 }
 
 // GRPCDirectOTLPSender sends metrics directly via OTLP gRPC
@@ -108,6 +128,11 @@ type GRPCDirectOTLPSender struct {
 	// gRPC compresses inside its own framing, so only the pre-compression size
 	// is observable here.
 	bytesUncompressed atomic.Uint64
+
+	// gRPC marshals and compresses inside Export(), so those phases cannot be
+	// timed separately the way they can over HTTP. Everything lands in exportNanos,
+	// which is reported as HTTPNanos.
+	exportNanos atomic.Uint64
 }
 
 // NewDirectOTLPSender creates the appropriate sender based on protocol
@@ -227,7 +252,9 @@ func (s *HTTPDirectOTLPSender) sendOnce(ctx context.Context, metrics []*metricsv
 		},
 	}
 
+	marshalStart := time.Now()
 	data, err := proto.Marshal(request)
+	s.marshalNanos.Add(uint64(time.Since(marshalStart)))
 	if err != nil {
 		return fmt.Errorf("failed to marshal metrics: %w", err)
 	}
@@ -253,7 +280,10 @@ func (s *HTTPDirectOTLPSender) sendOnce(ctx context.Context, metrics []*metricsv
 	body := data
 	compressed := gzipEnabled(s.config.Compression)
 	if compressed {
-		if body, err = gzipCompress(data); err != nil {
+		compressStart := time.Now()
+		body, err = gzipCompress(data)
+		s.compressNanos.Add(uint64(time.Since(compressStart)))
+		if err != nil {
 			return err
 		}
 	}
@@ -272,16 +302,24 @@ func (s *HTTPDirectOTLPSender) sendOnce(ctx context.Context, metrics []*metricsv
 		req.Header.Set("Content-Encoding", "gzip")
 	}
 
+	// Timed around the response body read as well as the round-trip: the receiver
+	// streams its reply, so stopping at Do() would undercount how long Prometheus
+	// actually took to accept the batch.
+	httpStart := time.Now()
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
+		s.httpNanos.Add(uint64(time.Since(httpStart)))
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
+		s.httpNanos.Add(uint64(time.Since(httpStart)))
 		return fmt.Errorf("OTLP export failed with status %d: %s", resp.StatusCode, string(body))
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	s.httpNanos.Add(uint64(time.Since(httpStart)))
 
 	return nil
 }
@@ -291,11 +329,14 @@ func (s *HTTPDirectOTLPSender) Close() error {
 	return nil
 }
 
-// Stats reports cumulative wire volume for this sender.
+// Stats reports cumulative wire volume and per-phase timing for this sender.
 func (s *HTTPDirectOTLPSender) Stats() SenderStats {
 	return SenderStats{
 		BytesUncompressed: s.bytesUncompressed.Load(),
 		BytesCompressed:   s.bytesCompressed.Load(),
+		MarshalNanos:      s.marshalNanos.Load(),
+		CompressNanos:     s.compressNanos.Load(),
+		HTTPNanos:         s.httpNanos.Load(),
 	}
 }
 
@@ -343,7 +384,9 @@ func (s *GRPCDirectOTLPSender) sendOnce(ctx context.Context, metrics []*metricsv
 
 	s.bytesUncompressed.Add(uint64(proto.Size(request)))
 
+	exportStart := time.Now()
 	_, err := s.client.Export(ctx, request)
+	s.exportNanos.Add(uint64(time.Since(exportStart)))
 	if err != nil {
 		return fmt.Errorf("gRPC export failed: %w", err)
 	}
@@ -363,7 +406,12 @@ func (s *GRPCDirectOTLPSender) Close() error {
 // compresses inside its own framing, where the post-compression size is not
 // visible to the client.
 func (s *GRPCDirectOTLPSender) Stats() SenderStats {
-	return SenderStats{BytesUncompressed: s.bytesUncompressed.Load()}
+	// MarshalNanos and CompressNanos stay zero: gRPC does both inside Export(),
+	// so the whole cost is attributed to HTTPNanos rather than guessed at.
+	return SenderStats{
+		BytesUncompressed: s.bytesUncompressed.Load(),
+		HTTPNanos:         s.exportNanos.Load(),
+	}
 }
 
 // DirectOTLPExporter sends metrics directly via OTLP without SDK buffering

@@ -47,6 +47,12 @@ type OTELExporter struct {
 	// log line reports the delta for that cycle.
 	lastBytesUncompressed uint64
 	lastBytesCompressed   uint64
+
+	// Sender counters are cumulative; these hold the previous cycle's values so
+	// each log line reports that cycle's cost rather than a total since startup.
+	lastMarshalNanos  uint64
+	lastCompressNanos uint64
+	lastHTTPNanos     uint64
 }
 
 // NewOTELExporter creates a new OTEL metrics exporter.
@@ -179,10 +185,22 @@ func (e *OTELExporter) recordMetrics() {
 	totalMS := time.Since(cycleStart).Milliseconds()
 	stats := e.sender.Stats()
 
+	// send_ms splits into three unrelated costs. marshal and compress are CPU on
+	// this pod; http is the wire plus however long the receiver takes to accept the
+	// batch. Without the split, a slow export cannot be attributed. Over gRPC only
+	// http_ms is populated, since marshalling and compression happen inside
+	// Export() where they cannot be timed separately.
+	marshalMS := int64(stats.MarshalNanos-e.lastMarshalNanos) / int64(time.Millisecond)
+	compressMS := int64(stats.CompressNanos-e.lastCompressNanos) / int64(time.Millisecond)
+	httpMS := int64(stats.HTTPNanos-e.lastHTTPNanos) / int64(time.Millisecond)
+
 	fields := []any{
 		"duration_ms", totalMS,
 		"staleness_ms", stalenessMS,
 		"send_ms", sendMS,
+		"marshal_ms", marshalMS,
+		"compress_ms", compressMS,
+		"http_ms", httpMS,
 		"collect_ms", totalMS - sendMS - stalenessMS,
 		"batches", batches,
 		"data_points", points,
@@ -195,6 +213,9 @@ func (e *OTELExporter) recordMetrics() {
 	}
 	e.lastBytesUncompressed = stats.BytesUncompressed
 	e.lastBytesCompressed = stats.BytesCompressed
+	e.lastMarshalNanos = stats.MarshalNanos
+	e.lastCompressNanos = stats.CompressNanos
+	e.lastHTTPNanos = stats.HTTPNanos
 
 	log.Info("OTEL export complete", fields...)
 }
