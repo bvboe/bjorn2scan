@@ -3,6 +3,7 @@ package metrics
 import (
 	"bufio"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"math"
 	"time"
@@ -118,6 +119,43 @@ func buildContainerBaseLabels(deploymentUUID, deploymentName string, info contai
 	}
 }
 
+// findingID builds the vulnerability_id label from the identity of the finding
+// rather than from its database row id.
+//
+// The row id was unstable. Rescans delete every vulnerability row for an entity
+// and re-insert it, so identical findings came back under new ids on every scan.
+// Because vulnerability_id is a label, a new id means a new time series: a single
+// grype database update retired and recreated every series in the deployment.
+// Measured in kind, a node rescan reissued all 2,725 node findings (ids
+// 546–3,270 became 3,271–5,995) and 100% of the retired series had a live twin
+// identical in every label except this one — the churn carried no information at
+// all. In production that doubled the exported series for the length of the
+// staleness window and drove a QueryStaleness call to 210 seconds.
+//
+// The inputs must reproduce the grain of the row id they replace, no finer and no
+// coarser. Node ids identify (node, CVE, package, version, type); image ids
+// identify (image, CVE, package, version) and are deliberately shared by every
+// container running that image, so counting distinct ids still counts distinct
+// findings. Both tuples were verified unique against production data.
+//
+// FNV-1a 64-bit, matching HashMetricKey. At ~10⁶ findings the birthday collision
+// probability is ~3×10⁻⁸; a collision would merge two findings in a correlation
+// join for one cycle, which is proportionate for near-realtime correlation.
+// The deployment UUID is kept as a literal prefix rather than hashed in, so the
+// id stays visibly deployment-scoped and cannot collide across deployments.
+func findingID(deploymentUUID string, parts ...string) string {
+	h := fnv.New64a()
+	for i, p := range parts {
+		if i > 0 {
+			// Unit separator: cannot occur in package names, CVE ids or hostnames,
+			// so ("ab","c") and ("a","bc") cannot hash alike.
+			_, _ = h.Write([]byte{0x1f})
+		}
+		_, _ = h.Write([]byte(p))
+	}
+	return fmt.Sprintf("%s.%016x", deploymentUUID, h.Sum64())
+}
+
 // buildContainerVulnerabilityLabels creates labels for container vulnerability metrics.
 func buildContainerVulnerabilityLabels(deploymentUUID, deploymentName string, v database.ContainerVulnerability) map[string]string {
 	info := containerInfo{
@@ -129,7 +167,10 @@ func buildContainerVulnerabilityLabels(deploymentUUID, deploymentName string, v 
 		Digest:    v.Digest,
 		OSName:    v.OSName,
 	}
-	vulnerabilityID := fmt.Sprintf("%s.%d", deploymentUUID, v.VulnID)
+	// Image grain: shared by every container running this image, matching the
+	// image_vulnerabilities row id this replaces.
+	vulnerabilityID := findingID(deploymentUUID,
+		v.Digest, v.CVEID, v.PackageName, v.PackageVersion)
 
 	return map[string]string{
 		"deployment_uuid":  deploymentUUID,
@@ -168,7 +209,9 @@ func buildNodeBaseLabels(deploymentUUID, deploymentName string, node nodes.NodeW
 
 // buildNodeVulnerabilityLabels creates labels for node vulnerability metrics.
 func buildNodeVulnerabilityLabels(deploymentUUID, deploymentName string, v database.NodeVulnerabilityForMetrics) map[string]string {
-	vulnerabilityID := fmt.Sprintf("%s.%d", deploymentUUID, v.VulnID)
+	// Node grain, matching the node_vulnerabilities row id this replaces.
+	vulnerabilityID := findingID(deploymentUUID,
+		v.NodeName, v.CVEID, v.PackageName, v.PackageVersion, v.PackageType)
 	return map[string]string{
 		"deployment_uuid":  deploymentUUID,
 		"deployment_name":  deploymentName,
