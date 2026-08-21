@@ -644,3 +644,117 @@ Real costs to weigh, since "the data is recreatable" is not the same as "free":
   migrations on large tables (slow, WAL-heavy) and upgrade-time risk — the v25
   bug caused 30k+ pod restarts. Fewer migrations reduce that risk, which is the
   strongest argument *for* eventually squashing.
+
+---
+
+## Appendix: v1 (Python) vs v2 (Go), measured side by side
+
+Both versions were run against the same kubeadm cluster, same workloads, on
+2026-08-20 (v1 at `192.168.2.59`, v2 at `192.168.2.58`). v1 source is the `v1`
+branch. This is the most useful benchmark available for the data-model question,
+because it is the same problem solved twice by the same author.
+
+```
+              size      series    families   scrape
+v1 (Python)   39.7 MB    77,799      3        3.8 s
+v2 (Go)      293.4 MB   624,926+     many    16.9 s
+```
+
+### The difference is series count, not encoding
+
+Per-series cost is nearly identical: 436 B/series for v1's main family vs 451 B
+for v2's. v2 is not writing bytes wastefully — it emits ~8× more series. Two
+multipliers account for essentially all of it.
+
+**Both versions find the same vulnerabilities.** Distinct (host, CVE) pairs:
+42,966 in v2, 43,878 in v1 — 2% apart. Useful as an independent correctness
+signal for the rewrite, and it means the volume difference is purely
+representational.
+
+### Multiplier 1 — package granularity (6.8×)
+
+v1 keys host findings by `(instance_type, host_name, distro, vulnerability_id,
+severity, fix_state)` — **no package** — and collapses duplicates into a count
+(`increment_map_counter` in `metrics.py`). Packages are emitted separately, in
+`kubernetes_vulnerability_sbom`, keyed by `(host, name, version, type)`.
+
+So v1 emits two orthogonal projections where v2 emits the cross-product:
+
+```
+v1:  47,304 vuln series +  6,068 sbom series  =  53,372
+v2:                                             290,656
+```
+
+**The trade is real and goes both ways.** v1 cannot attribute a CVE to a package:
+it knows the node has CVE-X and that the node has package Y, but not that X is in
+Y. v2 keeps that link. Anyone proposing the v1 shape for v2 is proposing to drop
+CVE→package attribution — which may be defensible, but must be a decision rather
+than a side effect of chasing bytes.
+
+A hybrid exists and fits the `vulnerability_id` design already in place: emit the
+`(host, CVE)` projection as the primary series, and carry package attribution
+against the correlation ID, so common queries get the cheap shape while the
+detail stays reachable.
+
+### Multiplier 2 — duplicated label sets (2×), fixable for free
+
+`bjorn2scan_node_vulnerability` and `bjorn2scan_node_vulnerability_risk` carry
+**identical 13-label sets** (verified by diffing them), differing only in the
+value — count vs risk score. That is 135 MB spent repeating labels to carry one
+float. The same applies to the image pair.
+
+This is fixable with **no information loss**, and is exactly what the
+`vulnerability_id` correlation ID exists for. Keying `_risk` by
+`{deployment_uuid, vulnerability_id}` alone:
+
+```
+161 B/line  (vs 465 node / 623 image)
+saves 93.9 MB  →  293.4 MB becomes 185.9 MB  (32%)
+```
+
+Note both families carry information — the "presence" metric's value is an
+instance count, frequently >1 — so neither can simply be deleted.
+
+### v1 already shipped SBOM over metrics
+
+18,090 series of `kubernetes_vulnerability_sbom`, keyed by
+`(instance, name, version, type)`. The SBOM-over-OTEL item on this document's
+open list has a working precedent, and it used the cheap projection shape.
+
+### Architecture differences worth weighing
+
+**v1 had no database.** Scan data was a content-addressed directory tree:
+`SCAN_DATA_DIRECTORY/<image_id>/sbom.json` plus `status.txt`. Keyed by digest, so
+deduplication is structural and entries are immutable. Content addressing appears
+on this document's open list; v1 had it by construction. v2's 3.7 GB SQLite on NFS
+is, by contrast, the current bottleneck.
+
+**v1 cached generated metric text**, keyed by cache type and invalidated when
+images or nodes changed (`API_CACHE.get_or_set_strings`). That is emit-on-change,
+also on the open list here.
+
+**v1 used an OpenTelemetry Collector**, scraping the coordinator's `/metrics` via
+the Prometheus receiver and re-exporting OTLP. Push and scrape could not diverge,
+because the push *was* the scrape. v2 maintains two code paths for one model and
+holds them consistent by discipline (see the design constraint above). v2's direct
+push buys control over batching, compression and staleness, and removes a
+component — at the cost of that structural guarantee.
+
+**The composite labels came from v1** (`cluster_name_namespace_image` and
+friends). v2 inherited the pattern and has now shed it.
+
+### Where v2 is clearly better — do not over-learn from v1
+
+| | v1 | v2 |
+|---|---|---|
+| coordinator / scan-server RSS | 1,308 Mi | 354 Mi |
+| pod-scanner RSS | 98–299 Mi | 10–20 Mi |
+| resource limits | none (`{}`) | 2 CPU / 4 Gi |
+| persistence | no volumes — lost on restart | 15 Gi PVC |
+| metric metadata | no `# TYPE` / `# HELP` | full |
+| CVE→package attribution | lost | preserved |
+
+v1's coordinator uses 3.7× the memory with no ceiling, its pod-scanners ~10×, and
+it rescans everything after any restart. v2 is the better-engineered system. It is
+specifically the *data model* that became more expensive — which is the thing this
+document exists to fix.
