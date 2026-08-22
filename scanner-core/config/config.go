@@ -375,6 +375,11 @@ func LoadConfig(path string) (*Config, error) {
 					cfg.OTELDirectBatchSize = batchSize
 				}
 			}
+			if section.HasKey("otel_send_concurrency") {
+				if c, err := strconv.Atoi(section.Key("otel_send_concurrency").String()); err == nil && c > 0 {
+					cfg.OTELSendConcurrency = c
+				}
+			}
 
 			// Individual metric toggles
 			if section.HasKey("metrics_deployment_enabled") {

@@ -83,6 +83,8 @@ spec:
           value: {{ .Values.scanServer.config.otelMetrics.useDirectExport | quote }}
         - name: OTEL_DIRECT_BATCH_SIZE
           value: {{ .Values.scanServer.config.otelMetrics.directBatchSize | quote }}
+        - name: OTEL_SEND_CONCURRENCY
+          value: {{ .Values.scanServer.config.otelMetrics.sendConcurrency | quote }}
         - name: METRICS_DEPLOYMENT_ENABLED
           value: {{ .Values.scanServer.config.metrics.deploymentEnabled | quote }}
         - name: METRICS_SCANNED_INSTANCES_ENABLED

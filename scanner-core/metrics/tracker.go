@@ -140,24 +140,6 @@ func (s *StalenessStore) Apply(rec *diffRecorder, cycleStart time.Time) error {
 	return nil
 }
 
-// ApplyDiff applies a diff from a fully materialized set of rows.
-//
-// Production collects through a recorder instead (see Apply), which avoids
-// building a row per series. This remains for callers that already hold every
-// row — currently the tests — and is a thin wrapper so that both paths exercise
-// the same diff logic rather than drifting apart.
-func (s *StalenessStore) ApplyDiff(currentRows []database.StalenessRow, cycleStart time.Time) error {
-	rec := s.NewRecorder()
-	for i := range currentRows {
-		h := database.HashMetricKey(currentRows[i].MetricKey)
-		currentRows[i].KeyHash = h
-		if rec.Observe(h) {
-			rec.Materialize(currentRows[i])
-		}
-	}
-	return s.Apply(rec, cycleStart)
-}
-
 // DeleteExpired removes staleness rows whose expiry has passed. Skipped entirely
 // when no in-memory entry has an expiry ≤ cycleStart, which avoids the per-cycle
 // DELETE statement against NFS in the steady state.

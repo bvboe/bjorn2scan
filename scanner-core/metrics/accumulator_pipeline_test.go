@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	metricsv1 "go.opentelemetry.io/proto/otlp/metrics/v1"
 )
 
@@ -255,6 +254,3 @@ func TestContextCancellationUnblocksProducer(t *testing.T) {
 		t.Fatal("producer did not unblock after context cancellation")
 	}
 }
-
-// unusedKV keeps the commonv1 import honest if the helpers above change shape.
-var _ = commonv1.KeyValue{}

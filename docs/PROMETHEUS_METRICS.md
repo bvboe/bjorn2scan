@@ -130,6 +130,16 @@ the push.
   when inspecting payloads on the wire during debugging.
 - `METRICS_STALENESS_WINDOW` — how long a data point stays valid before it is
   considered stale (default `60m`)
+- `OTEL_DIRECT_BATCH_SIZE` — data points per request (default `5000`). Measured
+  and found not to be a useful lever; larger batches raise peak memory because a
+  whole batch is buffered before marshalling.
+- `OTEL_SEND_CONCURRENCY` — batches marshalled, compressed and in flight at once
+  (default `2`). This is the single biggest throughput knob: on a ~508k-point
+  workload, 1 took 4,561 ms, 2 took 2,570 ms and 4 took 2,356 ms. **Raising it
+  pushes the receiver harder** — per-batch ingest went 24 → 45 ms across that
+  sweep — so it costs a shared Prometheus more than it costs the scanner. 2 also
+  matches the scan server's 2-core limit, beyond which the extra senders mostly
+  contend.
 
 **Resource attributes.** Every push sets resource attributes once per batch
 rather than repeating them as labels on each data point. Be aware of how the

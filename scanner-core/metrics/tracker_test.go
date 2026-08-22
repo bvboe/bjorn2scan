@@ -177,7 +177,27 @@ func TestStalenessStore_QueryStale_Empty(t *testing.T) {
 	}
 }
 
-// ── ApplyDiff ────────────────────────────────────────────────────────────────
+// applyDiffForTest feeds a fully materialized set of rows through the recorder
+// and applies it.
+//
+// Production collects straight into a recorder and never builds the full row set
+// (that was the point of the change — see StalenessRecorder), so this shape only
+// exists for tests. It lives here rather than on StalenessStore so the production
+// surface stays exactly what production uses, and it deliberately routes through
+// Apply so these tests still exercise the real diff logic.
+func applyDiffForTest(s *StalenessStore, rows []database.StalenessRow, cycleStart time.Time) error {
+	rec := s.NewRecorder()
+	for i := range rows {
+		h := database.HashMetricKey(rows[i].MetricKey)
+		rows[i].KeyHash = h
+		if rec.Observe(h) {
+			rec.Materialize(rows[i])
+		}
+	}
+	return s.Apply(rec, cycleStart)
+}
+
+// ── staleness diff ───────────────────────────────────────────────────────────
 
 func TestApplyDiff_NewMetrics(t *testing.T) {
 	db := &mockStalenessDB{} // empty DB
@@ -188,7 +208,7 @@ func TestApplyDiff_NewMetrics(t *testing.T) {
 		{MetricKey: "m2", FamilyName: "f1", LabelsJSON: `{}`},
 	}
 
-	if err := s.ApplyDiff(current, time.Now()); err != nil {
+	if err := applyDiffForTest(s, current, time.Now()); err != nil {
 		t.Fatalf("ApplyDiff failed: %v", err)
 	}
 
@@ -215,7 +235,7 @@ func TestApplyDiff_StableCluster_NoWrites(t *testing.T) {
 		{MetricKey: "m2", FamilyName: "f1", LabelsJSON: `{}`},
 	}
 
-	if err := s.ApplyDiff(current, time.Now()); err != nil {
+	if err := applyDiffForTest(s, current, time.Now()); err != nil {
 		t.Fatalf("ApplyDiff failed: %v", err)
 	}
 
@@ -243,7 +263,7 @@ func TestApplyDiff_DisappearedMetric(t *testing.T) {
 	}
 
 	cycleStart := time.Unix(2000000, 0)
-	if err := s.ApplyDiff(current, cycleStart); err != nil {
+	if err := applyDiffForTest(s, current, cycleStart); err != nil {
 		t.Fatalf("ApplyDiff failed: %v", err)
 	}
 
@@ -275,7 +295,7 @@ func TestApplyDiff_ReappearedMetric(t *testing.T) {
 		{MetricKey: "m1", FamilyName: "f1", LabelsJSON: `{}`},
 	}
 
-	if err := s.ApplyDiff(current, time.Now()); err != nil {
+	if err := applyDiffForTest(s, current, time.Now()); err != nil {
 		t.Fatalf("ApplyDiff failed: %v", err)
 	}
 

@@ -209,6 +209,11 @@ otel_use_direct_export=true
 # with the Helm chart.
 otel_direct_batch_size=5000
 
+# Batches marshalled, compressed and in flight at once. See
+# metrics.DefaultSendConcurrency for the measurements; keep in sync with the
+# Helm chart.
+otel_send_concurrency=2
+
 # ============================================================================
 # INDIVIDUAL METRIC TOGGLES
 # ============================================================================

@@ -129,6 +129,13 @@ scanServer:
       # larger batches raise peak memory, which is the binding constraint.
       # Keep in sync with metrics.DefaultDirectBatchSize and agent.conf.example.
       directBatchSize: 5000
+      # Batches marshalled, compressed and in flight at once. Measured at
+      # ~508k data points: 1 -> 4561 ms, 2 -> 2570 ms, 4 -> 2356 ms. 2 captures
+      # nearly all of it and matches the scan server's 2-core limit; higher
+      # values push the receiver harder (per-batch ingest rose 24 -> 45 ms) for
+      # little gain. Raise only if your backend ingests faster than Prometheus.
+      # Keep in sync with metrics.DefaultSendConcurrency and agent.conf.example.
+      sendConcurrency: 2
 
     # Individual Metric Toggles
     metrics:
