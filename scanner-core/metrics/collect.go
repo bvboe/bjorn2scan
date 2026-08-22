@@ -24,23 +24,22 @@ var familyMeta = map[string][2]string{
 	"bjorn2scan_node_vulnerability_exploited":  {"Bjorn2scan known exploited vulnerabilities (CISA KEV) on nodes", "gauge"},
 }
 
-// defaultCollectBatchSize is the number of staleness rows accumulated before onBatchFull fires.
-const defaultCollectBatchSize = 1000
-
 // collectMetrics drives one pass over all enabled metric data sources, calling emit for
 // each live data point and, after all live data is processed, for each genuinely stale
 // metric (value = math.NaN()).
 //
 // Staleness tracking:
-//   - Each live point is added to the staleness batch with lastSeenUnix = cycleStartUnix.
-//   - When the batch reaches batchSize, onBatchFull(batch) is called and the batch is reset.
-//     Pass nil for onBatchFull to disable mid-stream flushing (Prometheus path).
-//   - NaN points are NOT added to the batch — they signal removal, not presence.
+//   - Every live point is reported to the recorder, which decides whether the
+//     full row needs materializing. In a steady cluster the answer is no, so the
+//     labels JSON is never built.
+//   - NaN points are NOT reported — they signal removal, not presence.
 //   - Stale rows whose key was also emitted as a live point this cycle are suppressed;
 //     this prevents NaN from overwriting a live value when the same metric appears in
 //     both the stale query result and the current collection pass.
 //
-// Returns the remaining partial batch for the caller to flush at their preferred time.
+// Staleness rows are handed to the recorder rather than accumulated here, so the
+// per-cycle cost is proportional to what changed rather than to the total series
+// count. See StalenessRecorder for why that matters.
 func collectMetrics(
 	provider StreamingProvider,
 	config UnifiedConfig,
@@ -48,39 +47,36 @@ func collectMetrics(
 	deploymentUUID, deploymentName string,
 	cycleStartUnix int64,
 	staleRows []database.StalenessRow,
-	batchSize int,
+	recorder StalenessRecorder,
 	emit func(familyName, help string, labels map[string]string, value float64),
-	onBatchFull func([]database.StalenessRow),
-) ([]database.StalenessRow, error) {
-	if batchSize <= 0 {
-		batchSize = defaultCollectBatchSize
-	}
-
-	// liveKeys tracks every metric key emitted as a live value in this cycle.
-	// Used to suppress NaN for metrics that are still active.
-	liveKeys := make(map[string]struct{})
-	var batch []database.StalenessRow
-
-	// record emits one live data point and queues it for staleness tracking.
+) error {
+	// record emits one live data point and reports it for staleness tracking.
+	//
+	// The metric key is built and hashed for every series, but the JSON encoding
+	// of the labels — the expensive part, ~440 bytes per series — is produced only
+	// when the recorder says the row must be written. In a steady cluster that is
+	// almost never, so the marshalling and the retained row disappear from the
+	// hot path entirely.
 	record := func(familyName string, labels map[string]string, value float64) error {
 		help := familyMeta[familyName][0]
 		emit(familyName, help, labels, value)
+
+		key := generateMetricKey(familyName, labels)
+		keyHash := database.HashMetricKey(key)
+		if !recorder.Observe(keyHash) {
+			return nil
+		}
 
 		labelsJSON, err := json.Marshal(labels)
 		if err != nil {
 			return fmt.Errorf("failed to marshal labels: %w", err)
 		}
-		key := generateMetricKey(familyName, labels)
-		liveKeys[key] = struct{}{}
-		batch = append(batch, database.StalenessRow{
+		recorder.Materialize(database.StalenessRow{
 			MetricKey:  key,
 			FamilyName: familyName,
 			LabelsJSON: string(labelsJSON),
+			KeyHash:    keyHash,
 		})
-		if onBatchFull != nil && len(batch) >= batchSize {
-			onBatchFull(batch)
-			batch = batch[:0]
-		}
 		return nil
 	}
 
@@ -88,7 +84,7 @@ func collectMetrics(
 	if config.DeploymentEnabled {
 		labels := buildDeploymentLabels(infoProvider, deploymentUUID, deploymentName)
 		if err := record("bjorn2scan_deployment", labels, 1); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -107,7 +103,7 @@ func collectMetrics(
 			}
 			return record("bjorn2scan_image_scanned", buildContainerBaseLabels(deploymentUUID, deploymentName, info), 1)
 		}); err != nil {
-			return nil, fmt.Errorf("streaming scanned containers: %w", err)
+			return fmt.Errorf("streaming scanned containers: %w", err)
 		}
 	}
 
@@ -133,7 +129,7 @@ func collectMetrics(
 			}
 			return nil
 		}); err != nil {
-			return nil, fmt.Errorf("streaming container vulnerabilities: %w", err)
+			return fmt.Errorf("streaming container vulnerabilities: %w", err)
 		}
 	}
 
@@ -141,7 +137,7 @@ func collectMetrics(
 	if config.ImageScanStatusEnabled {
 		statusCounts, err := provider.GetImageScanStatusCounts()
 		if err != nil {
-			return nil, fmt.Errorf("getting image scan status counts: %w", err)
+			return fmt.Errorf("getting image scan status counts: %w", err)
 		}
 		for _, sc := range statusCounts {
 			labels := map[string]string{
@@ -149,7 +145,7 @@ func collectMetrics(
 				"scan_status":     sc.Status,
 			}
 			if err := record("bjorn2scan_image_scan_status", labels, float64(sc.Count)); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
@@ -158,11 +154,11 @@ func collectMetrics(
 	if config.NodeScannedEnabled {
 		nodeList, err := provider.GetScannedNodes()
 		if err != nil {
-			return nil, fmt.Errorf("getting scanned nodes: %w", err)
+			return fmt.Errorf("getting scanned nodes: %w", err)
 		}
 		for _, node := range nodeList {
 			if err := record("bjorn2scan_node_scanned", buildNodeBaseLabels(deploymentUUID, deploymentName, node), 1); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
@@ -171,7 +167,7 @@ func collectMetrics(
 	if config.NodeScanStatusEnabled {
 		statusCounts, err := provider.GetNodeScanStatusCounts()
 		if err != nil {
-			return nil, fmt.Errorf("getting node scan status counts: %w", err)
+			return fmt.Errorf("getting node scan status counts: %w", err)
 		}
 		for _, sc := range statusCounts {
 			labels := map[string]string{
@@ -179,7 +175,7 @@ func collectMetrics(
 				"scan_status":     sc.Status,
 			}
 			if err := record("bjorn2scan_node_scan_status", labels, float64(sc.Count)); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
@@ -206,7 +202,7 @@ func collectMetrics(
 			}
 			return nil
 		}); err != nil {
-			return nil, fmt.Errorf("streaming node vulnerabilities: %w", err)
+			return fmt.Errorf("streaming node vulnerabilities: %w", err)
 		}
 	}
 
@@ -214,7 +210,7 @@ func collectMetrics(
 	// Skip any metric that was also emitted as a live value this cycle. Those rows appear
 	// stale only because QueryStale runs before the live flush updates last_seen_unix.
 	for _, row := range staleRows {
-		if _, isLive := liveKeys[row.MetricKey]; isLive {
+		if recorder.IsLive(database.HashMetricKey(row.MetricKey)) {
 			continue
 		}
 		var labels map[string]string
@@ -227,5 +223,5 @@ func collectMetrics(
 		emit(row.FamilyName, help, labels, math.NaN())
 	}
 
-	return batch, nil
+	return nil
 }

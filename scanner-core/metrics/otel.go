@@ -159,10 +159,10 @@ func (e *OTELExporter) recordMetrics() {
 	}
 
 	accumulator := NewDirectEmitAccumulator(e.ctx, e.sender, batchSize, timeUnixNano)
+	recorder := e.staleness.NewRecorder()
 
-	remaining, err := collectMetrics(e.provider, e.unifiedConfig, e.infoProvider, e.deploymentUUID,
-		deploymentName, cycleStartUnix, staleRows, 0, accumulator.Record, nil)
-	if err != nil {
+	if err := collectMetrics(e.provider, e.unifiedConfig, e.infoProvider, e.deploymentUUID,
+		deploymentName, cycleStartUnix, staleRows, recorder, accumulator.Record); err != nil {
 		log.Error("error collecting metrics for OTEL", "error", err)
 	}
 
@@ -171,7 +171,7 @@ func (e *OTELExporter) recordMetrics() {
 	}
 
 	go func() {
-		if err := e.staleness.ApplyDiff(remaining, cycleStart); err != nil {
+		if err := e.staleness.Apply(recorder, cycleStart); err != nil {
 			log.Warn("failed to apply staleness diff in OTEL exporter", "error", err)
 		}
 		e.staleness.DeleteExpired(cycleStart)

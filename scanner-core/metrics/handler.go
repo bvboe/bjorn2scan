@@ -42,8 +42,8 @@ func NewMetricsHandler(
 
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 
-		batch, err := StreamMetrics(w, info, deploymentUUID, provider, config, staleRows, cycleStart)
-		if err != nil {
+		recorder := staleness.NewRecorder()
+		if err := StreamMetrics(w, info, deploymentUUID, provider, config, staleRows, cycleStart, recorder); err != nil {
 			log.Error("error streaming metrics", "error", err)
 		}
 		log.Info("metrics stream complete", "duration_ms", time.Since(cycleStart).Milliseconds())
@@ -51,7 +51,7 @@ func NewMetricsHandler(
 		// Apply staleness diff and delete expired entries after the HTTP response is flushed,
 		// so slow PVC writes don't block the client.
 		go func() {
-			if err := staleness.ApplyDiff(batch, cycleStart); err != nil {
+			if err := staleness.Apply(recorder, cycleStart); err != nil {
 				log.Warn("failed to apply staleness diff", "error", err)
 			}
 			staleness.DeleteExpired(cycleStart)

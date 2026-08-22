@@ -134,11 +134,12 @@ func streamMetricsToString(
 	t.Helper()
 	staleness := newTestStalenessStore(provider)
 	var buf strings.Builder
-	batch, err := StreamMetrics(&buf, info, deploymentUUID, provider, config, staleRows, time.Now())
+	recorder := staleness.NewRecorder()
+	err := StreamMetrics(&buf, info, deploymentUUID, provider, config, staleRows, time.Now(), recorder)
 	if err != nil {
 		t.Fatalf("StreamMetrics returned error: %v", err)
 	}
-	if err := staleness.ApplyDiff(batch, time.Now()); err != nil {
+	if err := staleness.Apply(recorder, time.Now()); err != nil {
 		t.Fatalf("ApplyDiff failed: %v", err)
 	}
 	return buf.String()
@@ -353,13 +354,14 @@ func TestStreamMetrics_StalenessTracking(t *testing.T) {
 
 	staleness := newTestStalenessStore(provider)
 	var buf strings.Builder
-	batch, err := StreamMetrics(&buf, info, "uuid", provider, config, nil, time.Now())
+	recorder := staleness.NewRecorder()
+	err := StreamMetrics(&buf, info, "uuid", provider, config, nil, time.Now(), recorder)
 	if err != nil {
 		t.Fatalf("StreamMetrics failed: %v", err)
 	}
 
 	// ApplyDiff simulates what the handler does after the HTTP response is flushed.
-	if err := staleness.ApplyDiff(batch, time.Now()); err != nil {
+	if err := staleness.Apply(recorder, time.Now()); err != nil {
 		t.Fatalf("ApplyDiff failed: %v", err)
 	}
 

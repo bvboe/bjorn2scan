@@ -75,62 +75,61 @@ func (s *StalenessStore) QueryStale(cycleStart time.Time) ([]database.StalenessR
 	return s.db.QueryStaleness(cycleStart.Unix())
 }
 
-// ApplyDiff compares currentRows (all metric series seen this cycle) against the
-// in-memory state and writes only what changed:
-//   - New series (not previously tracked) → UPSERT with NULL expiry.
-//   - Disappeared series (in state as active, not seen this cycle) → mark stale.
-//   - Reappeared series (in state as stale, seen this cycle) → UPSERT clears expiry.
-//   - Stable series (in state as active, seen this cycle) → no DB I/O.
+// NewRecorder returns a StalenessRecorder for one collection pass, sized against
+// the current tracked series count so the live set rarely has to grow.
+func (s *StalenessStore) NewRecorder() *diffRecorder {
+	s.mu.RLock()
+	sizeHint := len(s.state)
+	s.mu.RUnlock()
+	return newDiffRecorder(s, sizeHint)
+}
+
+// needsPersist reports whether a series must be written to the staleness table:
+// true when it has never been seen, or when it was marked stale and has now
+// reappeared. Series already tracked as active need no write, which in a steady
+// cluster is all of them.
+func (s *StalenessStore) needsPersist(keyHash uint64) bool {
+	s.mu.RLock()
+	expiry, tracked := s.state[keyHash]
+	s.mu.RUnlock()
+	return !tracked || expiry != 0
+}
+
+// Apply commits the diff gathered by a recorder: the rows it materialized are
+// upserted, and anything tracked as active but not seen this cycle is marked
+// stale.
 //
-// In a stable cluster this is zero DB writes. The in-memory state is updated
-// only after the transaction commits successfully; if the commit fails the
-// state is unchanged and the next cycle will retry the same diff.
-func (s *StalenessStore) ApplyDiff(currentRows []database.StalenessRow, cycleStart time.Time) error {
+// This replaces the older ApplyDiff, which took every series as a fully
+// materialized row. The work is identical; the difference is that the caller no
+// longer has to build half a gigabyte of rows to describe a cycle in which
+// nothing changed.
+func (s *StalenessStore) Apply(rec *diffRecorder, cycleStart time.Time) error {
+	if rec == nil {
+		return nil
+	}
 	expiresAt := cycleStart.Unix() + int64(s.stalenessWindow.Seconds())
 
-	// Hash currentRows up-front so we can index by hash for the diff.
-	for i := range currentRows {
-		currentRows[i].KeyHash = database.HashMetricKey(currentRows[i].MetricKey)
-	}
-
-	// Compute the diff under a read lock; defer all writes until after.
 	s.mu.RLock()
-	seenHashes := make(map[uint64]struct{}, len(currentRows))
-	var toUpsert []database.StalenessRow
-	for i := range currentRows {
-		h := currentRows[i].KeyHash
-		seenHashes[h] = struct{}{}
-		if exp, ok := s.state[h]; !ok {
-			// Never seen — UPSERT inserts a new row.
-			toUpsert = append(toUpsert, currentRows[i])
-		} else if exp != 0 {
-			// Was stale — UPSERT clears expiry.
-			toUpsert = append(toUpsert, currentRows[i])
-		}
-		// else: already active in memory, no DB write needed.
-	}
-
 	var toStale []uint64
 	for h, exp := range s.state {
 		if exp == 0 {
-			if _, seen := seenHashes[h]; !seen {
+			if _, seen := rec.live[h]; !seen {
 				toStale = append(toStale, h)
 			}
 		}
 	}
 	s.mu.RUnlock()
 
-	if len(toUpsert) == 0 && len(toStale) == 0 {
+	if len(rec.toWrite) == 0 && len(toStale) == 0 {
 		return nil // steady state — no DB I/O at all
 	}
 
-	if err := s.db.ApplyStalenessChanges(toUpsert, toStale, expiresAt); err != nil {
+	if err := s.db.ApplyStalenessChanges(rec.toWrite, toStale, expiresAt); err != nil {
 		return fmt.Errorf("failed to apply staleness changes: %w", err)
 	}
 
-	// Commit succeeded — mirror the changes into the in-memory state.
 	s.mu.Lock()
-	for _, r := range toUpsert {
+	for _, r := range rec.toWrite {
 		s.state[r.KeyHash] = 0 // active
 	}
 	for _, h := range toStale {
@@ -139,6 +138,24 @@ func (s *StalenessStore) ApplyDiff(currentRows []database.StalenessRow, cycleSta
 	s.mu.Unlock()
 
 	return nil
+}
+
+// ApplyDiff applies a diff from a fully materialized set of rows.
+//
+// Production collects through a recorder instead (see Apply), which avoids
+// building a row per series. This remains for callers that already hold every
+// row — currently the tests — and is a thin wrapper so that both paths exercise
+// the same diff logic rather than drifting apart.
+func (s *StalenessStore) ApplyDiff(currentRows []database.StalenessRow, cycleStart time.Time) error {
+	rec := s.NewRecorder()
+	for i := range currentRows {
+		h := database.HashMetricKey(currentRows[i].MetricKey)
+		currentRows[i].KeyHash = h
+		if rec.Observe(h) {
+			rec.Materialize(currentRows[i])
+		}
+	}
+	return s.Apply(rec, cycleStart)
 }
 
 // DeleteExpired removes staleness rows whose expiry has passed. Skipped entirely

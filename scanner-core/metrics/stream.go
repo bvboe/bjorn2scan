@@ -15,13 +15,14 @@ import (
 // StreamMetrics writes all enabled metric families to w in Prometheus text format,
 // then emits NaN for any genuinely stale metrics from a previous cycle.
 //
-// Returns the accumulated staleness rows for the caller to persist asynchronously.
-// The caller should call staleness.FlushAll(batch, cycleStart) and
-// staleness.DeleteExpired(cycleStart) after the HTTP response is flushed, so that
-// DB writes do not block the client.
+// Staleness is recorded into recorder as collection proceeds. The caller should
+// call staleness.Apply(recorder, cycleStart) and staleness.DeleteExpired after
+// the HTTP response is flushed, so that DB writes do not block the client.
 //
-// Memory profile: 64KB write buffer + staleness batch proportional to total metric count.
-// At current scale (~100k-300k rows × ~200 bytes), this is ~20-60MB — acceptable.
+// Memory profile: a 64KB write buffer plus one hash-set entry per series in the
+// recorder. It used to be a fully materialized staleness row per series —
+// ~950 bytes each, ~500 MB at current scale — which dominated this process's
+// footprint. See StalenessRecorder.
 func StreamMetrics(
 	w io.Writer,
 	info InfoProvider,
@@ -30,7 +31,8 @@ func StreamMetrics(
 	config UnifiedConfig,
 	staleRows []database.StalenessRow,
 	cycleStart time.Time,
-) ([]database.StalenessRow, error) {
+	recorder StalenessRecorder,
+) error {
 	bw := bufio.NewWriterSize(w, 64*1024)
 	deploymentName := info.GetDeploymentName()
 
@@ -62,18 +64,16 @@ func StreamMetrics(
 		}
 	}
 
-	// No mid-stream flushing: the full batch is returned for async flush after the response.
-	batch, err := collectMetrics(provider, config, info, deploymentUUID, deploymentName,
-		cycleStart.Unix(), staleRows, 0, emit, nil)
-	if err != nil {
-		return nil, err
+	if err := collectMetrics(provider, config, info, deploymentUUID, deploymentName,
+		cycleStart.Unix(), staleRows, recorder, emit); err != nil {
+		return err
 	}
 	if writeErr != nil {
-		return nil, writeErr
+		return writeErr
 	}
 	database.WriteOpMetrics(bw)
 	WriteRuntimeMetrics(bw)
-	return batch, bw.Flush()
+	return bw.Flush()
 }
 
 // ─── Label builder standalone functions ──────────────────────────────────────
