@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/pprof"
 
 	"github.com/bvboe/bjorn2scan/scanner-core/containers"
 	"github.com/bvboe/bjorn2scan/scanner-core/database"
 	"github.com/bvboe/bjorn2scan/scanner-core/debug"
 	"github.com/bvboe/bjorn2scan/scanner-core/scanning"
 )
-
 
 // DebugSQLHandler handles POST /debug/sql requests to execute SQL queries.
 //
@@ -509,5 +509,21 @@ func RegisterDebugHandlers(mux *http.ServeMux, db *database.DB, debugConfig *deb
 	mux.HandleFunc("/api/debug/rescan/all-nodes", DebugRescanAllNodesHandler(debugConfig, db, scanQueue))
 	mux.HandleFunc("/api/debug/rescan/all-images", DebugRescanAllImagesHandler(debugConfig, db, scanQueue))
 
-	log.Info("debug handlers registered", "endpoints", "/api/debug/sql, /api/debug/metrics, /api/debug/queue, /api/debug/rescan/*")
+	// pprof, for attributing memory to specific allocations. go_memstats on
+	// /metrics shows totals and GC behaviour; only a heap profile says which call
+	// sites are responsible, which is what memory work on this exporter needs.
+	//
+	// Registered on this mux rather than the http.DefaultServeMux that
+	// net/http/pprof's init() writes to, so it exists only when debug mode is on
+	// and is never reachable in a default deployment. Profiles can expose label
+	// values and query fragments held in memory, so this stays behind the same
+	// flag as the SQL endpoint.
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	log.Info("debug handlers registered",
+		"endpoints", "/api/debug/sql, /api/debug/metrics, /api/debug/queue, /api/debug/rescan/*, /debug/pprof/*")
 }

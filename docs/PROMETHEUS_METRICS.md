@@ -6,10 +6,12 @@ This document describes the metrics bjorn2scan exports, over both the `/metrics`
 scrape endpoint and the OTLP push. The vulnerability and inventory metrics are the
 same logical model in two encodings — see [OTLP export](#otlp-export).
 
-The one exception is the `bjorn2scan_db_*` histograms, which are **scrape-only**:
-they are registered with the Prometheus client and are not part of the OTLP
-collection path. Verified 2026-08-20 — zero series in Prometheus over six hours
-despite being present on every scrape.
+Two groups are **scrape-only** and never travel over OTLP: the
+`bjorn2scan_db_*` histograms and the `go_*` runtime metrics. Both are diagnostics
+about the process rather than vulnerability data, so they are exposed on
+`/metrics` and deliberately kept out of the push. Verified 2026-08-20 — the
+`bjorn2scan_db_*` series show zero in Prometheus over six hours despite being
+present on every scrape.
 
 Label lists and metric names here were verified against a live scrape
 (kubeadm, 2026-08-20). If you change a metric, update this file in the same
@@ -34,6 +36,7 @@ had stopped existing.
 | `bjorn2scan_db_read_seconds` | histogram | one per DB operation (scrape-only) |
 | `bjorn2scan_db_write_wait_seconds` | histogram | one per DB operation (scrape-only) |
 | `bjorn2scan_db_write_exec_seconds` | histogram | one per DB operation (scrape-only) |
+| `go_memstats_*`, `go_gc_*`, `go_goroutines` | gauge/counter | 14 fixed series (scrape-only) |
 
 The `× package` families dominate the payload: on a 6-node cluster they were
 290,656 of ~625,000 series and 91% of a 293 MB scrape.
@@ -113,9 +116,10 @@ OpenTelemetry Collector in between. Push and scrape are two encodings of one mod
 and are required to carry the same logical data — if you add a metric to one, add
 it to the other.
 
-**Not everything is pushed.** The `bjorn2scan_db_*` histograms are exposed on
-`/metrics` only. If you rely on them for alerting, scrape the endpoint directly;
-they will never appear in a backend fed solely by the push.
+**Not everything is pushed.** The `bjorn2scan_db_*` histograms and the `go_*`
+runtime metrics are exposed on `/metrics` only. If you rely on them for alerting,
+scrape the endpoint directly; they will never appear in a backend fed solely by
+the push.
 
 **Transport**
 - `METRICS_ENDPOINT` — collector/backend address (e.g. `192.168.2.56:9090`)
@@ -144,10 +148,13 @@ queries accordingly:
 last_over_time(bjorn2scan_deployment[20m]) > 0
 ```
 
-**Push diagnostics.** Each export logs `duration_ms`, `send_ms`, `collect_ms`,
-`batches`, `data_points`, `bytes_uncompressed`, `bytes_compressed` and
-`compression_ratio`. These are deliberately logged rather than exported as
-metrics, to avoid the exporter measuring itself.
+**Push diagnostics.** Each export logs `duration_ms`, `staleness_ms`,
+`collect_ms`, `send_ms` and its breakdown into `marshal_ms`, `compress_ms` and
+`http_ms`, plus `batches`, `data_points`, `bytes_uncompressed`,
+`bytes_compressed` and `compression_ratio`. `marshal` and `compress` are CPU on
+the scanner pod; `http` is the wire plus however long the receiver takes to accept
+the batch. These are logged rather than exported as metrics, to avoid the exporter
+measuring itself.
 
 ## Metrics Exposed
 
@@ -464,7 +471,54 @@ topk(5, bjorn2scan_db_write_exec_seconds_sum)
 topk(5, bjorn2scan_db_write_wait_seconds_sum)
 ```
 
-### 6. Aggregated Queries
+### 6. Go Runtime Metrics
+
+Memory and GC counters for the scanner process, exposed on `/metrics` only.
+Names follow the `client_golang` convention so existing dashboards work, but the
+exposition is hand-rolled to match the rest of the package and to keep the series
+count deliberate: **14 fixed, label-free series** rather than the ~80 the standard
+collector emits. Cardinality is the problem this project is about; its own
+diagnostics should not contribute to it.
+
+These exist because memory, not latency, is this exporter's binding constraint —
+a large deployment sits near 2.6 GiB against a 4 GiB limit while using 2.4% of its
+push interval.
+
+| Metric | Type | Use |
+|---|---|---|
+| `go_memstats_heap_alloc_bytes` | gauge | live heap |
+| `go_memstats_heap_inuse_bytes` | gauge | in-use spans; minus heap_alloc is fragmentation |
+| `go_memstats_heap_sys_bytes` | gauge | heap obtained from the OS |
+| `go_memstats_heap_released_bytes` | gauge | returned to the OS |
+| `go_memstats_heap_objects` | gauge | live object count |
+| `go_memstats_next_gc_bytes` | gauge | GC target; ~2x the live set at GOGC=100 |
+| `go_memstats_alloc_bytes_total` | counter | **cumulative allocation — its rate is the garbage rate** |
+| `go_memstats_mallocs_total` / `_frees_total` | counter | object churn |
+| `go_memstats_stack_inuse_bytes` | gauge | goroutine stacks |
+| `go_memstats_sys_bytes` | gauge | total from the OS; reconciles against RSS |
+| `go_gc_cycles_total` | counter | completed GC cycles |
+| `go_gc_pause_seconds_total` | counter | cumulative stop-the-world time |
+| `go_goroutines` | gauge | goroutine count |
+| `go_memlimit_bytes` | gauge | emitted only when GOMEMLIMIT is set |
+
+**Useful queries**:
+```promql
+# Garbage rate — bytes allocated per second
+rate(go_memstats_alloc_bytes_total[15m])
+
+# Headroom against the container limit
+go_memstats_sys_bytes / on() group_left() go_memlimit_bytes
+
+# Fragmentation
+go_memstats_heap_inuse_bytes - go_memstats_heap_alloc_bytes
+```
+
+**Heap profiles**: `/debug/pprof/heap` is registered when `debugEnabled` is set,
+alongside the other debug endpoints. `go_memstats_*` shows totals; only a profile
+attributes them to call sites. It stays behind the debug flag because profiles can
+expose label values held in memory.
+
+### 7. Aggregated Queries
 
 While there are no dedicated total metrics, you can derive counts using PromQL:
 

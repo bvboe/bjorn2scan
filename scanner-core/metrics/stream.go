@@ -72,6 +72,7 @@ func StreamMetrics(
 		return nil, writeErr
 	}
 	database.WriteOpMetrics(bw)
+	WriteRuntimeMetrics(bw)
 	return batch, bw.Flush()
 }
 
