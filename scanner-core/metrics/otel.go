@@ -161,10 +161,16 @@ func (e *OTELExporter) recordMetrics() {
 	accumulator := NewDirectEmitAccumulator(e.ctx, e.sender, batchSize, timeUnixNano)
 	recorder := e.staleness.NewRecorder()
 
+	// Collection is timed directly rather than derived. Sending now runs on its
+	// own goroutine and overlaps collection, so the old
+	// collect = total - send - staleness identity no longer holds — it would
+	// report a negative or nonsensical collect once the phases overlap.
+	collectStart := time.Now()
 	if err := collectMetrics(e.provider, e.unifiedConfig, e.infoProvider, e.deploymentUUID,
 		deploymentName, cycleStartUnix, staleRows, recorder, accumulator.Record); err != nil {
 		log.Error("error collecting metrics for OTEL", "error", err)
 	}
+	collectMS := time.Since(collectStart).Milliseconds()
 
 	if err := accumulator.Flush(); err != nil {
 		log.Error("error flushing OTEL metrics", "error", err)
@@ -177,8 +183,11 @@ func (e *OTELExporter) recordMetrics() {
 		e.staleness.DeleteExpired(cycleStart)
 	}()
 
-	// Collection and sending interleave — a full batch flushes mid-collection — so
-	// wire time is measured inside the accumulator and collection is the remainder.
+	// collect_ms and send_ms OVERLAP: they run on separate goroutines, so they do
+	// not sum to duration_ms and each may approach it. The gap between
+	// duration_ms and max(collect_ms, send_ms) is the un-overlapped remainder —
+	// the tail after collection finishes, plus whatever the producer spent
+	// blocked on backpressure.
 	// bytes_compressed is 0 for gRPC, which compresses inside its own framing.
 	batches, points := accumulator.Totals()
 	sendMS := accumulator.SendDuration().Milliseconds()
@@ -201,7 +210,7 @@ func (e *OTELExporter) recordMetrics() {
 		"marshal_ms", marshalMS,
 		"compress_ms", compressMS,
 		"http_ms", httpMS,
-		"collect_ms", totalMS - sendMS - stalenessMS,
+		"collect_ms", collectMS,
 		"batches", batches,
 		"data_points", points,
 		"bytes_uncompressed", stats.BytesUncompressed - e.lastBytesUncompressed,

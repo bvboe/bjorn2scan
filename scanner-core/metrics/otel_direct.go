@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -469,10 +470,24 @@ func (e *DirectOTLPExporter) Close() error {
 // pattern used by collectMetrics, routing all metrics — including node vulnerabilities —
 // through a single transport path without any SDK buffering.
 //
+// Sending runs on its own goroutine. A full batch is handed to a bounded channel
+// and collection continues immediately, so serialising and shipping one batch
+// overlaps building the next.
+//
+// This exists because the export was strictly serial — collect a batch, send it,
+// collect the next — on a pod with a 2-core limit that was using one core. Of a
+// 5.2 s export, ~1.5 s was collection (CPU) and ~3.6 s was sending, of which
+// ~2.0 s is the receiver ingesting and the sending core is simply waiting. That
+// wait is time collection could have used.
+//
+// The channel is deliberately shallow. Each queued batch holds batchSize data
+// points in memory, and memory is this exporter's binding constraint, so depth 1
+// buys the overlap without letting the producer run far ahead of the consumer.
+//
 // Usage:
 //
 //	acc := NewDirectEmitAccumulator(ctx, sender, batchSize, timeUnixNano)
-//	collectMetrics(provider, config, ..., acc.Record, onBatchFull)
+//	collectMetrics(provider, config, ..., acc.Record)
 //	if err := acc.Flush(); err != nil { ... }
 type DirectEmitAccumulator struct {
 	ctx          context.Context
@@ -481,20 +496,46 @@ type DirectEmitAccumulator struct {
 	timeUnixNano uint64
 	pending      map[string]*metricsv1.Metric // keyed by familyName
 	pendingCount int
+
+	batches chan []*metricsv1.Metric
+	done    chan struct{}
+
+	// Written by the sender goroutine, read after done is closed. No lock is
+	// needed because Flush waits for the goroutine to finish before reading.
 	batchesSent  int
 	totalPoints  int
-	sendDuration time.Duration // cumulative time inside sender.Send
-	err          error         // first send error; subsequent Records are no-ops
+	sendDuration time.Duration
+
+	// err is set by the sender goroutine and read by the producer on every
+	// Record, so it needs a lock.
+	errMu sync.Mutex
+	err   error
 }
 
-// SendDuration reports how much of the cycle was spent in sender.Send. Collection
-// and sending interleave (a full batch flushes mid-collection), so this is the
-// only way to separate wire time from serialisation time.
+// SendDuration reports cumulative time inside sender.Send.
+//
+// Since sending moved to its own goroutine this OVERLAPS collection and no
+// longer subtracts from it. Do not compute collection time as
+// total - send; measure it directly.
 func (a *DirectEmitAccumulator) SendDuration() time.Duration { return a.sendDuration }
 
-// Totals reports what was pushed this cycle.
+// Totals reports what was pushed this cycle. Only valid after Flush.
 func (a *DirectEmitAccumulator) Totals() (batches, points int) {
 	return a.batchesSent, a.totalPoints
+}
+
+func (a *DirectEmitAccumulator) setErr(err error) {
+	a.errMu.Lock()
+	if a.err == nil {
+		a.err = err
+	}
+	a.errMu.Unlock()
+}
+
+func (a *DirectEmitAccumulator) getErr() error {
+	a.errMu.Lock()
+	defer a.errMu.Unlock()
+	return a.err
 }
 
 // NewDirectEmitAccumulator creates an accumulator for a single metrics collection cycle.
@@ -503,13 +544,48 @@ func NewDirectEmitAccumulator(ctx context.Context, sender DirectOTLPSender, batc
 	if batchSize <= 0 {
 		batchSize = DefaultDirectBatchSize
 	}
-	return &DirectEmitAccumulator{
+	a := &DirectEmitAccumulator{
 		ctx:          ctx,
 		sender:       sender,
 		batchSize:    batchSize,
 		timeUnixNano: timeUnixNano,
 		pending:      make(map[string]*metricsv1.Metric),
+		batches:      make(chan []*metricsv1.Metric, 1),
+		done:         make(chan struct{}),
 	}
+	go a.sendLoop()
+	return a
+}
+
+// sendLoop marshals, compresses and ships each batch while the producer builds
+// the next one. It drains the channel even after an error so the producer never
+// blocks on a full channel waiting for a consumer that has given up.
+func (a *DirectEmitAccumulator) sendLoop() {
+	defer close(a.done)
+	for metrics := range a.batches {
+		if a.getErr() != nil {
+			continue // draining
+		}
+		start := time.Now()
+		err := a.sender.Send(a.ctx, metrics)
+		a.sendDuration += time.Since(start)
+		if err != nil {
+			a.setErr(fmt.Errorf("failed to send batch %d: %w", a.batchesSent, err))
+			continue
+		}
+		a.batchesSent++
+		a.totalPoints += countPoints(metrics)
+	}
+}
+
+// countPoints totals the data points in a batch. The producer no longer holds
+// the count once the batch is handed off, so the consumer recomputes it.
+func countPoints(metrics []*metricsv1.Metric) int {
+	n := 0
+	for _, m := range metrics {
+		n += len(m.GetGauge().GetDataPoints())
+	}
+	return n
 }
 
 // Record adds a data point for the given metric family. NaN values pass through as-is
@@ -517,7 +593,7 @@ func NewDirectEmitAccumulator(ctx context.Context, sender DirectOTLPSender, batc
 // If a mid-stream flush fails, the error is stored and subsequent calls are no-ops;
 // the error is returned by Flush().
 func (a *DirectEmitAccumulator) Record(familyName, help string, labels map[string]string, value float64) {
-	if a.err != nil {
+	if a.getErr() != nil {
 		return
 	}
 
@@ -544,19 +620,28 @@ func (a *DirectEmitAccumulator) Record(familyName, help string, labels map[strin
 
 	if a.pendingCount >= a.batchSize {
 		if err := a.flush(); err != nil {
-			a.err = err
+			a.setErr(err)
 		}
 	}
 }
 
 // Flush sends any remaining pending data points. Must be called after all Record calls.
 // Returns the first error encountered during any flush (including mid-stream flushes).
+// Flush sends any partial batch, then closes the channel and waits for the
+// sender goroutine to finish. Totals and SendDuration are only valid afterwards.
+//
+// Safe to call once per accumulator; the channel close makes it single-use.
 func (a *DirectEmitAccumulator) Flush() error {
-	if a.err != nil {
-		return a.err
-	}
-	if err := a.flush(); err != nil {
+	flushErr := a.flush()
+
+	close(a.batches)
+	<-a.done
+
+	if err := a.getErr(); err != nil {
 		return err
+	}
+	if flushErr != nil {
+		return flushErr
 	}
 	if a.totalPoints > 0 || a.batchesSent > 0 {
 		log.Debug("sent data points to OTLP",
@@ -582,20 +667,21 @@ func (a *DirectEmitAccumulator) flush() error {
 		return nil
 	}
 
-	sendStart := time.Now()
-	err := a.sender.Send(a.ctx, metrics)
-	a.sendDuration += time.Since(sendStart)
-	if err != nil {
-		return fmt.Errorf("failed to send batch %d: %w", a.batchesSent, err)
+	// Hand off and keep collecting. Blocks only when the sender is still busy
+	// with the previous batch and one is already queued, which is the intended
+	// backpressure: the producer must not run arbitrarily far ahead, because each
+	// queued batch is memory.
+	select {
+	case a.batches <- metrics:
+	case <-a.ctx.Done():
+		return a.ctx.Err()
 	}
 
-	a.batchesSent++
-	a.totalPoints += a.pendingCount
-
-	// Reset pending for the next batch
+	// A fresh map, not a reset: the batch just handed off still references these
+	// metrics and the sender goroutine is reading them.
 	a.pending = make(map[string]*metricsv1.Metric)
 	a.pendingCount = 0
-	return nil
+	return a.getErr()
 }
 
 // Helper to create string KeyValue
