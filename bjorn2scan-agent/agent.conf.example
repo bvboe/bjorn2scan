@@ -227,7 +227,7 @@ metrics_deployment_enabled=true
 # This metric reports detailed information about each scanned container instance
 # Warning: In large clusters with many containers, this can generate significant metric cardinality
 # Environment variable: METRICS_SCANNED_INSTANCES_ENABLED
-metrics_scanned_instances_enabled=true
+metrics_scanned_containers_enabled=true
 
 # Enable bjorn2scan_vulnerability metric (default: true)
 # This metric reports vulnerabilities found in each running container instance
@@ -255,6 +255,7 @@ metrics_vulnerability_risk_enabled=true
 # Useful for monitoring scan coverage and detecting problematic images
 # Environment variable: METRICS_IMAGE_SCAN_STATUS_ENABLED
 metrics_image_scan_status_enabled=true
+metrics_node_scan_status_enabled=true
 
 # Metrics staleness window (default: 60m)
 # Duration after which metrics are considered stale and marked with NaN

@@ -87,7 +87,7 @@ spec:
           value: {{ .Values.scanServer.config.otelMetrics.sendConcurrency | quote }}
         - name: METRICS_DEPLOYMENT_ENABLED
           value: {{ .Values.scanServer.config.metrics.deploymentEnabled | quote }}
-        - name: METRICS_SCANNED_INSTANCES_ENABLED
+        - name: METRICS_SCANNED_CONTAINERS_ENABLED
           value: {{ .Values.scanServer.config.metrics.scannedInstancesEnabled | quote }}
         - name: METRICS_VULNERABILITIES_ENABLED
           value: {{ .Values.scanServer.config.metrics.vulnerabilitiesEnabled | quote }}
@@ -99,6 +99,8 @@ spec:
           value: {{ .Values.scanServer.config.metrics.imageScanStatusEnabled | quote }}
         - name: METRICS_STALENESS_WINDOW
           value: {{ .Values.scanServer.config.metrics.stalenessWindow | quote }}
+        - name: METRICS_NODE_SCAN_STATUS_ENABLED
+          value: {{ .Values.scanServer.config.metrics.nodeScanStatusEnabled | quote }}
         - name: METRICS_NODE_SCANNED_ENABLED
           value: {{ .Values.scanServer.config.metrics.nodeScannedEnabled | quote }}
         - name: METRICS_NODE_VULNERABILITIES_ENABLED

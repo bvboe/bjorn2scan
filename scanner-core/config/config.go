@@ -406,6 +406,29 @@ func LoadConfig(path string) (*Config, error) {
 				val := strings.ToLower(section.Key("metrics_image_scan_status_enabled").String())
 				cfg.MetricsImageScanStatusEnabled = val == "true" || val == "1" || val == "yes"
 			}
+			if section.HasKey("metrics_node_scan_status_enabled") {
+				val := strings.ToLower(section.Key("metrics_node_scan_status_enabled").String())
+				cfg.MetricsNodeScanStatusEnabled = val == "true" || val == "1" || val == "yes"
+			}
+			// Node metric toggles. These were documented in agent.conf.example long
+			// before the parser read them, so setting them in an agent config file
+			// silently did nothing and only the environment variables worked.
+			if section.HasKey("metrics_node_scanned_enabled") {
+				val := strings.ToLower(section.Key("metrics_node_scanned_enabled").String())
+				cfg.MetricsNodeScannedEnabled = val == "true" || val == "1" || val == "yes"
+			}
+			if section.HasKey("metrics_node_vulnerabilities_enabled") {
+				val := strings.ToLower(section.Key("metrics_node_vulnerabilities_enabled").String())
+				cfg.MetricsNodeVulnerabilitiesEnabled = val == "true" || val == "1" || val == "yes"
+			}
+			if section.HasKey("metrics_node_vulnerability_risk_enabled") {
+				val := strings.ToLower(section.Key("metrics_node_vulnerability_risk_enabled").String())
+				cfg.MetricsNodeVulnerabilityRiskEnabled = val == "true" || val == "1" || val == "yes"
+			}
+			if section.HasKey("metrics_node_vulnerability_exploited_enabled") {
+				val := strings.ToLower(section.Key("metrics_node_vulnerability_exploited_enabled").String())
+				cfg.MetricsNodeVulnerabilityExploitedEnabled = val == "true" || val == "1" || val == "yes"
+			}
 
 			// Metrics staleness window
 			if section.HasKey("metrics_staleness_window") {

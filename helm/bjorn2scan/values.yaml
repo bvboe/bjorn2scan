@@ -140,11 +140,15 @@ scanServer:
     # Individual Metric Toggles
     metrics:
       deploymentEnabled: true  # Enable bjorn2scan_deployment metric
-      scannedInstancesEnabled: true  # Enable bjorn2scan_scanned_instance metric
+      # Controls bjorn2scan_image_scanned. The key keeps its original name for
+      # compatibility; the metric it governs was renamed, and so was the
+      # environment variable behind it (METRICS_SCANNED_CONTAINERS_ENABLED).
+      scannedInstancesEnabled: true
       vulnerabilitiesEnabled: true  # Enable bjorn2scan_vulnerability metric
       vulnerabilityExploitedEnabled: true  # Enable bjorn2scan_vulnerability_exploited metric (known exploited vulnerabilities)
       vulnerabilityRiskEnabled: true  # Enable bjorn2scan_vulnerability_risk metric (risk scores)
       imageScanStatusEnabled: true  # Enable bjorn2scan_image_scan_status metric (scan status counts)
+      nodeScanStatusEnabled: true  # Enable bjorn2scan_node_scan_status metric (scan status counts)
       stalenessWindow: "60m"  # Duration after which metrics are considered stale (e.g., 60m, 1h, 30m)
       # Node metrics (only applicable when hostScanning.enabled is true)
       nodeScannedEnabled: true  # Enable bjorn2scan_node_scanned metric

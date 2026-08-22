@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Cross-check configuration surfaces against what the code actually reads.
+#
+# A setting in this project exists in up to four places: the Go config
+# (environment variable and INI key), the Helm chart (values.yaml plus the
+# template that turns a value into an environment variable), and
+# agent.conf.example. Nothing enforces that they agree, and when they drift the
+# failure is silent — the setting simply does nothing.
+#
+# That is not hypothetical. The chart set METRICS_SCANNED_INSTANCES_ENABLED while
+# the code read METRICS_SCANNED_CONTAINERS_ENABLED, so
+# scanServer.config.metrics.scannedInstancesEnabled had no effect at all;
+# agent.conf.example documented metrics_scanned_instances_enabled against a parser
+# reading metrics_scanned_containers_enabled; and
+# METRICS_NODE_SCAN_STATUS_ENABLED existed only as an environment variable, with
+# no Helm value and no INI key.
+#
+# Exit codes: 0 clean, 1 drift found.
+
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+CONFIG=scanner-core/config/config.go
+TEMPLATES=helm/bjorn2scan/templates
+AGENT_EXAMPLE=bjorn2scan-agent/agent.conf.example
+
+fail=0
+found=0
+note() { echo "  $1"; fail=1; found=$((found + 1)); }
+# Each section resets `found` so "none" reflects that section, not the run.
+section() { echo "$1"; found=0; }
+endsection() { [ "$found" -eq 0 ] && echo "  none"; return 0; }
+
+# ── environment variables ────────────────────────────────────────────────────
+# Every env var a chart template sets must be one the code reads. The reverse is
+# not required: plenty are meant for direct override only.
+# Match any Go reference to the name rather than os.Getenv specifically. The
+# servers read some variables in their own main.go, and the update controller
+# goes through a getEnv() helper; anchoring on os.Getenv reported all of those as
+# orphans. A checker that cries wolf gets switched off, so this errs toward
+# silence: it only flags a name that appears nowhere in Go source at all.
+code_env=$(grep -rhoE '"[A-Z][A-Z0-9_]{3,}"' --include='*.go' . \
+  | tr -d '"' | sort -u)
+chart_env=$(grep -rhoE '^\s*- name: [A-Z][A-Z0-9_]+' "$TEMPLATES" \
+  | awk '{print $3}' | sort -u)
+
+section "environment variables set by the chart but never read by the code:"
+orphans=$(comm -13 <(echo "$code_env") <(echo "$chart_env"))
+for v in $orphans; do
+  # Kubernetes injects some itself (downward API, service discovery).
+  case "$v" in
+    NODE_NAME|NODE_IP|POD_NAME|POD_NAMESPACE|POD_IP|HOSTNAME) continue ;;
+  esac
+  note "$v  (the Helm value behind it does nothing)"
+done
+endsection
+
+
+# ── agent INI keys ───────────────────────────────────────────────────────────
+code_ini=$(grep -oE 'section\.HasKey\("[a-z][a-z0-9_]+"\)' "$CONFIG" \
+  | grep -oE '"[a-z][a-z0-9_]+"' | tr -d '"' | sort -u)
+example_ini=$(grep -oE '^#?[a-z][a-z0-9_]+\s*=' "$AGENT_EXAMPLE" \
+  | tr -d '#= ' | sort -u)
+
+section "keys documented in agent.conf.example that the parser never reads:"
+for k in $(comm -13 <(echo "$code_ini") <(echo "$example_ini")); do
+  note "$k  (setting it in agent.conf does nothing)"
+done
+endsection
+
+section "keys the parser reads but agent.conf.example never documents:"
+for k in $(comm -23 <(echo "$code_ini") <(echo "$example_ini")); do
+  note "$k  (undiscoverable without reading the source)"
+done
+endsection
+
+exit $fail
