@@ -444,7 +444,7 @@ func (m *mockDirectSender) totalDataPoints() int {
 
 func TestDirectEmitAccumulator_Record_LiveValue(t *testing.T) {
 	sender := &mockDirectSender{}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, uint64(time.Now().UnixNano()))
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, 1, uint64(time.Now().UnixNano()))
 
 	acc.Record("bjorn2scan_deployment", "Deployment info", map[string]string{"env": "prod"}, 1.0)
 
@@ -462,7 +462,7 @@ func TestDirectEmitAccumulator_Record_LiveValue(t *testing.T) {
 
 func TestDirectEmitAccumulator_Record_NaN(t *testing.T) {
 	sender := &mockDirectSender{}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, uint64(time.Now().UnixNano()))
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, 1, uint64(time.Now().UnixNano()))
 
 	acc.Record("bjorn2scan_deployment", "Deployment info", map[string]string{"env": "old"}, math.NaN())
 
@@ -483,7 +483,7 @@ func TestDirectEmitAccumulator_Record_NaN(t *testing.T) {
 func TestDirectEmitAccumulator_BatchFlush(t *testing.T) {
 	sender := &mockDirectSender{}
 	// batchSize=2: every 2 records triggers a mid-stream flush
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 2, uint64(time.Now().UnixNano()))
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 2, 1, uint64(time.Now().UnixNano()))
 
 	for i := 0; i < 5; i++ {
 		acc.Record("bjorn2scan_deployment", "help", map[string]string{"i": "x"}, float64(i))
@@ -504,7 +504,7 @@ func TestDirectEmitAccumulator_BatchFlush(t *testing.T) {
 
 func TestDirectEmitAccumulator_MultipleFamilies(t *testing.T) {
 	sender := &mockDirectSender{}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, uint64(time.Now().UnixNano()))
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, 1, uint64(time.Now().UnixNano()))
 
 	acc.Record("bjorn2scan_deployment", "help-a", map[string]string{"a": "1"}, 1.0)
 	acc.Record("bjorn2scan_image_scanned", "help-b", map[string]string{"b": "2"}, 2.0)
@@ -532,7 +532,7 @@ func TestDirectEmitAccumulator_MultipleFamilies(t *testing.T) {
 
 func TestDirectEmitAccumulator_SameFamily(t *testing.T) {
 	sender := &mockDirectSender{}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, uint64(time.Now().UnixNano()))
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, 1, uint64(time.Now().UnixNano()))
 
 	acc.Record("bjorn2scan_image_vulnerability", "help", map[string]string{"cve": "CVE-1"}, 1.0)
 	acc.Record("bjorn2scan_image_vulnerability", "help", map[string]string{"cve": "CVE-2"}, 2.0)
@@ -553,7 +553,7 @@ func TestDirectEmitAccumulator_SameFamily(t *testing.T) {
 
 func TestDirectEmitAccumulator_Flush_SendError(t *testing.T) {
 	sender := &mockDirectSender{sendErr: errors.New("network error")}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, uint64(time.Now().UnixNano()))
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, 1, uint64(time.Now().UnixNano()))
 
 	acc.Record("bjorn2scan_deployment", "help", map[string]string{}, 1.0)
 
@@ -569,7 +569,7 @@ func TestDirectEmitAccumulator_Flush_SendError(t *testing.T) {
 func TestDirectEmitAccumulator_MidStreamError_DropsRemainingRecords(t *testing.T) {
 	sender := &mockDirectSender{sendErr: errors.New("network error")}
 	// batchSize=1: every Record triggers a flush
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 1, uint64(time.Now().UnixNano()))
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 1, 1, uint64(time.Now().UnixNano()))
 
 	acc.Record("bjorn2scan_deployment", "help", map[string]string{"k": "1"}, 1.0)
 	// Second record should be a no-op because the first flush errored
@@ -587,7 +587,7 @@ func TestDirectEmitAccumulator_MidStreamError_DropsRemainingRecords(t *testing.T
 
 func TestDirectEmitAccumulator_EmptyFlush(t *testing.T) {
 	sender := &mockDirectSender{}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, uint64(time.Now().UnixNano()))
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 100, 1, uint64(time.Now().UnixNano()))
 
 	// Flush with no records — should be a no-op
 	if err := acc.Flush(); err != nil {

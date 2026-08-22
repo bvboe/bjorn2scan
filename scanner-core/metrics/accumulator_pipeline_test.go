@@ -79,7 +79,7 @@ func TestSendOverlapsCollection(t *testing.T) {
 		delay     = 60 * time.Millisecond
 	)
 	sender := &slowSender{delay: delay}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, batchSize, 1)
+	acc := NewDirectEmitAccumulator(context.Background(), sender, batchSize, 1, 1)
 
 	producerStart := time.Now()
 	recordN(acc, batchSize*batches)
@@ -108,13 +108,14 @@ func TestSendOverlapsCollection(t *testing.T) {
 		producerElapsed.Round(time.Millisecond), total.Round(time.Millisecond), batches, delay)
 }
 
-// TestBackpressureBoundsQueuedBatches guards the memory side. Each queued batch
-// holds batchSize data points, and memory is this exporter's binding constraint,
-// so the producer must not be able to run arbitrarily far ahead of a slow
-// receiver. Exactly one send should ever be in flight, and the channel is depth 1.
+// TestBackpressureBoundsQueuedBatches guards the memory side. Each queued or
+// in-flight batch holds batchSize data points, and memory is this exporter's
+// binding constraint, so the producer must not be able to run arbitrarily far
+// ahead of a slow receiver. At concurrency 1 exactly one send is in flight and
+// the channel holds one more.
 func TestBackpressureBoundsQueuedBatches(t *testing.T) {
 	sender := &slowSender{delay: 20 * time.Millisecond}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 5, 1)
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 5, 1, 1)
 
 	recordN(acc, 100) // 20 batches through a depth-1 channel
 	if err := acc.Flush(); err != nil {
@@ -122,12 +123,71 @@ func TestBackpressureBoundsQueuedBatches(t *testing.T) {
 	}
 
 	if sender.maxSeen > 1 {
-		t.Errorf("%d sends were in flight at once; the sender is not safe for "+
-			"concurrent use and batches must be serialised", sender.maxSeen)
+		t.Errorf("%d sends in flight at concurrency 1, want 1", sender.maxSeen)
 	}
-	if cap(acc.batches) > 2 {
-		t.Errorf("batch channel depth %d is larger than intended; each queued batch "+
-			"is memory held on behalf of a slow receiver", cap(acc.batches))
+	if cap(acc.batches) > 1 {
+		t.Errorf("batch channel depth %d at concurrency 1; each queued batch is "+
+			"memory held on behalf of a slow receiver", cap(acc.batches))
+	}
+}
+
+// TestConcurrentSendsOverlap is the option-4 claim: several batches must be in
+// the send path at once.
+//
+// After sending moved off the collection goroutine it became the bottleneck and
+// was serial within itself — marshal, compress, http, one batch at a time — with
+// most of that time (2,285 of 4,158 ms measured) spent waiting on the receiver
+// while the CPU idled. Overlapping sends is what recovers that wait.
+func TestConcurrentSendsOverlap(t *testing.T) {
+	const concurrency = 3
+	sender := &slowSender{delay: 40 * time.Millisecond}
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 5, concurrency, 1)
+
+	start := time.Now()
+	recordN(acc, 60) // 12 batches
+	if err := acc.Flush(); err != nil {
+		t.Fatalf("Flush failed: %v", err)
+	}
+	elapsed := time.Since(start)
+
+	if sender.maxSeen < 2 {
+		t.Errorf("peak sends in flight was %d at concurrency %d; batches are still "+
+			"being sent one at a time", sender.maxSeen, concurrency)
+	}
+	if sender.maxSeen > concurrency {
+		t.Errorf("%d sends in flight exceeds the configured concurrency %d; each one "+
+			"holds a batch in memory", sender.maxSeen, concurrency)
+	}
+
+	// 12 batches at 40ms serial is 480ms; with 3 in flight it should be far less.
+	serial := 12 * 40 * time.Millisecond
+	if elapsed > serial*3/4 {
+		t.Errorf("took %v, close to the serial time %v — sends are not overlapping",
+			elapsed.Round(time.Millisecond), serial)
+	}
+
+	if sender.sends != 12 || sender.points != 60 {
+		t.Errorf("delivered %d batches / %d points, want 12 / 60 — concurrency must "+
+			"not drop or duplicate data", sender.sends, sender.points)
+	}
+}
+
+// TestConcurrentSendsAccountCorrectly checks the shared counters under
+// concurrency. They are written by every sender goroutine, so an unguarded
+// increment would lose batches and under-report what was pushed — silently, and
+// only under load.
+func TestConcurrentSendsAccountCorrectly(t *testing.T) {
+	sender := &slowSender{delay: time.Millisecond}
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 10, 4, 1)
+
+	recordN(acc, 1000) // 100 batches across 4 senders
+	if err := acc.Flush(); err != nil {
+		t.Fatalf("Flush failed: %v", err)
+	}
+
+	batches, points := acc.Totals()
+	if batches != 100 || points != 1000 {
+		t.Errorf("Totals() = (%d, %d), want (100, 1000)", batches, points)
 	}
 }
 
@@ -137,7 +197,7 @@ func TestBackpressureBoundsQueuedBatches(t *testing.T) {
 // mean silently exporting nothing while reporting success.
 func TestSendErrorStopsCollection(t *testing.T) {
 	sender := &slowSender{delay: time.Millisecond, failAfter: 1}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 5, 1)
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 5, 1, 1)
 
 	recordN(acc, 100)
 
@@ -152,7 +212,7 @@ func TestSendErrorStopsCollection(t *testing.T) {
 // and the reported counts are whatever happened to be visible.
 func TestFlushWaitsForSender(t *testing.T) {
 	sender := &slowSender{delay: 30 * time.Millisecond}
-	acc := NewDirectEmitAccumulator(context.Background(), sender, 10, 1)
+	acc := NewDirectEmitAccumulator(context.Background(), sender, 10, 1, 1)
 
 	recordN(acc, 40)
 	if err := acc.Flush(); err != nil {
@@ -175,7 +235,7 @@ func TestFlushWaitsForSender(t *testing.T) {
 func TestContextCancellationUnblocksProducer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sender := &slowSender{delay: 500 * time.Millisecond}
-	acc := NewDirectEmitAccumulator(ctx, sender, 2, 1)
+	acc := NewDirectEmitAccumulator(ctx, sender, 2, 1, 1)
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)

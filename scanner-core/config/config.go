@@ -67,6 +67,7 @@ type Config struct {
 	OTELMetricsCompression  string // "gzip" (default) or "none" — turn off for debugging
 	OTELUseDirectExport     bool   // Use direct OTLP export for high-cardinality metrics (bypasses SDK buffering)
 	OTELDirectBatchSize     int    // Data points per OTLP request (see metrics.DefaultDirectBatchSize)
+	OTELSendConcurrency     int    // Batches in the send path at once (see metrics.DefaultSendConcurrency)
 
 	// Individual metric toggles
 	MetricsDeploymentEnabled             bool // Enable bjorn2scan_deployment metric
@@ -547,6 +548,11 @@ func LoadConfig(path string) (*Config, error) {
 	if directBatchSizeEnv := os.Getenv("OTEL_DIRECT_BATCH_SIZE"); directBatchSizeEnv != "" {
 		if batchSize, err := strconv.Atoi(directBatchSizeEnv); err == nil && batchSize > 0 {
 			cfg.OTELDirectBatchSize = batchSize
+		}
+	}
+	if concurrencyEnv := os.Getenv("OTEL_SEND_CONCURRENCY"); concurrencyEnv != "" {
+		if c, err := strconv.Atoi(concurrencyEnv); err == nil && c > 0 {
+			cfg.OTELSendConcurrency = c
 		}
 	}
 

@@ -27,6 +27,9 @@ type OTELConfig struct {
 	// UseDirectExport is deprecated. Direct export is now always used. This field is ignored.
 	UseDirectExport bool
 	DirectBatchSize int // Batch size for direct export (default DefaultDirectBatchSize)
+	// SendConcurrency is how many batches may be in the send path at once
+	// (default DefaultSendConcurrency).
+	SendConcurrency int
 }
 
 // OTELExporter exports metrics to an OpenTelemetry collector via direct OTLP.
@@ -73,17 +76,18 @@ func NewOTELExporter(
 	}
 
 	directCfg := DirectOTLPConfig{
-		Endpoint:       config.Endpoint,
-		Protocol:       strings.ToLower(string(config.Protocol)),
-		BatchSize:      batchSize,
-		Timeout:        30 * time.Second,
-		MaxRetries:     3,
-		Insecure:       config.Insecure,
-		Compression:    config.Compression,
-		ServiceName:    "bjorn2scan",
-		ServiceVersion: infoProvider.GetVersion(),
-		DeploymentName: infoProvider.GetDeploymentName(),
-		DeploymentUUID: deploymentUUID,
+		Endpoint:        config.Endpoint,
+		Protocol:        strings.ToLower(string(config.Protocol)),
+		BatchSize:       batchSize,
+		SendConcurrency: config.SendConcurrency,
+		Timeout:         30 * time.Second,
+		MaxRetries:      3,
+		Insecure:        config.Insecure,
+		Compression:     config.Compression,
+		ServiceName:     "bjorn2scan",
+		ServiceVersion:  infoProvider.GetVersion(),
+		DeploymentName:  infoProvider.GetDeploymentName(),
+		DeploymentUUID:  deploymentUUID,
 	}
 
 	sender, err := NewDirectOTLPSender(directCfg)
@@ -158,7 +162,7 @@ func (e *OTELExporter) recordMetrics() {
 		batchSize = DefaultDirectBatchSize
 	}
 
-	accumulator := NewDirectEmitAccumulator(e.ctx, e.sender, batchSize, timeUnixNano)
+	accumulator := NewDirectEmitAccumulator(e.ctx, e.sender, batchSize, e.config.SendConcurrency, timeUnixNano)
 	recorder := e.staleness.NewRecorder()
 
 	// Collection is timed directly rather than derived. Sending now runs on its

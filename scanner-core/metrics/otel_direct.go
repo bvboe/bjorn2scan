@@ -27,17 +27,20 @@ import (
 
 // DirectOTLPConfig holds configuration for direct OTLP export
 type DirectOTLPConfig struct {
-	Endpoint       string        // e.g., "http://prometheus:9090/api/v1/otlp" or "otel-collector:4317"
-	Protocol       string        // "http" or "grpc"
-	Compression    string        // "gzip" (default) or "none"
-	BatchSize      int           // Data points per batch (default DefaultDirectBatchSize)
-	Timeout        time.Duration // HTTP timeout per request
-	MaxRetries     int           // Maximum retry attempts (default 3)
-	Insecure       bool          // Allow insecure connections
-	ServiceName    string
-	ServiceVersion string
-	DeploymentName string
-	DeploymentUUID string
+	Endpoint    string // e.g., "http://prometheus:9090/api/v1/otlp" or "otel-collector:4317"
+	Protocol    string // "http" or "grpc"
+	Compression string // "gzip" (default) or "none"
+	BatchSize   int    // Data points per batch (default DefaultDirectBatchSize)
+	// SendConcurrency is how many batches may be marshalled, compressed and in
+	// flight at once (default DefaultSendConcurrency).
+	SendConcurrency int
+	Timeout         time.Duration // HTTP timeout per request
+	MaxRetries      int           // Maximum retry attempts (default 3)
+	Insecure        bool          // Allow insecure connections
+	ServiceName     string
+	ServiceVersion  string
+	DeploymentName  string
+	DeploymentUUID  string
 }
 
 // DefaultDirectBatchSize is the number of data points per OTLP request when
@@ -62,6 +65,24 @@ type DirectOTLPConfig struct {
 // marshalled and compressed, and memory, not latency, is what limits this
 // exporter. Raise it only with evidence from a paired test.
 const DefaultDirectBatchSize = 5000
+
+// DefaultSendConcurrency is how many batches may be in the send path at once.
+//
+// After sending moved off the collection goroutine, the sender became the
+// bottleneck and is serial within itself: marshal -> compress -> http, per batch,
+// one batch at a time. Measured at 508,747 data points, that chain was
+// 1,152 + 721 + 2,285 = 4,158 ms against a 4,254 ms wall clock, so the export is
+// essentially the sender's own runtime — and 2,285 ms of it is waiting on the
+// receiver with the CPU idle.
+//
+// Running several batches through the chain concurrently lets one batch's
+// receiver wait overlap another's marshalling and compression. The senders are
+// safe for this: their only mutable state is atomic counters, and http.Client is
+// designed for concurrent use.
+//
+// Each concurrent send holds a batch in memory on top of those queued, and memory
+// is this exporter's binding constraint, so this stays small.
+const DefaultSendConcurrency = 2
 
 // Supported values for DirectOTLPConfig.Compression. Mirrors the OTEL
 // convention for OTEL_EXPORTER_OTLP_COMPRESSION.
@@ -163,6 +184,9 @@ type GRPCDirectOTLPSender struct {
 func NewDirectOTLPSender(config DirectOTLPConfig) (DirectOTLPSender, error) {
 	if config.BatchSize <= 0 {
 		config.BatchSize = DefaultDirectBatchSize
+	}
+	if config.SendConcurrency <= 0 {
+		config.SendConcurrency = DefaultSendConcurrency
 	}
 	if config.Timeout <= 0 {
 		config.Timeout = 30 * time.Second
@@ -498,10 +522,11 @@ type DirectEmitAccumulator struct {
 	pendingCount int
 
 	batches chan []*metricsv1.Metric
-	done    chan struct{}
+	wg      sync.WaitGroup
 
-	// Written by the sender goroutine, read after done is closed. No lock is
-	// needed because Flush waits for the goroutine to finish before reading.
+	// Written by every sender goroutine, so guarded. Read only after Flush has
+	// waited for them all to finish.
+	statsMu      sync.Mutex
 	batchesSent  int
 	totalPoints  int
 	sendDuration time.Duration
@@ -512,15 +537,22 @@ type DirectEmitAccumulator struct {
 	err   error
 }
 
-// SendDuration reports cumulative time inside sender.Send.
+// SendDuration reports cumulative time inside sender.Send, summed across all
+// sender goroutines.
 //
-// Since sending moved to its own goroutine this OVERLAPS collection and no
-// longer subtracts from it. Do not compute collection time as
+// It OVERLAPS collection, and with concurrency above 1 it also overlaps itself,
+// so it can exceed the wall clock. Do not compute collection time as
 // total - send; measure it directly.
-func (a *DirectEmitAccumulator) SendDuration() time.Duration { return a.sendDuration }
+func (a *DirectEmitAccumulator) SendDuration() time.Duration {
+	a.statsMu.Lock()
+	defer a.statsMu.Unlock()
+	return a.sendDuration
+}
 
 // Totals reports what was pushed this cycle. Only valid after Flush.
 func (a *DirectEmitAccumulator) Totals() (batches, points int) {
+	a.statsMu.Lock()
+	defer a.statsMu.Unlock()
 	return a.batchesSent, a.totalPoints
 }
 
@@ -540,9 +572,12 @@ func (a *DirectEmitAccumulator) getErr() error {
 
 // NewDirectEmitAccumulator creates an accumulator for a single metrics collection cycle.
 // timeUnixNano should be set once per cycle (e.g. uint64(time.Now().UnixNano())).
-func NewDirectEmitAccumulator(ctx context.Context, sender DirectOTLPSender, batchSize int, timeUnixNano uint64) *DirectEmitAccumulator {
+func NewDirectEmitAccumulator(ctx context.Context, sender DirectOTLPSender, batchSize, concurrency int, timeUnixNano uint64) *DirectEmitAccumulator {
 	if batchSize <= 0 {
 		batchSize = DefaultDirectBatchSize
+	}
+	if concurrency <= 0 {
+		concurrency = DefaultSendConcurrency
 	}
 	a := &DirectEmitAccumulator{
 		ctx:          ctx,
@@ -550,31 +585,40 @@ func NewDirectEmitAccumulator(ctx context.Context, sender DirectOTLPSender, batc
 		batchSize:    batchSize,
 		timeUnixNano: timeUnixNano,
 		pending:      make(map[string]*metricsv1.Metric),
-		batches:      make(chan []*metricsv1.Metric, 1),
-		done:         make(chan struct{}),
+		batches:      make(chan []*metricsv1.Metric, concurrency),
 	}
-	go a.sendLoop()
+	a.wg.Add(concurrency)
+	for i := 0; i < concurrency; i++ {
+		go a.sendLoop()
+	}
 	return a
 }
 
-// sendLoop marshals, compresses and ships each batch while the producer builds
-// the next one. It drains the channel even after an error so the producer never
-// blocks on a full channel waiting for a consumer that has given up.
+// sendLoop marshals, compresses and ships batches while the producer builds the
+// next one. Several run concurrently so that one batch's receiver wait overlaps
+// another's CPU work. It drains the channel even after an error so the producer
+// never blocks on a full channel waiting for a consumer that has given up.
 func (a *DirectEmitAccumulator) sendLoop() {
-	defer close(a.done)
+	defer a.wg.Done()
 	for metrics := range a.batches {
 		if a.getErr() != nil {
 			continue // draining
 		}
 		start := time.Now()
 		err := a.sender.Send(a.ctx, metrics)
-		a.sendDuration += time.Since(start)
+		elapsed := time.Since(start)
+		points := countPoints(metrics)
+
 		if err != nil {
-			a.setErr(fmt.Errorf("failed to send batch %d: %w", a.batchesSent, err))
+			a.setErr(fmt.Errorf("failed to send batch: %w", err))
 			continue
 		}
+
+		a.statsMu.Lock()
+		a.sendDuration += elapsed
 		a.batchesSent++
-		a.totalPoints += countPoints(metrics)
+		a.totalPoints += points
+		a.statsMu.Unlock()
 	}
 }
 
@@ -635,7 +679,7 @@ func (a *DirectEmitAccumulator) Flush() error {
 	flushErr := a.flush()
 
 	close(a.batches)
-	<-a.done
+	a.wg.Wait()
 
 	if err := a.getErr(); err != nil {
 		return err

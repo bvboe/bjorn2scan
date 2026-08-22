@@ -596,6 +596,7 @@ func main() {
 			Compression:     cfg.OTELMetricsCompression,
 			UseDirectExport: cfg.OTELUseDirectExport,
 			DirectBatchSize: cfg.OTELDirectBatchSize,
+			SendConcurrency: cfg.OTELSendConcurrency,
 		}
 
 		var err error
