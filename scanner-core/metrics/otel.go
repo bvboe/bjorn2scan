@@ -26,7 +26,7 @@ type OTELConfig struct {
 	Compression  string // "gzip" (default) or "none"
 	// UseDirectExport is deprecated. Direct export is now always used. This field is ignored.
 	UseDirectExport bool
-	DirectBatchSize int // Batch size for direct export (default 5000)
+	DirectBatchSize int // Batch size for direct export (default DefaultDirectBatchSize)
 }
 
 // OTELExporter exports metrics to an OpenTelemetry collector via direct OTLP.
@@ -69,7 +69,7 @@ func NewOTELExporter(
 ) (*OTELExporter, error) {
 	batchSize := config.DirectBatchSize
 	if batchSize <= 0 {
-		batchSize = 5000
+		batchSize = DefaultDirectBatchSize
 	}
 
 	directCfg := DirectOTLPConfig{
@@ -155,7 +155,7 @@ func (e *OTELExporter) recordMetrics() {
 
 	batchSize := e.config.DirectBatchSize
 	if batchSize <= 0 {
-		batchSize = 5000
+		batchSize = DefaultDirectBatchSize
 	}
 
 	accumulator := NewDirectEmitAccumulator(e.ctx, e.sender, batchSize, timeUnixNano)

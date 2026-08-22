@@ -205,6 +205,8 @@ otel_use_direct_export=true
 # Number of data points per HTTP/gRPC request when using direct export
 # Larger batches are more efficient but use more memory per batch
 # Environment variable: OTEL_DIRECT_BATCH_SIZE
+# Data points per OTLP request. See metrics.DefaultDirectBatchSize; keep in sync
+# with the Helm chart.
 otel_direct_batch_size=5000
 
 # ============================================================================

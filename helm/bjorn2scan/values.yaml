@@ -124,7 +124,11 @@ scanServer:
       insecure: false  # true only for in-cluster plaintext (no-TLS) collectors
       compression: "gzip"  # "gzip" (default) or "none" — set to none only for debugging; gzip cuts the payload dramatically
       useDirectExport: true  # Bypass SDK buffering for high-cardinality node metrics (prevents OOM)
-      directBatchSize: 5000  # Number of data points per batch when using direct export
+      # Data points per OTLP request. Measured and left alone: batch size is not
+      # a useful performance lever here (see metrics.DefaultDirectBatchSize), and
+      # larger batches raise peak memory, which is the binding constraint.
+      # Keep in sync with metrics.DefaultDirectBatchSize and agent.conf.example.
+      directBatchSize: 5000
 
     # Individual Metric Toggles
     metrics:

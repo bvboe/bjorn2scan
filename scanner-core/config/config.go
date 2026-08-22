@@ -65,8 +65,8 @@ type Config struct {
 	OTELMetricsPushInterval time.Duration
 	OTELMetricsInsecure     bool
 	OTELMetricsCompression  string // "gzip" (default) or "none" — turn off for debugging
-	OTELUseDirectExport     bool // Use direct OTLP export for high-cardinality metrics (bypasses SDK buffering)
-	OTELDirectBatchSize     int  // Batch size for direct export (default 5000)
+	OTELUseDirectExport     bool   // Use direct OTLP export for high-cardinality metrics (bypasses SDK buffering)
+	OTELDirectBatchSize     int    // Data points per OTLP request (see metrics.DefaultDirectBatchSize)
 
 	// Individual metric toggles
 	MetricsDeploymentEnabled             bool // Enable bjorn2scan_deployment metric
@@ -147,7 +147,7 @@ func defaultConfig() *Config {
 		OTELMetricsInsecure:     false,
 		OTELMetricsCompression:  "gzip",
 		OTELUseDirectExport:     true, // Bypass SDK buffering for high-cardinality node metrics
-		OTELDirectBatchSize:     5000, // Batch size for direct export
+		OTELDirectBatchSize:     5000, // See metrics.DefaultDirectBatchSize
 
 		// Individual metrics - enabled by default
 		MetricsDeploymentEnabled:             true,

@@ -181,3 +181,35 @@ func TestPhaseTimingsAccumulateAcrossSends(t *testing.T) {
 		t.Errorf("MarshalNanos did not accumulate: %d then %d", first.MarshalNanos, second.MarshalNanos)
 	}
 }
+
+// TestDefaultBatchSizeIsApplied pins the batch size and, more usefully, checks
+// that an unset value picks up the default instead of staying 0 — which would
+// flush one data point per request.
+//
+// The constant carries a measurement record showing batch size is not a useful
+// performance lever here; read it before changing this.
+func TestDefaultBatchSizeIsApplied(t *testing.T) {
+	if DefaultDirectBatchSize != 5000 {
+		t.Errorf("DefaultDirectBatchSize = %d, want 5000 — see the measurement notes "+
+			"on the constant before changing it", DefaultDirectBatchSize)
+	}
+
+	// An unset BatchSize must pick up the default rather than silently staying 0
+	// (which would flush one data point per request).
+	sender, err := NewDirectOTLPSender(DirectOTLPConfig{
+		Endpoint: "http://127.0.0.1:1", Protocol: "http", Insecure: true,
+		ServiceName: "test", ServiceVersion: "1.0.0",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create sender: %v", err)
+	}
+	defer func() { _ = sender.Close() }()
+
+	http, ok := sender.(*HTTPDirectOTLPSender)
+	if !ok {
+		t.Fatalf("expected an HTTP sender, got %T", sender)
+	}
+	if http.config.BatchSize != DefaultDirectBatchSize {
+		t.Errorf("unset BatchSize became %d, want %d", http.config.BatchSize, DefaultDirectBatchSize)
+	}
+}

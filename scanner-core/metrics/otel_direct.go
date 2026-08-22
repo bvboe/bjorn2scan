@@ -29,7 +29,7 @@ type DirectOTLPConfig struct {
 	Endpoint       string        // e.g., "http://prometheus:9090/api/v1/otlp" or "otel-collector:4317"
 	Protocol       string        // "http" or "grpc"
 	Compression    string        // "gzip" (default) or "none"
-	BatchSize      int           // Number of data points per batch (default 5000)
+	BatchSize      int           // Data points per batch (default DefaultDirectBatchSize)
 	Timeout        time.Duration // HTTP timeout per request
 	MaxRetries     int           // Maximum retry attempts (default 3)
 	Insecure       bool          // Allow insecure connections
@@ -38,6 +38,29 @@ type DirectOTLPConfig struct {
 	DeploymentName string
 	DeploymentUUID string
 }
+
+// DefaultDirectBatchSize is the number of data points per OTLP request when
+// none is configured.
+//
+// Left at 5,000 after measurement. A one-pass sweep on a 508,657-point workload
+// suggested larger batches were ~12% faster end to end, but a paired A/B run
+// reversed the ordering, and the spread across repeats of the *same* setting was
+// larger than the effect:
+//
+//	 5,000 pts/batch -> 102 requests -> 7,214 and 6,601 ms total
+//	20,000           ->  26          -> 6,353, 7,105 and 7,440 ms total
+//
+// Receiver ingest is dominated by per-sample cost, not per-request overhead:
+// 5x the requests (batch size 1,000, 509 requests) cost only ~12% more time in
+// HTTP, which bounds the per-request component at roughly 1.8 ms. Amortizing
+// that over 76 fewer requests is ~140 ms of a ~7,000 ms export — under 2%, well
+// inside noise.
+//
+// So batch size is not a useful lever here, and larger batches make the binding
+// constraint worse: an entire batch is accumulated in memory before being
+// marshalled and compressed, and memory, not latency, is what limits this
+// exporter. Raise it only with evidence from a paired test.
+const DefaultDirectBatchSize = 5000
 
 // Supported values for DirectOTLPConfig.Compression. Mirrors the OTEL
 // convention for OTEL_EXPORTER_OTLP_COMPRESSION.
@@ -138,7 +161,7 @@ type GRPCDirectOTLPSender struct {
 // NewDirectOTLPSender creates the appropriate sender based on protocol
 func NewDirectOTLPSender(config DirectOTLPConfig) (DirectOTLPSender, error) {
 	if config.BatchSize <= 0 {
-		config.BatchSize = 5000
+		config.BatchSize = DefaultDirectBatchSize
 	}
 	if config.Timeout <= 0 {
 		config.Timeout = 30 * time.Second
@@ -478,7 +501,7 @@ func (a *DirectEmitAccumulator) Totals() (batches, points int) {
 // timeUnixNano should be set once per cycle (e.g. uint64(time.Now().UnixNano())).
 func NewDirectEmitAccumulator(ctx context.Context, sender DirectOTLPSender, batchSize int, timeUnixNano uint64) *DirectEmitAccumulator {
 	if batchSize <= 0 {
-		batchSize = 5000
+		batchSize = DefaultDirectBatchSize
 	}
 	return &DirectEmitAccumulator{
 		ctx:          ctx,
