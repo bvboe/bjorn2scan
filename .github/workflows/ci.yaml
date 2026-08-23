@@ -170,3 +170,11 @@ jobs:
 
     - name: Validate RBAC Permissions in ClusterRole
       run: ./scripts/test-helm-rbac-template
+
+    # Catches settings that exist in the chart or agent.conf.example but that the
+    # code never reads, which otherwise fail silently: the option appears
+    # supported, is accepted without complaint, and does nothing. Six of these had
+    # accumulated before the check existed, including a Helm value whose metric
+    # toggle had been inert since the metric was renamed.
+    - name: Check config consistency across chart, agent config and code
+      run: ./scripts/check-config-consistency
