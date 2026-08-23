@@ -158,11 +158,11 @@ scanServer:
 
     # Scheduled Jobs Configuration
     jobs:
-      # Refresh Images Job - Periodically reconciles running containers with database
-      refreshImages:
-        enabled: true
-        interval: "6h"    # How often to refresh (e.g., 6h, 12h, 24h)
-        timeout: "10m"    # Maximum execution time
+      # Note: there is no refresh-images setting here. That job polls Docker to
+      # reconcile running containers and is scheduled only by the agent, behind
+      # docker.IsDockerAvailable(). Under Kubernetes the pod informer keeps that
+      # list live, so the scan server never schedules it. Configure it in
+      # agent.conf if you run the agent.
 
       # Cleanup Job - Removes orphaned images and related data
       cleanup:

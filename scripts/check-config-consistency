@@ -74,4 +74,53 @@ for k in $(comm -23 <(echo "$code_ini") <(echo "$example_ini")); do
 done
 endsection
 
+# ── values.yaml reachability ─────────────────────────────────────────────────
+# A value can also die the other way round: present and documented in
+# values.yaml, but never referenced by any template, so setting it changes
+# nothing. Six job settings (jobs.refreshImages.*, jobs.cleanup.*) were inert
+# this way while their rescanDatabase siblings worked.
+#
+# Ancestor matching has to be strict. A leaf counts as reachable if a template
+# uses its exact path, or uses an ancestor *whole* — as `toYaml .Values.x.y`
+# does. A naive prefix match reports everything as reachable, because
+# `.Values.a.b` appears inside `.Values.a.b.c`; that false all-clear is exactly
+# how the jobs settings stayed hidden.
+echo "values.yaml settings no template can reach:"
+python3 - <<'PYEOF' || fail=1
+import re, glob, sys
+
+tmpl = "\n".join(open(p).read() for p in glob.glob('helm/bjorn2scan/templates/*'))
+
+leaves, stack = [], []
+for line in open('helm/bjorn2scan/values.yaml'):
+    if not line.strip() or line.strip().startswith('#') or line.strip().startswith('-'):
+        continue
+    ind = len(line) - len(line.lstrip())
+    m = re.match(r'^\s*([A-Za-z][A-Za-z0-9_]*):\s*(.*?)(?:\s+#.*)?$', line.rstrip())
+    if not m:
+        continue
+    k, v = m.group(1), m.group(2).strip()
+    while stack and stack[-1][0] >= ind:
+        stack.pop()
+    stack.append((ind, k))
+    if v:
+        leaves.append('.'.join(s[1] for s in stack))
+
+def reachable(path):
+    parts = path.split('.')
+    if re.search(r'\.Values\.' + re.escape(path) + r'(?![\w.])', tmpl):
+        return True
+    for i in range(len(parts) - 1, 0, -1):
+        if re.search(r'\.Values\.' + re.escape('.'.join(parts[:i])) + r'(?![\w.])', tmpl):
+            return True
+    return False
+
+dead = [p for p in leaves if not reachable(p)]
+for p in dead:
+    print(f"  {p}  (setting it in values.yaml does nothing)")
+if not dead:
+    print("  none")
+sys.exit(1 if dead else 0)
+PYEOF
+
 exit $fail

@@ -109,6 +109,12 @@ spec:
           value: {{ .Values.scanServer.config.metrics.nodeVulnerabilityRiskEnabled | quote }}
         - name: METRICS_NODE_VULNERABILITY_EXPLOITED_ENABLED
           value: {{ .Values.scanServer.config.metrics.nodeVulnerabilityExploitedEnabled | quote }}
+        - name: JOBS_CLEANUP_ENABLED
+          value: {{ .Values.scanServer.config.jobs.cleanup.enabled | quote }}
+        - name: JOBS_CLEANUP_INTERVAL
+          value: {{ .Values.scanServer.config.jobs.cleanup.interval | quote }}
+        - name: JOBS_CLEANUP_TIMEOUT
+          value: {{ .Values.scanServer.config.jobs.cleanup.timeout | quote }}
         - name: JOBS_RESCAN_DATABASE_ENABLED
           value: {{ .Values.scanServer.config.jobs.rescanDatabase.enabled | quote }}
         - name: JOBS_RESCAN_DATABASE_INTERVAL
