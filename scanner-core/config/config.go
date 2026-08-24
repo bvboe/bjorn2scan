@@ -81,11 +81,10 @@ type Config struct {
 	MetricsStalenessWindow time.Duration // Duration after which metrics are considered stale (default: 60m)
 
 	// Host scanning configuration
-	HostScanningEnabled             bool          // Enable scanning of host/node packages
-	HostScanningInterval            time.Duration // Interval for periodic host SBOM regeneration (default: 24h)
-	HostScanningExtraExclusions     []string      // Additional exclusion patterns for host scanning
-	HostScanningAutoDetectNFS       bool          // Auto-detect network mounts (default: true)
-	HostScanningExtraNetworkFSTypes []string      // Additional network FS types to detect (added to defaults)
+	HostScanningEnabled             bool     // Enable scanning of host/node packages
+	HostScanningExtraExclusions     []string // Additional exclusion patterns for host scanning
+	HostScanningAutoDetectNFS       bool     // Auto-detect network mounts (default: true)
+	HostScanningExtraNetworkFSTypes []string // Additional network FS types to detect (added to defaults)
 
 	// Node metrics toggles (only applicable when host scanning is enabled)
 	MetricsNodeScannedEnabled                bool // Enable bjorn2scan_node_scanned metric
@@ -163,7 +162,6 @@ func defaultConfig() *Config {
 
 		// Host scanning - enabled by default
 		HostScanningEnabled:             true,
-		HostScanningInterval:            24 * time.Hour,
 		HostScanningExtraExclusions:     nil,
 		HostScanningAutoDetectNFS:       true,
 		HostScanningExtraNetworkFSTypes: nil,
@@ -442,11 +440,6 @@ func LoadConfig(path string) (*Config, error) {
 				val := strings.ToLower(section.Key("host_scanning_enabled").String())
 				cfg.HostScanningEnabled = val == "true" || val == "1" || val == "yes"
 			}
-			if section.HasKey("host_scanning_interval") {
-				if duration, err := time.ParseDuration(section.Key("host_scanning_interval").String()); err == nil {
-					cfg.HostScanningInterval = duration
-				}
-			}
 			if section.HasKey("host_scanning_extra_exclusions") {
 				cfg.HostScanningExtraExclusions = parseCommaSeparated(section.Key("host_scanning_extra_exclusions").String())
 			}
@@ -621,11 +614,6 @@ func LoadConfig(path string) (*Config, error) {
 	if hostScanningEnabledEnv := os.Getenv("HOST_SCANNING_ENABLED"); hostScanningEnabledEnv != "" {
 		val := strings.ToLower(hostScanningEnabledEnv)
 		cfg.HostScanningEnabled = val == "true" || val == "1" || val == "yes"
-	}
-	if hostScanningIntervalEnv := os.Getenv("HOST_SCANNING_INTERVAL"); hostScanningIntervalEnv != "" {
-		if duration, err := time.ParseDuration(hostScanningIntervalEnv); err == nil {
-			cfg.HostScanningInterval = duration
-		}
 	}
 	if extraExclusionsEnv := os.Getenv("HOST_SCANNING_EXTRA_EXCLUSIONS"); extraExclusionsEnv != "" {
 		cfg.HostScanningExtraExclusions = parseCommaSeparated(extraExclusionsEnv)

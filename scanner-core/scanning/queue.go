@@ -28,9 +28,8 @@ type ScanJob struct {
 
 // HostScanJob represents a request to scan a node's host filesystem
 type HostScanJob struct {
-	NodeName   string // K8s node name to scan
-	ForceScan  bool   // If true, rescan vulns using existing SBOM (skip SBOM regeneration)
-	FullRescan bool   // If true, always regenerate SBOM (node packages may have changed)
+	NodeName  string // K8s node name to scan
+	ForceScan bool   // If true, rescan vulns using existing SBOM (skip SBOM regeneration)
 }
 
 // SBOMRetriever is a callback function that retrieves an SBOM for an image
@@ -248,25 +247,24 @@ func (q *JobQueue) EnqueueHostScan(nodeName string) {
 	})
 }
 
-// EnqueueHostForceScan adds a host scan job that forces a full rescan
-// This always retrieves a fresh SBOM because node packages can change over time.
-// Used when the Grype database updates to detect newly-discovered vulnerabilities.
+// EnqueueHostForceScan queues a host scan that regenerates the SBOM and rescans
+// it for vulnerabilities.
+//
+// There was a second function, EnqueueHostFullRescan, byte-for-byte identical to
+// this one, distinguished only by a FullRescan field that nothing ever read. The
+// comments described a design that was never built: cheap vulnerability-only
+// rescans on database updates, expensive full rescans periodically. In reality
+// processHostScan always calls the SBOM retriever, so every host scan has always
+// been a full one. Collapsed rather than kept, because two identical functions
+// with contradictory comments are worse than one honest one.
+//
+// Always-fresh is also the behaviour you want: reusing a stored SBOM after a node
+// has been patched would report vulnerabilities for packages that are no longer
+// installed.
 func (q *JobQueue) EnqueueHostForceScan(nodeName string) {
 	q.enqueueHostJob(HostScanJob{
-		NodeName:   nodeName,
-		ForceScan:  true,
-		FullRescan: true,
-	})
-}
-
-// EnqueueHostFullRescan adds a host scan job that regenerates both SBOM and vulnerabilities
-// This always retrieves a fresh SBOM because node packages can change over time.
-// Used by the periodic rescan-nodes job to detect package drift.
-func (q *JobQueue) EnqueueHostFullRescan(nodeName string) {
-	q.enqueueHostJob(HostScanJob{
-		NodeName:   nodeName,
-		ForceScan:  true,
-		FullRescan: true,
+		NodeName:  nodeName,
+		ForceScan: true,
 	})
 }
 
@@ -730,12 +728,11 @@ func (q *JobQueue) Shutdown() {
 
 // QueueJob represents a job in the queue for external visibility
 type QueueJob struct {
-	Type       string `json:"type"`                  // "image" or "host"
-	Image      string `json:"image,omitempty"`       // Image reference (for image jobs)
-	Digest     string `json:"digest,omitempty"`      // Image digest (for image jobs)
-	NodeName   string `json:"node_name,omitempty"`   // Node name
-	ForceScan  bool   `json:"force_scan"`            // Force scan flag
-	FullRescan bool   `json:"full_rescan,omitempty"` // Full rescan flag (for host jobs)
+	Type      string `json:"type"`                // "image" or "host"
+	Image     string `json:"image,omitempty"`     // Image reference (for image jobs)
+	Digest    string `json:"digest,omitempty"`    // Image digest (for image jobs)
+	NodeName  string `json:"node_name,omitempty"` // Node name
+	ForceScan bool   `json:"force_scan"`          // Force scan flag
 }
 
 // QueueContents represents the current state of the queue
@@ -773,10 +770,9 @@ func (q *JobQueue) GetQueueContents() QueueContents {
 
 	for _, job := range q.hostJobs {
 		jobs = append(jobs, QueueJob{
-			Type:       "host",
-			NodeName:   job.NodeName,
-			ForceScan:  job.ForceScan,
-			FullRescan: job.FullRescan,
+			Type:      "host",
+			NodeName:  job.NodeName,
+			ForceScan: job.ForceScan,
 		})
 	}
 

@@ -1,99 +1,20 @@
 package jobs
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	"github.com/bvboe/bjorn2scan/scanner-core/nodes"
 )
 
-
 // NodeDatabaseInterface defines the interface for database operations needed by node rescan
 type NodeDatabaseInterface interface {
-	GetAllNodes() ([]nodes.NodeWithStatus, error)
 	GetNodesNeedingRescan(currentGrypeDBBuilt time.Time) ([]nodes.NodeWithStatus, error)
 }
 
 // NodeScanQueueInterface defines the interface for enqueueing node scans
 type NodeScanQueueInterface interface {
 	EnqueueHostForceScan(nodeName string)
-}
-
-// NodeFullRescanQueueInterface defines the interface for enqueueing full node rescans
-// Full rescans regenerate both the SBOM and vulnerability scan (detects package changes)
-type NodeFullRescanQueueInterface interface {
-	EnqueueHostFullRescan(nodeName string)
-}
-
-// RescanNodesJob periodically rescans all nodes with fresh SBOMs
-// Unlike the grype DB update rescan (which reuses existing SBOMs), this job
-// always retrieves a fresh SBOM because node packages can change over time.
-type RescanNodesJob struct {
-	db        NodeDatabaseInterface
-	scanQueue NodeFullRescanQueueInterface
-}
-
-// NewRescanNodesJob creates a new rescan-nodes job
-func NewRescanNodesJob(db NodeDatabaseInterface, scanQueue NodeFullRescanQueueInterface) *RescanNodesJob {
-	if db == nil {
-		panic("RescanNodesJob requires a non-nil database")
-	}
-	if scanQueue == nil {
-		panic("RescanNodesJob requires a non-nil scan queue")
-	}
-	return &RescanNodesJob{
-		db:        db,
-		scanQueue: scanQueue,
-	}
-}
-
-// Name returns the job name for scheduler registration
-func (j *RescanNodesJob) Name() string {
-	return "rescan-nodes"
-}
-
-// Run executes the rescan-nodes job
-// It retrieves all completed nodes and enqueues a full rescan (fresh SBOM + vuln scan) for each
-func (j *RescanNodesJob) Run(ctx context.Context) error {
-	log.Info("starting periodic node rescan with fresh SBOMs")
-
-	// Get all nodes (regardless of when they were last scanned)
-	nodeList, err := j.db.GetAllNodes()
-	if err != nil {
-		return fmt.Errorf("failed to get nodes: %w", err)
-	}
-
-	if len(nodeList) == 0 {
-		log.Info("no nodes found, nothing to rescan")
-		return nil
-	}
-
-	// Filter to only completed nodes (have been scanned at least once)
-	var completedNodes []nodes.NodeWithStatus
-	for _, node := range nodeList {
-		if node.Status == "completed" || node.Status == "scanned" {
-			completedNodes = append(completedNodes, node)
-		}
-	}
-
-	if len(completedNodes) == 0 {
-		log.Info("no completed nodes found, nothing to rescan")
-		return nil
-	}
-
-	log.Info("found completed nodes, triggering full rescan with fresh SBOMs",
-		"count", len(completedNodes))
-
-	// Enqueue full rescan for each node
-	// FullRescan=true forces fresh SBOM retrieval (node packages may have changed)
-	for _, node := range completedNodes {
-		j.scanQueue.EnqueueHostFullRescan(node.Name)
-	}
-
-	log.Info("enqueued nodes for full rescan",
-		"count", len(completedNodes))
-	return nil
 }
 
 // RescanNodesOnDBUpdate rescans nodes that were scanned with an older grype database
@@ -121,8 +42,13 @@ func RescanNodesOnDBUpdate(db NodeDatabaseInterface, scanQueue NodeScanQueueInte
 	log.Info("found nodes scanned with older grype database, triggering rescan",
 		"count", len(nodeList))
 
-	// Enqueue force scan for each node
-	// ForceScan=true skips SBOM regeneration (uses existing SBOM), only reruns vulnerability scan
+	// Every host scan regenerates the SBOM before rescanning; there is no
+	// SBOM-preserving variant despite what earlier comments here claimed. A
+	// periodic rescan-nodes job used to sit alongside this to "detect package
+	// drift" with fresh SBOMs, but it was never scheduled and would have
+	// duplicated this path: grype publishes daily (29 intervals measured, median
+	// 24.0h, max 24.3h), so this already refreshes every node's SBOM about once a
+	// day.
 	for _, node := range nodeList {
 		scanQueue.EnqueueHostForceScan(node.Name)
 	}

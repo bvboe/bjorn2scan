@@ -241,11 +241,9 @@ func DebugQueueHandler(debugConfig *debug.DebugConfig, scanQueue *scanning.JobQu
 	}
 }
 
-// DebugRescanNodeHandler handles POST /api/debug/rescan/node/{name} to manually trigger a node rescan.
-//
-// Optional request body:
-//
-//	{"full_rescan": true}
+// DebugRescanNodeHandler handles POST /api/debug/rescan/node/{name} to manually
+// trigger a node rescan. The scan always regenerates the SBOM before rescanning
+// for vulnerabilities.
 //
 // Response: {"status": "queued", "node": "worker-1"}
 func DebugRescanNodeHandler(debugConfig *debug.DebugConfig, scanQueue *scanning.JobQueue) http.HandlerFunc {
@@ -272,31 +270,17 @@ func DebugRescanNodeHandler(debugConfig *debug.DebugConfig, scanQueue *scanning.
 			return
 		}
 
-		// Parse optional body for full_rescan flag
-		fullRescan := false
-		if r.Body != nil && r.ContentLength > 0 {
-			var body struct {
-				FullRescan bool `json:"full_rescan"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&body); err == nil {
-				fullRescan = body.FullRescan
-			}
-		}
+		// A full_rescan flag used to be accepted here, choosing between two
+		// enqueue functions that were byte-for-byte identical. Every host scan
+		// regenerates the SBOM regardless, so the flag never changed anything.
+		scanQueue.EnqueueHostForceScan(nodeName)
 
-		// Enqueue the host scan
-		if fullRescan {
-			scanQueue.EnqueueHostFullRescan(nodeName)
-		} else {
-			scanQueue.EnqueueHostForceScan(nodeName)
-		}
-
-		log.Debug("enqueued manual node rescan", "node_name", nodeName, "full_rescan", fullRescan)
+		log.Debug("enqueued manual node rescan", "node_name", nodeName)
 
 		w.Header().Set("Content-Type", "application/json")
 		response := map[string]interface{}{
-			"status":      "queued",
-			"node":        nodeName,
-			"full_rescan": fullRescan,
+			"status": "queued",
+			"node":   nodeName,
 		}
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			log.Error("error encoding response", "error", err)

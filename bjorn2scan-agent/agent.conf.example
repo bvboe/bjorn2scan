@@ -302,11 +302,6 @@ metrics_node_vulnerability_exploited_enabled=true
 # Environment variable: HOST_SCANNING_ENABLED
 host_scanning_enabled=true
 
-# Host scanning interval (default: 24h)
-# How often to rescan the host filesystem for package changes
-# Format: Go duration string (e.g., "12h", "24h", "48h")
-# Environment variable: HOST_SCANNING_INTERVAL
-host_scanning_interval=24h
 
 # Additional exclusion patterns for host scanning (default: empty)
 # Comma-separated list of glob patterns to exclude from scanning
