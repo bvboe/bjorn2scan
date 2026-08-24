@@ -9,7 +9,7 @@ require (
 	github.com/moby/moby/client v0.5.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
-	modernc.org/sqlite v1.56.0
+	modernc.org/sqlite v1.57.0
 )
 
 replace github.com/bvboe/bjorn2scan/sbom-generator-shared => ../sbom-generator-shared
