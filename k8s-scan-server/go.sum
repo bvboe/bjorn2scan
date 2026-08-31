@@ -94,8 +94,8 @@ github.com/Intevation/gval v1.3.0 h1:+Ze5sft5MmGbZrHj06NVUbcxCb67l9RaPTLMNr37mjw
 github.com/Intevation/gval v1.3.0/go.mod h1:xmGyGpP5be12EL0P12h+dqiYG8qn2j3PJxIgkoOHO5o=
 github.com/Intevation/jsonpath v0.2.1 h1:rINNQJ0Pts5XTFEG+zamtdL7l9uuE1z0FBA+r55Sw+A=
 github.com/Intevation/jsonpath v0.2.1/go.mod h1:WnZ8weMmwAx/fAO3SutjYFU+v7DFreNYnibV7CiaYIw=
-github.com/KimMachineGun/automemlimit v0.7.5 h1:RkbaC0MwhjL1ZuBKunGDjE/ggwAX43DwZrJqVwyveTk=
-github.com/KimMachineGun/automemlimit v0.7.5/go.mod h1:QZxpHaGOQoYvFhv/r4u3U0JTC2ZcOwbSr11UZF46UBM=
+github.com/KimMachineGun/automemlimit v1.0.0 h1:+MqlvDE/pkJNjk1rU+O14QsH8k10nJAD0frB0lsxyvw=
+github.com/KimMachineGun/automemlimit v1.0.0/go.mod h1:n+BSXxQWDFS1DKh67Rqo0lgTsowsg6x65ak5uyngML0=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
