@@ -1,0 +1,71 @@
+name: Web Linting
+
+# Split out of ci.yaml so that a web-only change actually gets linted.
+#
+# ci.yaml carries `paths-ignore: scanner-core/web/**` to stop the Go pipeline
+# rebuilding on an npm bump. Because GitHub path filters apply per workflow and
+# not per job, that exclusion also skipped the web-lint job living inside it —
+# so the one job whose purpose is linting scanner-core/web could only ever run
+# when something outside scanner-core/web changed. An eslint bump, a lockfile
+# fix, or a broken eslint config triggered no CI at all.
+#
+# The filters here are the mirror image of ci.yaml's: this workflow runs only
+# for the paths ci.yaml ignores. Keep ci.yaml on `paths-ignore` rather than
+# adding `paths` to it — GitHub silently drops `paths-ignore` when `paths` is
+# present in the same event block.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scanner-core/web/**'
+      - 'scanner-core/static/**'
+      - '.github/workflows/web-lint.yaml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'scanner-core/web/**'
+      - 'scanner-core/static/**'
+      - '.github/workflows/web-lint.yaml'
+
+concurrency:
+  group: web-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web-lint:
+    name: Web Linting (HTML/CSS/JS)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: '20'
+        cache: 'npm'
+        # Key the cache on the lockfile, not package.json: npm ci installs from
+        # the lockfile, so a lockfile-only change (a transitive security bump)
+        # would otherwise restore a stale cache.
+        cache-dependency-path: scanner-core/web/package-lock.json
+
+    - name: Install dependencies
+      working-directory: scanner-core/web
+      run: npm ci
+
+    - name: Lint HTML
+      working-directory: scanner-core/web
+      run: npm run lint:html
+
+    - name: Lint CSS
+      working-directory: scanner-core/web
+      run: npm run lint:css
+
+    - name: Lint JavaScript
+      working-directory: scanner-core/web
+      run: npm run lint:js
