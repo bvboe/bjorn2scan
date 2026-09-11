@@ -3,6 +3,7 @@ module github.com/bvboe/bjorn2scan/pod-scanner
 go 1.26.3
 
 require (
+	github.com/KimMachineGun/automemlimit v1.0.0
 	github.com/anchore/syft v1.51.1
 	github.com/bvboe/bjorn2scan/sbom-generator-shared v0.0.0-20260318203456-d47caeb6547a
 	github.com/containerd/containerd/v2 v2.3.4
@@ -201,6 +202,7 @@ require (
 	github.com/olekukonko/ll v0.1.6 // indirect
 	github.com/olekukonko/tablewriter v1.1.4 // indirect
 	github.com/opencontainers/runtime-spec v1.3.0 // indirect
+	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pborman/indent v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect

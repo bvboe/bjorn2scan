@@ -34,6 +34,20 @@ import (
 	"github.com/bvboe/bjorn2scan/scanner-core/scanning"
 	"github.com/bvboe/bjorn2scan/scanner-core/scheduler"
 	"github.com/bvboe/bjorn2scan/scanner-core/vulndb"
+
+	// Automatically set GOMEMLIMIT from the cgroup limit. The agent runs the
+	// same syft host scan that OOMKilled the pod-scanner on microk8s, but as a
+	// systemd service with no bound at all — so instead of a container OOM it
+	// grows until the host OOM killer fires and picks a victim, which need not
+	// be the agent.
+	//
+	// This only has an effect once the unit actually declares a limit: with no
+	// cgroup memory limit the provider reports ErrNoLimit and automemlimit
+	// v1.0.0 sets GOMEMLIMIT to math.MaxInt64, i.e. off. It is therefore
+	// paired with MemoryMax in bjorn2scan-agent.service — this import reads
+	// whatever bound the unit sets, and hosts that override MemoryMax get the
+	// GC tuned to their value for free.
+	_ "github.com/KimMachineGun/automemlimit"
 )
 
 // version is set at build time via ldflags

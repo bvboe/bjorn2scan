@@ -14,6 +14,19 @@ import (
 
 	"github.com/bvboe/bjorn2scan/pod-scanner/handlers"
 	"github.com/bvboe/bjorn2scan/pod-scanner/runtime"
+
+	// Automatically set GOMEMLIMIT from the cgroup limit. Without this the GC
+	// only honours GOGC=100 and has no knowledge of the container limit, so a
+	// host SBOM — the most memory-hungry thing this process does — races the
+	// limit and whether it survives depends on GC timing.
+	//
+	// That is not hypothetical: microk8s OOMKilled both pod-scanners 4 times in
+	// 17 days on a byte-identical 80MB / 15,076-package host SBOM that
+	// succeeded on the surrounding days. The live set fits in 2Gi; the failures
+	// were garbage outpacing collection, which is exactly what GOMEMLIMIT
+	// addresses. The scan-server gained this in 2026-03 after its own OOM
+	// investigation and it was never propagated here.
+	_ "github.com/KimMachineGun/automemlimit"
 )
 
 // version is set at build time via ldflags
