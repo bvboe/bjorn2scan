@@ -140,8 +140,18 @@ func InitializeDatabase(cfg Config) (*DatabaseStatus, error) {
 		}
 	}()
 
-	_, dbStatus, err := grype.LoadVulnerabilityDB(distCfg, installCfg, true)
+	// LoadVulnerabilityDB hands back a provider that owns a SQLite handle. We
+	// only want dbStatus here, but discarding the provider with _ leaks it
+	// with no way to ever close it — see the ownership note in
+	// ScanVulnerabilitiesWithConfig. Rare in practice (this runs only from the
+	// debug re-init endpoint), but it is the same defect.
+	initProvider, dbStatus, err := grype.LoadVulnerabilityDB(distCfg, installCfg, true)
 	close(done)
+	if initProvider != nil {
+		if cerr := initProvider.Close(); cerr != nil {
+			log.Warn("failed to close vulnerability provider after init", slog.Any("error", cerr))
+		}
+	}
 
 	loadDuration := time.Since(startTime).Round(time.Millisecond)
 
@@ -410,6 +420,30 @@ func ScanVulnerabilitiesWithConfig(ctx context.Context, sbomJSON []byte, cfg Con
 		return nil, fmt.Errorf("failed to load vulnerability database: %w", err)
 	}
 	vulnProvider := v6.NewVulnerabilityProvider(rdr)
+
+	// The provider owns the SQLite handle opened by curator.Reader(), and
+	// vulnerability.Provider embeds io.Closer precisely so the caller can
+	// release it. Bypassing LoadVulnerabilityDB (above) does not avoid that
+	// obligation — Reader() + NewVulnerabilityProvider is exactly what
+	// LoadVulnerabilityDB does internally, so we inherit ownership.
+	//
+	// Leaving it open leaks one *sql.DB per scan, and database/sql runs a
+	// connectionOpener goroutine per *sql.DB that blocks forever once the
+	// handle is unreachable. That is unbounded: goroutines, pooled
+	// connections and file descriptors all grow one per scan until the
+	// process restarts. Measured on kubeadm before this fix: 808 of 843
+	// goroutines parked in connectionOpener after 15 days, with container
+	// RSS at 685Mi against a stable ~350MB Go heap — the leaked memory sits
+	// on the SQLite/CGO side, which is why heap metrics looked healthy.
+	//
+	// Everything derived from the provider (matches, dbInfo, the report) is
+	// fully materialised into reportJSON before this function returns, so
+	// closing at function scope is safe.
+	defer func() {
+		if err := vulnProvider.Close(); err != nil {
+			log.Warn("failed to close vulnerability provider", slog.Any("error", err))
+		}
+	}()
 
 	// Synthesise dbStatus from the on-disk metadata so we still report what
 	// version was used for the scan (matches the shape LoadVulnerabilityDB
