@@ -52,5 +52,33 @@ SyslogIdentifier=bjorn2scan-agent
 LimitNOFILE=65536
 TasksMax=4096
 
+# Memory bound. Two reasons this is set rather than left unlimited:
+#
+# 1. Containment. The agent's host filesystem scan is the heaviest thing it
+#    does (syft cataloguing plus a grype match, ~1.5-2GB peak on a large host).
+#    Unbounded, a bad scan grows until the kernel OOM killer fires and picks a
+#    victim by badness score — which need not be the agent. A bounded agent
+#    that gets killed and restarts (Restart=always, above) is strictly better
+#    than an unbounded one that can take a database on the same host with it.
+#
+# 2. It is what makes GOMEMLIMIT work. The agent imports automemlimit, which
+#    reads the cgroup's memory.max — specifically memory.max, not memory.high,
+#    so MemoryHigh alone would leave GOMEMLIMIT at MaxInt64, i.e. off. With
+#    this set, the Go GC becomes progressively more aggressive as the heap
+#    approaches the limit instead of racing it. That race is what OOMKilled the
+#    Kubernetes pod-scanner 4 times in 17 days on an identical workload.
+#
+# A percentage rather than an absolute value, because agents run on hosts from
+# 2GB VMs to large servers and any fixed number is wrong on most of them. 60%
+# leaves the rest of the host with a working majority while clearing the ~2GB a
+# large host scan needs on a 4GB box.
+#
+# Override per host with a drop-in if the default does not suit:
+#   systemctl edit bjorn2scan-agent   ->   [Service] / MemoryMax=3G
+# GOMEMLIMIT follows whatever value is set, so no code change is needed.
+#
+# Requires systemd 231+; install.sh selects the -compat unit below v232.
+MemoryMax=60%
+
 [Install]
 WantedBy=multi-user.target

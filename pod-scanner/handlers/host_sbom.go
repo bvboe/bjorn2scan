@@ -3,12 +3,12 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/anchore/syft/syft"
-	"github.com/anchore/syft/syft/format"
 	"github.com/anchore/syft/syft/format/syftjson"
 	"github.com/anchore/syft/syft/source"
 	"github.com/bvboe/bjorn2scan/sbom-generator-shared/exclusions"
@@ -124,15 +124,6 @@ func HostSBOMHandler(cfg HostSBOMConfig) http.HandlerFunc {
 			return
 		}
 
-		// Encode to syft JSON format
-		encoder := syftjson.NewFormatEncoder()
-		sbomBytes, err := format.Encode(*s, encoder)
-		if err != nil {
-			log.Error("error encoding host SBOM to JSON", "error", err)
-			http.Error(w, "Failed to encode host SBOM", http.StatusInternalServerError)
-			return
-		}
-
 		// Get node name for logging
 		nodeName := r.Header.Get("X-Node-Name")
 		if nodeName == "" {
@@ -142,19 +133,53 @@ func HostSBOMHandler(cfg HostSBOMConfig) http.HandlerFunc {
 		// Create filename for download
 		filename := fmt.Sprintf("host-sbom_%s.json", nodeName)
 
-		// Set headers for JSON download
+		// Set headers for JSON download. Content-Length is deliberately absent:
+		// the body is streamed, so its size is not known until the encode
+		// finishes, and Go falls back to chunked transfer encoding. The only
+		// consumer is k8s-scan-server, which reads with io.ReadAll and does not
+		// look at Content-Length.
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(sbomBytes)))
 
-		// Write SBOM data
-		if _, err := w.Write(sbomBytes); err != nil {
-			log.Error("error writing host SBOM response", "error", err)
-		} else {
-			log.Info("successfully served host SBOM",
-				"node", nodeName,
-				"size", len(sbomBytes),
-				"packages", s.Artifacts.Packages.PackageCount())
+		// Encode straight to the response rather than via format.Encode, which
+		// collects the whole document into a bytes.Buffer and returns it as a
+		// []byte. On this path that buffer reached 80MB — on top of the ~80MB
+		// that json.Encoder already builds internally before writing — and it
+		// landed at the point where memory is tightest, right after cataloguing
+		// the host filesystem. Writing through the ResponseWriter removes one
+		// of those two copies and avoids a single large contiguous allocation
+		// that can force heap growth on its own.
+		//
+		// The trade-off is that status is committed on the first write: an
+		// encode failure part-way through cannot become a clean 500, and the
+		// client sees a truncated body instead. That is acceptable because the
+		// encode is marshalling an in-memory struct, so failure is close to
+		// impossible, and the log line below records it unambiguously.
+		counter := &countingWriter{w: w}
+		encoder := syftjson.NewFormatEncoder()
+		if err := encoder.Encode(counter, *s); err != nil {
+			log.Error("error encoding host SBOM to JSON; response is truncated",
+				"error", err, "node", nodeName, "bytes_written", counter.n)
+			return
 		}
+
+		log.Info("successfully served host SBOM",
+			"node", nodeName,
+			"size", counter.n,
+			"packages", s.Artifacts.Packages.PackageCount())
 	}
+}
+
+// countingWriter tracks how many bytes reached the wire. The streaming encode
+// gives up format.Encode's []byte, and with it the length that the success and
+// truncation log lines both report.
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
 }

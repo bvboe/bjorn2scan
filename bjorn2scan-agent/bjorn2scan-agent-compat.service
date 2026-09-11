@@ -27,5 +27,16 @@ SyslogIdentifier=bjorn2scan-agent
 LimitNOFILE=65536
 TasksMax=4096
 
+# No memory bound here, unlike the modern unit which sets MemoryMax=60%.
+# MemoryMax and percentage values both need systemd 231+, and this unit exists
+# for hosts below v232. The cgroup v1 equivalent is MemoryLimit=, which takes
+# an absolute byte count only — and a fixed number would be wrong on most
+# hosts, so it is left to the operator rather than guessed here.
+#
+# To bound the agent on a legacy host, uncomment and size it for that host
+# (allow ~2GB above steady state for the host filesystem scan). automemlimit
+# reads cgroup v1's memory.limit_in_bytes too, so GOMEMLIMIT will follow it:
+#MemoryLimit=3G
+
 [Install]
 WantedBy=multi-user.target
