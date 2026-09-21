@@ -123,4 +123,54 @@ if not dead:
 sys.exit(1 if dead else 0)
 PYEOF
 
+# ── cross-module dependency versions ────────────────────────────────────────
+# A few packages must resolve to the *same* version in every module that
+# requires them. Nothing in Go enforces this: the modules are independent, with
+# no go.work, so each go.mod resolves on its own and skew is silent.
+#
+# Dependabot reliably produces that skew. It opens one PR per module, so a bump
+# lands in whichever subset of modules happen to declare the package directly —
+# modernc.org/sqlite was bumped in 2 of 4 modules on four consecutive weeks
+# (1.56->1.57, 1.57->1.58, 1.58->1.59), and syft in 2 of 4 twice. Each time it
+# was caught by hand. This turns that judgement call into a CI failure.
+#
+# The list is deliberately short. Most shared dependencies may legitimately
+# differ — go-containerregistry sits at 0.22.x directly in
+# k8s-update-controller and 0.21.x indirectly elsewhere via MVS, which is fine
+# and intentional. Only add a package here when a mismatch actually breaks
+# something, and say why. A checker that cries wolf gets switched off.
+#
+#   modernc.org/sqlite    a skew reintroduces the duplicate "sqlite" driver
+#                         registration against grype's glebarez/sqlite; see the
+#                         note at the bottom of scanner-core/go.mod
+#   github.com/anchore/syft   pod-scanner and the agent *produce* SBOMs that
+#                         scanner-core and k8s-scan-server then parse; different
+#                         versions mean writing one schema and reading another
+#   github.com/anchore/grype  same producer/consumer split for the
+#                         vulnerability document
+PINNED_TOGETHER=(
+  "modernc.org/sqlite"
+  "github.com/anchore/syft"
+  "github.com/anchore/grype"
+)
+MODULES=(scanner-core sbom-generator-shared k8s-scan-server pod-scanner bjorn2scan-agent k8s-update-controller)
+
+section "dependencies that must match across modules but do not:"
+for pkg in "${PINNED_TOGETHER[@]}"; do
+  seen=""
+  # Anchor on leading whitespace and a trailing " v" so that a package is not
+  # matched by a longer path that merely starts with it (syft vs syft/v2).
+  for m in "${MODULES[@]}"; do
+    [ -f "$m/go.mod" ] || continue
+    ver=$(grep -E "^[[:space:]]+${pkg//./\\.} v" "$m/go.mod" 2>/dev/null | awk '{print $2}' | head -1)
+    [ -n "$ver" ] && seen="$seen $m=$ver"
+  done
+  [ -z "$seen" ] && continue
+  distinct=$(echo "$seen" | tr ' ' '\n' | grep -v '^$' | sed 's/.*=//' | sort -u | wc -l | tr -d ' ')
+  if [ "$distinct" -gt 1 ]; then
+    note "$pkg is at $distinct different versions:$seen"
+  fi
+done
+endsection
+
 exit $fail
