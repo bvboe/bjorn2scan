@@ -14,6 +14,7 @@ import (
 	v6 "github.com/anchore/grype/grype/db/v6"
 	"github.com/anchore/grype/grype/db/v6/distribution"
 	"github.com/anchore/grype/grype/db/v6/installation"
+	"github.com/anchore/grype/grype/vulnerability"
 	"github.com/bvboe/bjorn2scan/scanner-core/logging"
 	// Note: sqlite driver is registered by grype's dependencies (modernc.org/sqlite)
 )
@@ -97,11 +98,49 @@ func (du *DatabaseUpdater) readOnDiskBuilt(dbPath string) (time.Time, error) {
 	return desc.Built.UTC(), nil
 }
 
-// defaultDatabaseLoader wraps grype.LoadVulnerabilityDB
+// defaultDatabaseLoader wraps grype.LoadVulnerabilityDB.
+//
+// Only dbStatus is wanted here, but the provider that comes with it owns a
+// SQLite handle and must still be closed. vulnerability.Provider embeds
+// io.Closer for exactly that reason, and discarding it into _ leaks the handle
+// along with the only reference that could ever release it: database/sql runs
+// one connectionOpener goroutine per *sql.DB, and it parks forever once the
+// handle is unreachable.
+//
+// This runs from the rescan-database job on a 30m interval, so it leaked twice
+// an hour on every deployment — measured at 31 leaked goroutines after 15h of
+// uptime, matching the ~30 job runs in that window almost exactly. Because the
+// trigger is a timer rather than scan volume, the rate was identical on every
+// cluster, which is what distinguished it from the per-scan leak fixed in
+// a7e8c15.
+//
+// The whole tuple is forwarded into statusFromLoad rather than destructured
+// here. That is deliberate: there is no `_` to drop, so the provider cannot be
+// discarded again by someone editing this function, and the close lives in one
+// place that is unit-testable without a real database.
 func defaultDatabaseLoader(distCfg distribution.Config, installCfg installation.Config, update bool) (*DatabaseStatus, error) {
-	_, dbStatus, err := grype.LoadVulnerabilityDB(distCfg, installCfg, update)
+	return statusFromLoad(grype.LoadVulnerabilityDB(distCfg, installCfg, update))
+}
+
+// statusFromLoad closes the provider and projects the status. It takes
+// LoadVulnerabilityDB's three return values positionally so the call above can
+// forward them directly.
+//
+// The provider is closed before the error is examined, because ownership does
+// not depend on success: whatever came back must be released. In practice
+// LoadVulnerabilityDB returns a nil provider on every error path, which is why
+// the nil check is required rather than merely defensive.
+func statusFromLoad(provider vulnerability.Provider, dbStatus *vulnerability.ProviderStatus, err error) (*DatabaseStatus, error) {
+	if provider != nil {
+		if cerr := provider.Close(); cerr != nil {
+			log.Warn("failed to close vulnerability provider", "error", cerr)
+		}
+	}
 	if err != nil {
 		return nil, err
+	}
+	if dbStatus == nil {
+		return nil, fmt.Errorf("vulnerability database loaded without a status")
 	}
 	return &DatabaseStatus{
 		Built:         dbStatus.Built,
