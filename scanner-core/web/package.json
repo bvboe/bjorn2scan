@@ -12,8 +12,8 @@
     "lint:fix": "npm run lint:css -- --fix"
   },
   "devDependencies": {
-    "eslint": "^10.10.0",
-    "eslint-plugin-html": "^8.2.0",
+    "eslint": "^10.11.0",
+    "eslint-plugin-html": "^8.2.1",
     "globals": "^17.12.0",
     "htmlhint": "^1.9.2",
     "stylelint": "^17.15.0",
