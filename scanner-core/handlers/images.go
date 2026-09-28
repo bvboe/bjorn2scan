@@ -542,6 +542,7 @@ SELECT
     images.status as scan_status,
     images.os_name as distro_display_name,
     status.description as status_description,
+    images.sbom_scanned_at,
     images.vulns_scanned_at,
     images.grype_db_built
 FROM images images
@@ -686,6 +687,7 @@ WHERE images.digest = '%s'`, escapedDigest)
 			"distro_display_name": imageRow["distro_display_name"],
 			"scan_status":         imageRow["scan_status"],
 			"status_description":  imageRow["status_description"],
+			"sbom_scanned_at":     imageRow["sbom_scanned_at"],
 			"vulns_scanned_at":    imageRow["vulns_scanned_at"],
 			"grype_db_built":      imageRow["grype_db_built"],
 			"total_risk":          totalRisk,

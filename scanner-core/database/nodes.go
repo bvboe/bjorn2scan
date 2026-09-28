@@ -309,6 +309,7 @@ func (db *DB) nodeRowToNodeWithStatus(row *NodeRow) (*nodes.NodeWithStatus, erro
 	if row.Status.Valid {
 		node.Status = row.Status.String
 	}
+	node.StatusDescription = getNodeStatusDescription(node.Status)
 	if row.StatusError.Valid {
 		node.StatusError = row.StatusError.String
 	}

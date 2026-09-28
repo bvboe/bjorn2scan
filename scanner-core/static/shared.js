@@ -456,6 +456,57 @@ function isScanComplete(statusDescription) {
     return statusDescription === 'Scan complete';
 }
 
+// Add a single message row spanning every column of the table (empty state or error).
+function addMessageRow(tableBody, message, color = '#666') {
+    const row = document.createElement('tr');
+    const cell = addCellToRow(row, 'left', message);
+    const header = tableBody.parentElement.tHead;
+    cell.colSpan = header ? header.rows[0].cells.length : 1;
+    cell.style.color = color;
+    tableBody.appendChild(row);
+}
+
+// Scan state of the item shown on a detail page. A stage counts as known once
+// it has ever finished (its timestamp is set) — rescans reset the status but
+// keep the previous results, which are still valid to show.
+function scanStateFrom(data) {
+    return {
+        statusDescription: data.status_description || '',
+        packagesKnown: !!data.sbom_scanned_at,
+        vulnsKnown: !!data.vulns_scanned_at,
+    };
+}
+
+// Empty-state text for a detail-page table.
+function emptyStateMessage(what, stageKnown, statusDescription, filtersActive) {
+    if (!stageKnown) return `No ${what} yet. Scan status: ${statusDescription || 'Unknown'}.`;
+    if (filtersActive) return `No ${what} match the current filters.`;
+    return `No ${what} found.`;
+}
+
+// Fill the detail-page summary. Figures for a stage that has never finished
+// show '-' rather than 0, since 0 would read as "scanned and clean".
+function populateStats(data, scanState) {
+    const set = (id, known, text) => {
+        document.getElementById(id).textContent = known ? text : '-';
+    };
+    const v = scanState.vulnsKnown;
+    const p = scanState.packagesKnown;
+    set('total_risk', v, formatRiskNumber(data.total_risk));
+    set('total_cves', v, formatNumber(data.total_cves));
+    set('unique_cves', v, formatNumber(data.unique_cves));
+    set('total_exploits', v, formatNumber(data.total_exploits));
+    set('unique_exploits', v, formatNumber(data.unique_exploits));
+    set('total_packages', p, formatNumber(data.total_packages));
+    set('unique_packages', p, formatNumber(data.unique_packages));
+    set('cves_critical', v, formatNumber(data.cves_critical));
+    set('cves_high', v, formatNumber(data.cves_high));
+    set('cves_medium', v, formatNumber(data.cves_medium));
+    set('cves_low', v, formatNumber(data.cves_low));
+    set('cves_negligible', v, formatNumber(data.cves_negligible));
+    set('cves_unknown', v, formatNumber(data.cves_unknown));
+}
+
 // Load data table. Handles two response shapes:
 //   - paginated object: { [dataKey]: [...], totalPages, totalCount, page }
 //   - bare array: [...]  (used by /api/summary/by-node which lacks server-side
@@ -739,9 +790,11 @@ async function checkDBStatus() {
                 'color:#333',
                 'font-size:14px',
             ].join(';');
-            const h1 = document.querySelector('h1');
-            if (h1 && h1.parentNode) {
-                h1.parentNode.insertBefore(banner, h1.nextSibling);
+            // Detail pages fill #pageHeading asynchronously, so anchor on the
+            // container rather than an <h1> that may not exist yet.
+            const anchor = document.getElementById('pageHeading') || document.querySelector('h1');
+            if (anchor && anchor.parentNode) {
+                anchor.parentNode.insertBefore(banner, anchor.nextSibling);
             }
         }
         banner.textContent = 'Vulnerability database is initializing. Scans will begin automatically once the database is ready.';

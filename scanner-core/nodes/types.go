@@ -24,6 +24,8 @@ type Node struct {
 type NodeScanStatus struct {
 	// Status is the current scan status (pending, generating_sbom, scanning_vulnerabilities, completed, failed)
 	Status string `json:"status"`
+	// StatusDescription is the human-readable form of Status
+	StatusDescription string `json:"status_description"`
 	// StatusError contains error details if status is failed
 	StatusError string `json:"status_error,omitempty"`
 	// SBOMScannedAt is when the SBOM was last generated
