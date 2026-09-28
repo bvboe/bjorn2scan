@@ -25,6 +25,15 @@ let sbomState = {
 
 // Global state
 let currentNodeName = '';
+let scanState = scanStateFrom({});
+
+// Whether any filter is narrowing the vulnerability / SBOM tab.
+function vulnFiltersActive() {
+    return !!(vulnState.severity.length || vulnState.fixStatus.length || vulnState.packageType.length);
+}
+function sbomFiltersActive() {
+    return sbomState.type.length > 0;
+}
 
 // Get node name from URL
 function getNodeName() {
@@ -90,7 +99,8 @@ async function loadNodeDetails(nodeName) {
         document.getElementById('os_release').textContent = data.os_release || 'Unknown';
         document.getElementById('kernel_version').textContent = data.kernel_version || '-';
         document.getElementById('architecture').textContent = data.architecture || '-';
-        document.getElementById('scan_status').textContent = data.status || 'Unknown';
+        scanState = scanStateFrom(data);
+        document.getElementById('scan_status').textContent = data.status_description || 'Unknown';
         document.getElementById('vulns_scanned_at').textContent = formatTimestamp(data.vulns_scanned_at) || '-';
         document.getElementById('grype_db_built').textContent = formatTimestamp(data.grype_db_built) || '-';
 
@@ -186,11 +196,7 @@ async function loadVulnerabilitiesTable(nodeName) {
     } catch (error) {
         console.error('Error loading vulnerabilities:', error);
         tableBody.innerHTML = '';
-        const row = document.createElement('tr');
-        const cell = addCellToRow(row, 'left', 'Error loading vulnerabilities: ' + error.message);
-        cell.colSpan = 8;
-        cell.style.color = 'red';
-        tableBody.appendChild(row);
+        addMessageRow(tableBody, 'Error loading vulnerabilities: ' + error.message, 'red');
     }
 }
 
@@ -235,17 +241,6 @@ function renderVulnerabilitiesTable() {
     const tableBody = document.querySelector('#cvesTable tbody');
     tableBody.innerHTML = '';
 
-    // Handle empty data
-    if (vulnState.allData.length === 0) {
-        const row = document.createElement('tr');
-        const cell = addCellToRow(row, 'left', 'No vulnerability data available. Node may not have been scanned yet.');
-        cell.colSpan = 8;
-        cell.style.color = '#666';
-        tableBody.appendChild(row);
-        renderVulnPagination(1, 1, 0);
-        return;
-    }
-
     // Filter data
     let filtered = vulnState.allData.filter(vuln => {
         if (vulnState.severity.length && !vulnState.severity.includes(vuln.severity)) return false;
@@ -253,6 +248,13 @@ function renderVulnerabilitiesTable() {
         if (vulnState.packageType.length && !vulnState.packageType.includes(vuln.package_type)) return false;
         return true;
     });
+
+    // Handle empty data (nothing scanned yet, or nothing matches the filters)
+    if (filtered.length === 0) {
+        addMessageRow(tableBody, emptyStateMessage('vulnerabilities', scanState.vulnsKnown, scanState.statusDescription, vulnFiltersActive()));
+        renderVulnPagination(1, 1, 0);
+        return;
+    }
 
     // Sort data
     filtered.sort((a, b) => {
@@ -353,11 +355,7 @@ async function loadSBOMTable(nodeName) {
     } catch (error) {
         console.error('Error loading packages:', error);
         tableBody.innerHTML = '';
-        const row = document.createElement('tr');
-        const cell = addCellToRow(row, 'left', 'Error loading packages: ' + error.message);
-        cell.colSpan = 4;
-        cell.style.color = 'red';
-        tableBody.appendChild(row);
+        addMessageRow(tableBody, 'Error loading packages: ' + error.message, 'red');
     }
 }
 
@@ -366,22 +364,18 @@ function renderSBOMTable() {
     const tableBody = document.querySelector('#sbomTable tbody');
     tableBody.innerHTML = '';
 
-    // Handle empty data
-    if (sbomState.allData.length === 0) {
-        const row = document.createElement('tr');
-        const cell = addCellToRow(row, 'left', 'No package data available. Node may not have been scanned yet.');
-        cell.colSpan = 4;
-        cell.style.color = '#666';
-        tableBody.appendChild(row);
-        renderSBOMPagination(1, 1, 0);
-        return;
-    }
-
     // Filter data
     let filtered = sbomState.allData.filter(pkg => {
         if (sbomState.type.length && !sbomState.type.includes(pkg.type)) return false;
         return true;
     });
+
+    // Handle empty data (nothing scanned yet, or nothing matches the filters)
+    if (filtered.length === 0) {
+        addMessageRow(tableBody, emptyStateMessage('packages', scanState.packagesKnown, scanState.statusDescription, sbomFiltersActive()));
+        renderSBOMPagination(1, 1, 0);
+        return;
+    }
 
     // Sort data
     filtered.sort((a, b) => {
@@ -466,22 +460,6 @@ function onSBOMFilterChange() {
 }
 
 // Populate stats fields from data object
-function populateStats(data) {
-    document.getElementById('total_risk').textContent = formatRiskNumber(data.total_risk);
-    document.getElementById('total_cves').textContent = formatNumber(data.total_cves);
-    document.getElementById('unique_cves').textContent = formatNumber(data.unique_cves);
-    document.getElementById('total_exploits').textContent = formatNumber(data.total_exploits);
-    document.getElementById('unique_exploits').textContent = formatNumber(data.unique_exploits);
-    document.getElementById('total_packages').textContent = formatNumber(data.total_packages);
-    document.getElementById('unique_packages').textContent = formatNumber(data.unique_packages);
-    document.getElementById('cves_critical').textContent = formatNumber(data.cves_critical);
-    document.getElementById('cves_high').textContent = formatNumber(data.cves_high);
-    document.getElementById('cves_medium').textContent = formatNumber(data.cves_medium);
-    document.getElementById('cves_low').textContent = formatNumber(data.cves_low);
-    document.getElementById('cves_negligible').textContent = formatNumber(data.cves_negligible);
-    document.getElementById('cves_unknown').textContent = formatNumber(data.cves_unknown);
-}
-
 // Compute stats client-side from filtered data
 function computeAndPopulateStats() {
     // Filter vulns with current state
@@ -534,7 +512,7 @@ function computeAndPopulateStats() {
         cves_low: sevCounts.Low,
         cves_negligible: sevCounts.Negligible,
         cves_unknown: sevCounts.Unknown,
-    });
+    }, scanState);
 }
 
 // Sorting handlers

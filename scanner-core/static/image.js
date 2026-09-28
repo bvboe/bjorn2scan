@@ -23,6 +23,15 @@ let sbomState = {
 
 // Global state
 let currentImageId = '';
+let scanState = scanStateFrom({});
+
+// Whether any filter is narrowing the vulnerability / SBOM tab.
+function vulnFiltersActive() {
+    return !!(vulnState.severity.length || vulnState.fixStatus.length || vulnState.packageType.length);
+}
+function sbomFiltersActive() {
+    return sbomState.type.length > 0;
+}
 
 // Get image ID from URL
 function getImageId() {
@@ -92,11 +101,12 @@ async function loadImageDetails(imageid) {
         }
         document.getElementById('containers').innerHTML = (data.containers || []).join('<br>') || 'N/A';
         document.getElementById('distro_display_name').textContent = data.distro_display_name || 'Unknown';
+        scanState = scanStateFrom(data);
         document.getElementById('scan_status').textContent = data.status_description || 'Unknown';
         document.getElementById('vulns_scanned_at').textContent = formatTimestamp(data.vulns_scanned_at) || '-';
         document.getElementById('grype_db_built').textContent = formatTimestamp(data.grype_db_built) || '-';
 
-        populateStats(data);
+        populateStats(data, scanState);
 
     } catch (error) {
         console.error('Error loading image details:', error);
@@ -161,6 +171,10 @@ async function loadVulnerabilitiesTable(imageid) {
         const data = await response.json();
         tableBody.innerHTML = '';
 
+        if (!(data.vulnerabilities || []).length) {
+            addMessageRow(tableBody, emptyStateMessage('vulnerabilities', scanState.vulnsKnown, scanState.statusDescription, vulnFiltersActive()));
+        }
+
         (data.vulnerabilities || []).forEach(vuln => {
             const row = document.createElement('tr');
             row.classList.add('clickable-row');
@@ -213,11 +227,7 @@ async function loadVulnerabilitiesTable(imageid) {
     } catch (error) {
         console.error('Error loading vulnerabilities:', error);
         tableBody.innerHTML = '';
-        const row = document.createElement('tr');
-        const cell = addCellToRow(row, 'left', '⚠️ Error loading vulnerabilities: ' + error.message);
-        cell.colSpan = 10;
-        cell.style.color = 'red';
-        tableBody.appendChild(row);
+        addMessageRow(tableBody, '⚠️ Error loading vulnerabilities: ' + error.message, 'red');
     }
 }
 
@@ -240,6 +250,10 @@ async function loadSBOMTable(imageid) {
 
         const data = await response.json();
         tableBody.innerHTML = '';
+
+        if (!(data.packages || []).length) {
+            addMessageRow(tableBody, emptyStateMessage('packages', scanState.packagesKnown, scanState.statusDescription, sbomFiltersActive()));
+        }
 
         (data.packages || []).forEach(pkg => {
             const row = document.createElement('tr');
@@ -275,11 +289,7 @@ async function loadSBOMTable(imageid) {
     } catch (error) {
         console.error('Error loading packages:', error);
         tableBody.innerHTML = '';
-        const row = document.createElement('tr');
-        const cell = addCellToRow(row, 'left', '⚠️ Error loading packages: ' + error.message);
-        cell.colSpan = 4;
-        cell.style.color = 'red';
-        tableBody.appendChild(row);
+        addMessageRow(tableBody, '⚠️ Error loading packages: ' + error.message, 'red');
     }
 }
 
@@ -291,22 +301,6 @@ function showVulnerabilityTable() { showTab(CVES_TAB, SBOM_TAB, onVulnFilterChan
 function showSBOMTable()          { showTab(SBOM_TAB, CVES_TAB, onSBOMFilterChange); }
 
 // Populate summary stat fields from a data object
-function populateStats(data) {
-    document.getElementById('total_risk').textContent = formatRiskNumber(data.total_risk);
-    document.getElementById('total_cves').textContent = formatNumber(data.total_cves);
-    document.getElementById('unique_cves').textContent = formatNumber(data.unique_cves);
-    document.getElementById('total_exploits').textContent = formatNumber(data.total_exploits);
-    document.getElementById('unique_exploits').textContent = formatNumber(data.unique_exploits);
-    document.getElementById('total_packages').textContent = formatNumber(data.total_packages);
-    document.getElementById('unique_packages').textContent = formatNumber(data.unique_packages);
-    document.getElementById('cves_critical').textContent = formatNumber(data.cves_critical);
-    document.getElementById('cves_high').textContent = formatNumber(data.cves_high);
-    document.getElementById('cves_medium').textContent = formatNumber(data.cves_medium);
-    document.getElementById('cves_low').textContent = formatNumber(data.cves_low);
-    document.getElementById('cves_negligible').textContent = formatNumber(data.cves_negligible);
-    document.getElementById('cves_unknown').textContent = formatNumber(data.cves_unknown);
-}
-
 // Fetch and update summary stats with current filter state
 async function loadImageStats() {
     const params = new URLSearchParams();
@@ -318,7 +312,7 @@ async function loadImageStats() {
         const response = await fetch(`/api/images/${encodeURIComponent(currentImageId)}/stats?${params}`);
         if (!response.ok) throw new Error('Failed to load stats');
         const data = await response.json();
-        populateStats(data);
+        populateStats(data, scanState);
     } catch (error) {
         console.error('Error loading image stats:', error);
     }
@@ -433,7 +427,7 @@ function renderVulnPagination(currentPage, totalPages, totalCount) {
     if (!paginationDiv) return;
 
     if (totalPages <= 1) {
-        paginationDiv.innerHTML = '';
+        paginationDiv.innerHTML = `<span style="color: #666;">Showing ${totalCount} vulnerabilities</span>`;
         return;
     }
 
@@ -483,7 +477,7 @@ function renderSBOMPagination(currentPage, totalPages, totalCount) {
     if (!paginationDiv) return;
 
     if (totalPages <= 1) {
-        paginationDiv.innerHTML = '';
+        paginationDiv.innerHTML = `<span style="color: #666;">Showing ${totalCount} packages</span>`;
         return;
     }
 
