@@ -364,9 +364,8 @@ func ScanVulnerabilitiesWithConfig(ctx context.Context, sbomJSON []byte, cfg Con
 		Name:    "bjorn2scan-grype",
 		Version: "1.0.0",
 	}
-	distCfg := distribution.DefaultConfig()
-	distCfg.ID = identification
-
+	// No distribution.Config here: this path never downloads. Only the
+	// rescan-database job does, via LoadVulnerabilityDB.
 	installCfg := installation.DefaultConfig(identification)
 
 	if cfg.DBRootDir != "" {
@@ -379,41 +378,56 @@ func ScanVulnerabilitiesWithConfig(ctx context.Context, sbomJSON []byte, cfg Con
 		log.Debug("using grype database directory", "dir", dbDir)
 	}
 
-	// Build the vulnerability provider directly from the on-disk DB, bypassing
-	// grype.LoadVulnerabilityDB. That high-level helper unconditionally calls
-	// c.Status() which runs validateAge against the on-disk metadata and aborts
-	// with "the vulnerability database was built N ago" — a known issue that
-	// also bit us in database_updater.go (commit 3a64d3d).
+	// Open the on-disk DB directly with v6.NewReader, bypassing both
+	// grype.LoadVulnerabilityDB and installation.Curator.
 	//
-	// We don't care about validateAge on the per-scan path:
-	//   - DB freshness is the rescan-database job's responsibility, and that
-	//     job has its own trust-the-disk fallback. If the DB is too stale to
-	//     be useful operationally, that job (not per-scan errors) is the
-	//     surface that should escalate.
-	//   - Failing scans because grype thinks the on-disk DB is "5 days old"
-	//     when we just verified it's fresh creates a vuln_scan_failed cascade.
+	// LoadVulnerabilityDB is skipped because it runs validateAge and aborts with
+	// "the vulnerability database was built N ago" — a known issue that also bit
+	// us in database_updater.go (commit 3a64d3d). Failing scans because grype
+	// thinks a DB we just verified is 5 days old creates a vuln_scan_failed
+	// cascade; freshness is the rescan-database job's responsibility and that job
+	// has its own trust-the-disk fallback.
 	//
-	// Curator.Reader() only requires the DB to exist on disk (it checks for
-	// ErrDBDoesNotExist); it does NOT run validateAge. v6.NewVulnerabilityProvider
-	// wraps the Reader. This is exactly what LoadVulnerabilityDB does internally
-	// after Status() passes — we just skip Status().
+	// Curator.Reader() is skipped because it calls Status() first, which runs
+	// validateIntegrity() — an xxh64 hash of the ENTIRE database before returning
+	// a reader. Measured: the hash itself costs ~25-30ms, but it streams all
+	// ~3GB, so the real cost is the read. On storage that cannot serve it from
+	// page cache this dominates everything: an EKS deployment logged 23s per scan
+	// (3.2GB / 23s = 139 MB/s, i.e. gp3's 125 MB/s baseline), seven times in
+	// thirteen minutes. v6.NewReader is literally what Curator.Reader() calls on
+	// the next line after Status() returns, and measures 1ms against 385-765ms.
+	//
+	// Skipping that check here is safe because nothing on this path used it:
+	//   - Its result is discarded. dbStatus below is synthesised from
+	//     readActualDBTimestamp, a single-row query, precisely to avoid Status().
+	//   - It is not how we detect a new DB. That is a build_timestamp comparison
+	//     in vulndb.CheckForUpdates.
+	//   - It is not an authenticity control. Download integrity is sha256 against
+	//     Anchore's published listing; this re-checks a locally-computed xxh64
+	//     fingerprint written into import.json at import time, which anything
+	//     able to alter the DB could rewrite alongside it.
+	//   - grype checks on every Reader() because grype is a CLI: one process, one
+	//     scan, exit. Embedding it in a long-lived server turned once-per-process
+	//     into once-per-scan.
+	//   - The NFS hazard that would justify re-verification was designed out
+	//     separately: the DB lives on an emptyDir (values.yaml grypeStorage), not
+	//     the NFS-backed PVC, so it is written once at pod start by this process
+	//     on node-local disk with no other writer.
+	//
+	// Integrity and rehydration still run, just not per scan: the rescan-database
+	// job calls LoadVulnerabilityDB (full Curator.Reader()) at startup
+	// (RunImmediately) and every 30m. v6.NewReader still fails on a non-v6 or
+	// unreadable DB — newStore queries db_metadata and checks the model version —
+	// so truncation and gross corruption are caught here too.
 	log.Debug("checking vulnerability database status")
-	log.Debug("database config", "db_root", installCfg.DBRootDir, "latest_url", distCfg.LatestURL)
+	log.Debug("database config", "db_root", installCfg.DBRootDir)
 
 	logDirectoryContents(installCfg.DBRootDir, "db-pre")
 
-	log.Debug("loading vulnerability database (bypassing validateAge)")
+	log.Debug("loading vulnerability database (bypassing validateAge and integrity hash)")
 	startTime := time.Now()
 
-	distClient, err := distribution.NewClient(distCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create distribution client: %w", err)
-	}
-	curator, err := installation.NewCurator(installCfg, distClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create curator: %w", err)
-	}
-	rdr, err := curator.Reader()
+	rdr, err := v6.NewReader(v6.Config{DBDirPath: installCfg.DBDirectoryPath()})
 	if err != nil {
 		log.Error("failed to open vulnerability database reader", "duration", time.Since(startTime).Round(time.Millisecond), slog.Any("error", err))
 		logDirectoryContents(installCfg.DBRootDir, "db-post-fail")
@@ -421,11 +435,11 @@ func ScanVulnerabilitiesWithConfig(ctx context.Context, sbomJSON []byte, cfg Con
 	}
 	vulnProvider := v6.NewVulnerabilityProvider(rdr)
 
-	// The provider owns the SQLite handle opened by curator.Reader(), and
+	// The provider owns the SQLite handle opened by v6.NewReader, and
 	// vulnerability.Provider embeds io.Closer precisely so the caller can
-	// release it. Bypassing LoadVulnerabilityDB (above) does not avoid that
-	// obligation — Reader() + NewVulnerabilityProvider is exactly what
-	// LoadVulnerabilityDB does internally, so we inherit ownership.
+	// release it. Bypassing LoadVulnerabilityDB and the curator (above) does not
+	// avoid that obligation — NewReader + NewVulnerabilityProvider is exactly
+	// what they do internally, so we inherit ownership either way.
 	//
 	// Leaving it open leaks one *sql.DB per scan, and database/sql runs a
 	// connectionOpener goroutine per *sql.DB that blocks forever once the
