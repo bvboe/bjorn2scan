@@ -112,6 +112,84 @@ This is the **preferred approach** for monorepos to avoid conflicts and tidy fai
 3. Make necessary code changes to accommodate breaking changes
 4. Close the PR with a comment explaining the resolution
 
+#### Strategy D: Language runtime / toolchain upgrades
+
+Dependabot watches `require` lines. It does **not** watch the `go` directive,
+and it cannot see the Go standard library at all — so an entire class of
+advisories is invisible to it. Go 1.26.8 carried **13 stdlib advisories**
+(HTTP/2 memory exhaustion, HTTP/1 connection desync after CONNECT i.e. request
+smuggling, MIME memory-limit bypass, unbounded `Range` header parsing,
+`html/template` context bugs, `crypto/tls` ECH) and no PR mentioned any of them.
+They surfaced only because an OSV sweep of `x/net` listed `1.26.9` among its
+fixed versions, which prompted querying the `stdlib` package directly.
+
+**Always check the stdlib, every cycle:**
+
+```bash
+# the go directive per module
+for m in scanner-core sbom-generator-shared k8s-scan-server pod-scanner \
+         bjorn2scan-agent k8s-update-controller; do
+  printf "%-22s %s\n" "$m" "$(grep -E '^go ' $m/go.mod | awk '{print $2}')"
+done
+
+# advisories against that version
+curl -s "https://api.osv.dev/v1/query" -X POST \
+  -d '{"package":{"name":"stdlib","ecosystem":"Go"},"version":"1.26.8"}' \
+  | jq -r '.vulns[]? | "\(.id): \(.summary)\n   fixed: \([.affected[]?.ranges[]?.events[]?.fixed]|unique|map(select(.!=null))|join(", "))"'
+```
+
+Raise the directive with `go -C <module> get go@<version>`. Note that HTTP/2
+issues typically live in **both** `golang.org/x/net` and the stdlib, so they
+need the module bump *and* the toolchain bump — fixing only one leaves the
+other exposed.
+
+**The directive is a security control, so CI must honour it.** This is where it
+went wrong on 986dab6 and broke CI in 5524851:
+
+```
+go: go.mod requires go >= 1.26.9 (running go 1.26.8; GOTOOLCHAIN=local)
+```
+
+Two traps, both of which were assumed away rather than checked:
+
+1. **`go-version: '1.26'` does not reliably mean "latest 1.26.x".** 1.26.9 was
+   in `actions/go-versions` and marked stable, yet setup-go resolved 1.26.8 on
+   that run — a race with the manifest or tool cache. Any dependency on a
+   floating minor resolving to a specific patch is a race.
+2. **`actions/setup-go` sets `GOTOOLCHAIN=local`**, which disables Go's
+   automatic toolchain download. So a directive above the installed toolchain
+   is a hard build failure, not a silent upgrade. Do not assume Go will fetch
+   what go.mod asks for.
+
+**Therefore: every `actions/setup-go` step must use `go-version-file`, never a
+bare `go-version`.** This makes go.mod the single source of truth so the two
+can never drift:
+
+```yaml
+# reusable workflows — reuse the component-path input
+- uses: actions/setup-go@v7
+  with:
+    go-version-file: ${{ inputs.component-path }}/go.mod
+
+# workflows spanning several modules — name the governing module
+- uses: actions/setup-go@v7
+  with:
+    go-version-file: k8s-scan-server/go.mod
+```
+
+For multi-module workflows the referenced go.mod **must be the one with the
+highest directive** among the modules that workflow builds, or the same failure
+recurs. Verify after any directive change:
+
+```bash
+grep -rn "go-version" .github/workflows/   # expect zero bare go-version
+actionlint
+```
+
+Raising a **library's** directive (e.g. `sbom-generator-shared`) is a
+compatibility decision, not a security one: it ships no binary, and MVS already
+gives consumers the higher floor. Leave it unless there's a reason.
+
 ### Step 5: Run Tests
 
 After merging or making manual changes, run the full test suite:
@@ -295,6 +373,24 @@ silently drops `paths-ignore` when `paths` is present in the same event block).
 - The scanner-core integration tests may timeout due to Grype DB downloads - this is expected
 - Always preserve the existing commit style and conventions
 - Manual updates across all modules ensure consistency and avoid dependency conflicts
+- **The PRs are a starting point, not the scope.** Four of the last five cycles
+  turned up advisories no PR mentioned — grpc, otlploggrpc, x/crypto,
+  containerd, x/net, and 13 in the Go stdlib. Always finish with a full OSV
+  sweep (see Step 5) plus the stdlib check in Strategy D.
+- **Verify versions AFTER `go mod tidy`, not after `go get`.** A `go get` on a
+  package nothing else requires can be silently reverted by tidy. Commit
+  14470f9 claimed `otlp 1.11.0 -> 1.11.1` when no go.mod line had changed,
+  because the check happened before tidy.
+- **Advisory data itself can be wrong and get corrected.** grpc 1.84.0 was
+  reported as affected by CVE-2026-84445, prompting a deliberate downgrade to
+  1.83.2; the advisory's ranges were corrected days later and 1.84.0 was never
+  affected (only the `-dev` prereleases, which sort before the release). When a
+  fix requires going *backwards*, re-check the advisory next cycle before
+  treating the downgrade as permanent.
+- **`go get` resolves upward only.** Downgrading a package can strand a
+  transitive dependency ahead of what its parent supports — downgrading
+  `containerd/v2` to 2.3.6 left `containerd/api` at 1.12.0 and the pairing
+  would not compile. After any downgrade, check the siblings too.
 
 ## Decision Tree
 
@@ -305,6 +401,10 @@ silently drops `paths-ignore` when `paths` is present in the same event block).
 3. **PR with tidy failures** → Check if it's a monorepo pattern, use Strategy B
 4. **PR with build/test failures** → Investigate, may need code changes (Strategy C)
 5. **PR with breaking changes (major version bump)** → Review changelog, update code (Strategy C)
+6. **No PR at all, but the stdlib or `go` directive is behind** → Strategy D.
+   Dependabot never raises this; check it every cycle regardless of what the
+   PRs say. If you raise the directive, you must also confirm CI uses
+   `go-version-file` or the build breaks.
 
 **Example from this codebase:**
 - Found 4 PRs: `syft 1.42.2 → 1.42.3` across scanner-core, k8s-scan-server, pod-scanner, bjorn2scan-agent
