@@ -37,7 +37,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v7
       with:
-        go-version: '1.26'
+        go-version-file: ${{ inputs.component-path }}/go.mod
         cache-dependency-path: ${{ inputs.component-path }}/go.mod
 
     - name: Install dependencies
@@ -63,7 +63,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v7
       with:
-        go-version: '1.26'
+        go-version-file: ${{ inputs.component-path }}/go.mod
         cache-dependency-path: ${{ inputs.component-path }}/go.mod
 
     # Cache golangci-lint analysis results

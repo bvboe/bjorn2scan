@@ -28,7 +28,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v7
       with:
-        go-version: '1.26'
+        go-version-file: bjorn2scan-agent/go.mod
         cache-dependency-path: |
           bjorn2scan-agent/go.sum
           scanner-core/go.sum
