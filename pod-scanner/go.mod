@@ -6,7 +6,7 @@ require (
 	github.com/KimMachineGun/automemlimit v1.0.0
 	github.com/anchore/syft v1.54.1
 	github.com/bvboe/bjorn2scan/sbom-generator-shared v0.0.0-20260318203456-d47caeb6547a
-	github.com/containerd/containerd/v2 v2.4.1
+	github.com/containerd/containerd/v2 v2.4.2
 	github.com/moby/moby/client v0.6.2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
