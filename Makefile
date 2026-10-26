@@ -1,4 +1,4 @@
-.PHONY: help build-all test-all docker-build-all clean-all helm-lint helm-template helm-install helm-upgrade helm-uninstall helm-kind-deploy helm-kind-deploy-with-metrics helm-minikube-deploy
+.PHONY: help build-all test-all lint-all docker-build-all clean-all helm-lint helm-template helm-install helm-upgrade helm-uninstall helm-kind-deploy helm-kind-deploy-with-metrics helm-minikube-deploy
 
 # Variables
 # If NAMESPACE is not set, the scripts will auto-detect from kubectl context
@@ -37,6 +37,9 @@ test-all: ## Run tests for all components
 	$(MAKE) -C pod-scanner test
 	$(MAKE) -C k8s-update-controller test
 	$(MAKE) -C bjorn2scan-agent test
+
+lint-all: ## Lint all Go components (rebuilds golangci-lint if it lags the active Go)
+	./scripts/lint-all
 
 build-agent-release: ## Build bjorn2scan-agent release binaries for all platforms
 	@echo "Building bjorn2scan-agent release binaries..."

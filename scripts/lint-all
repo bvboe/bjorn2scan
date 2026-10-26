@@ -19,6 +19,57 @@ echo "Running golangci-lint on all components"
 echo "=================================================="
 echo ""
 
+# Rebuild golangci-lint if it was compiled against a different Go than the one
+# now active.
+#
+# golangci-lint type-checks using the go/types version it was built with. When
+# the local Go moves ahead of the installed binary it cannot read the newer
+# stdlib export data, and reports failures that look like real findings:
+#
+#   webui.go:4:2: could not import embed (... internal error in importing
+#   "internal/goarch" ... export data version 5 is greater than maximum
+#   supported version 4) (typecheck)
+#
+# That appears in every component at once while `go build` and `go test` pass
+# cleanly — the shape of a real regression, so it costs time every time. It has
+# happened twice: Go 1.26.3 -> 1.27.1, and 1.27.1 -> 1.27.3. The binary is
+# installed once into GOBIN while Go is upgraded independently, so the two
+# drift on their own.
+#
+# CI does not need this: golangci-lint-action resolves its binary against the
+# toolchain setup-go installed, which since 5524851 comes from go-version-file.
+# They cannot drift there. This is a local-only problem.
+#
+# Deliberately not solved with `go get -tool`: golangci-lint's dependency tree
+# would take sbom-generator-shared — a zero-dependency module by design — from
+# 5 lines of go.mod and no go.sum to 221 and 926. Measured, not assumed.
+# Resolve the binary through GOBIN rather than PATH. `go install` writes there,
+# and GOBIN is commonly only added to PATH by an interactive shell profile — so
+# under `make` or CI the binary exists but `golangci-lint` is "command not
+# found", and a PATH hit could anyway be a different, older copy than the one
+# the version check just reinstalled.
+GOBIN_DIR="$(go env GOBIN)"
+[ -n "$GOBIN_DIR" ] || GOBIN_DIR="$(go env GOPATH)/bin"
+LINTER="$GOBIN_DIR/golangci-lint"
+[ -x "$LINTER" ] || LINTER="$(command -v golangci-lint || echo "$GOBIN_DIR/golangci-lint")"
+
+ACTIVE_GO="$(go env GOVERSION | sed 's/^go//')"
+LINTER_GO=""
+if [ -x "$LINTER" ]; then
+    LINTER_GO="$("$LINTER" version 2>&1 | head -1 \
+        | grep -oE 'built with go[0-9.]+' | sed 's/built with go//' || true)"
+fi
+
+if [ "$LINTER_GO" != "$ACTIVE_GO" ]; then
+    echo -e "${YELLOW}⚠ golangci-lint was built with go${LINTER_GO:-?} but go$ACTIVE_GO is active${NC}"
+    echo "  Reinstalling to avoid spurious typecheck failures..."
+    # Install from outside the repo so no module's go.mod is touched.
+    (cd "$(mktemp -d)" && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)
+    LINTER="$GOBIN_DIR/golangci-lint"
+    echo -e "${GREEN}✓ $("$LINTER" version 2>&1 | head -1)${NC}"
+    echo ""
+fi
+
 # Track overall status
 TOTAL_ISSUES=0
 FAILED_COMPONENTS=()
@@ -29,6 +80,7 @@ COMPONENTS=(
     "k8s-scan-server"
     "k8s-update-controller"
     "pod-scanner"
+    "sbom-generator-shared"
     "scanner-core"
 )
 
@@ -44,7 +96,7 @@ for component in "${COMPONENTS[@]}"; do
     echo "Linting $component..."
 
     # Run golangci-lint and capture output
-    if output=$(cd "$component_path" && golangci-lint run 2>&1); then
+    if output=$(cd "$component_path" && "$LINTER" run 2>&1); then
         if [ -z "$output" ] || echo "$output" | grep -q "^0 issues"; then
             echo -e "${GREEN}✓ $component: clean${NC}"
         else
