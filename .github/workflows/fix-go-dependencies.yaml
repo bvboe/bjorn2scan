@@ -28,9 +28,33 @@ jobs:
           go-version-file: scanner-core/go.mod
 
       - name: Run go mod tidy in all modules
+        env:
+          # setup-go sets GOTOOLCHAIN=local, which makes a `go` directive above
+          # the installed toolchain a hard failure instead of a download:
+          #
+          #   go: go.mod requires go >= 1.27.0 (running go 1.26.10; GOTOOLCHAIN=local)
+          #
+          # The toolchain above comes from scanner-core/go.mod, but this step
+          # tidies five modules. A Dependabot PR that raises the directive in any
+          # other module - which is routine, a dependency only has to require a
+          # newer Go - therefore breaks the run. That happened twice on
+          # 2026-11-02, when sigstore-go 1.4.0 pulled bjorn2scan-agent and
+          # k8s-update-controller to 1.27.0 while scanner-core stayed on 1.26.10.
+          #
+          # This workflow exists to repair go.mod in Dependabot PRs, so it was
+          # disabled by exactly the case it is meant to handle. Pinning cannot
+          # fix that: the required version is whatever the PR just made it, which
+          # is unknowable when the toolchain is selected. GOTOOLCHAIN=auto lets Go
+          # fetch what each module asks for; downloads are checksum-verified
+          # through sum.golang.org.
+          #
+          # Deliberately scoped to this step. Everywhere else the pinned
+          # go-version-file is correct and must stay - those workflows run `go`
+          # only in the module that supplies their toolchain.
+          GOTOOLCHAIN: auto
         run: |
           for dir in scanner-core bjorn2scan-agent k8s-scan-server k8s-update-controller pod-scanner; do
-            echo "=== Tidying $dir ==="
+            echo "=== Tidying $dir (go $(awk '/^go /{print $2; exit}' $dir/go.mod)) ==="
             (cd $dir && go mod tidy)
           done
 
