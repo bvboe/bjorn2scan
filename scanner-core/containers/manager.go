@@ -180,11 +180,29 @@ func (m *Manager) AddContainer(c Container) {
 	defer m.mu.Unlock()
 
 	key := makeKey(c.ID.Namespace, c.ID.Pod, c.ID.Name)
+	prev, existed := m.containers[key]
 	m.containers[key] = c
 
-	log.Info("add container",
-		"namespace", c.ID.Namespace, "pod", c.ID.Pod, "name", c.ID.Name,
-		"image", c.Image.Reference, "digest", c.Image.Digest)
+	// Only announce a container that is actually new, or whose image moved.
+	// The reconcile loop re-adds every known container every ~5 minutes, so
+	// logging every call at Info produced 15,948 lines in 11 hours on a 29-image
+	// cluster while only 12 represented a real change. SetContainers already
+	// avoids this (see its summary log below); AddContainer did not.
+	switch {
+	case !existed:
+		log.Info("add container",
+			"namespace", c.ID.Namespace, "pod", c.ID.Pod, "name", c.ID.Name,
+			"image", c.Image.Reference, "digest", c.Image.Digest)
+	case prev.Image.Digest != c.Image.Digest:
+		log.Info("container image changed",
+			"namespace", c.ID.Namespace, "pod", c.ID.Pod, "name", c.ID.Name,
+			"image", c.Image.Reference, "digest", c.Image.Digest,
+			"previous_digest", prev.Image.Digest)
+	default:
+		log.Debug("add container",
+			"namespace", c.ID.Namespace, "pod", c.ID.Pod, "name", c.ID.Name,
+			"image", c.Image.Reference, "digest", c.Image.Digest)
+	}
 
 	// Persist to database if configured
 	if m.db != nil {
@@ -207,10 +225,19 @@ func (m *Manager) RemoveContainer(id ContainerID) {
 	defer m.mu.Unlock()
 
 	key := makeKey(id.Namespace, id.Pod, id.Name)
+	_, existed := m.containers[key]
 	delete(m.containers, key)
 
-	log.Info("remove container",
-		"namespace", id.Namespace, "pod", id.Pod, "name", id.Name)
+	// A removal for something we were not tracking is a no-op repeat, not an
+	// event. The database delete below still runs either way, so behaviour is
+	// unchanged - only the log level differs.
+	if existed {
+		log.Info("remove container",
+			"namespace", id.Namespace, "pod", id.Pod, "name", id.Name)
+	} else {
+		log.Debug("remove container",
+			"namespace", id.Namespace, "pod", id.Pod, "name", id.Name)
+	}
 
 	// Remove from database if configured
 	if m.db != nil {
