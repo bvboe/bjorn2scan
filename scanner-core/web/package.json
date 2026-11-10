@@ -11,6 +11,9 @@
     "lint:js": "cd .. && eslint --config web/eslint.config.js static/*.html static/*.js",
     "lint:fix": "npm run lint:css -- --fix"
   },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
   "devDependencies": {
     "eslint": "^10.14.0",
     "eslint-plugin-html": "^8.2.1",

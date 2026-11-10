@@ -47,7 +47,16 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v7
       with:
-        node-version: '20'
+        # Must satisfy the engines range of everything in web/package.json.
+        # stylelint 18 requires ^22.22.2 || ^24.15.0 || >=26.0.0, so Node 20 -
+        # pinned here until 2026-11-10 - fails at runtime with
+        # "TypeError: deprecatedHtmlTypeSelectors.union is not a function",
+        # Set.prototype.union being ES2025. npm install does not enforce
+        # engines unless engine-strict is set, so the install succeeded and
+        # only the lint run failed. It passed locally because the developer
+        # machine was on Node 26; this is CI/local drift, not a code problem.
+        # Keep this on the current LTS so the two cannot diverge again.
+        node-version: '26'
         cache: 'npm'
         # Key the cache on the lockfile, not package.json: npm ci installs from
         # the lockfile, so a lockfile-only change (a transitive security bump)
