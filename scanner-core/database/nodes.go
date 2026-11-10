@@ -1469,6 +1469,7 @@ type NodeVulnerabilityForMetrics struct {
 
 // GetNodeVulnerabilitiesForMetrics retrieves all node vulnerabilities with full context for metrics export.
 // Uses existing indexes: idx_nodes_status, idx_node_vulnerabilities_node.
+// Includes nodes mid-rescan - see MetricsReportableStatusesSQL.
 func (db *DB) GetNodeVulnerabilitiesForMetrics() ([]NodeVulnerabilityForMetrics, error) {
 	rows, err := db.conn.Query(`
 		SELECT
@@ -1488,7 +1489,7 @@ func (db *DB) GetNodeVulnerabilitiesForMetrics() ([]NodeVulnerabilityForMetrics,
 			COALESCE(nv.count, 1) as count
 		FROM node_vulnerabilities nv
 		JOIN nodes n ON nv.node_id = n.id
-		WHERE n.status = 'completed'
+		WHERE n.status IN `+MetricsReportableStatusesSQL+`
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query node vulnerabilities for metrics: %w", err)
@@ -1562,7 +1563,7 @@ func (db *DB) readNodeVulnsFromDB(callback func(v NodeVulnerabilityForMetrics) e
 			COALESCE(nv.count, 1) as count
 		FROM node_vulnerabilities nv
 		JOIN nodes n ON nv.node_id = n.id
-		WHERE n.status = 'completed'
+		WHERE n.status IN `+MetricsReportableStatusesSQL+`
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to query node vulnerabilities for metrics: %w", err)
@@ -1650,7 +1651,7 @@ func (db *DB) GetScannedNodes() ([]nodes.NodeWithStatus, error) {
 			COALESCE(kernel_version, '') as kernel_version,
 			COALESCE(architecture, '') as architecture
 		FROM nodes
-		WHERE status = 'completed'
+		WHERE status IN `+MetricsReportableStatusesSQL+`
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query scanned nodes: %w", err)

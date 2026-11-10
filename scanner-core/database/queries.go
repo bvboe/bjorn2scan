@@ -554,7 +554,7 @@ func (db *DB) StreamScannedContainers(callback func(ScannedContainer) error) err
 				COALESCE(img.architecture, '') as architecture
 			FROM containers c
 			JOIN images img ON c.image_id = img.id
-			WHERE img.status = 'completed'
+			WHERE img.status IN `+MetricsReportableStatusesSQL+`
 			ORDER BY c.namespace, c.pod, c.name
 		`)
 		if err != nil {
@@ -639,7 +639,7 @@ func (db *DB) readContainerVulnsFromDB(callback func(ContainerVulnerability) err
 		FROM containers c
 		JOIN images img ON c.image_id = img.id
 		JOIN image_vulnerabilities v ON img.id = v.image_id
-		WHERE img.status = 'completed'
+		WHERE img.status IN `+MetricsReportableStatusesSQL+`
 		ORDER BY c.namespace, c.pod, c.name, v.severity, v.cve_id
 	`)
 	if err != nil {
