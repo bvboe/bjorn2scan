@@ -391,6 +391,53 @@ silently drops `paths-ignore` when `paths` is present in the same event block).
   transitive dependency ahead of what its parent supports — downgrading
   `containerd/v2` to 2.3.6 left `containerd/api` at 1.12.0 and the pairing
   would not compile. After any downgrade, check the siblings too.
+- **A downgrade can silently revert an unrelated upgrade you already made,
+  and undoing the downgrade does not undo that.** In the 2026-11-10 cycle
+  `af33a48` claimed syft 1.55.0 → 1.57.0 and grype 0.121.0 → 0.121.2. Neither
+  landed. syft 1.57.0 requires `klauspost/compress v1.20.3`; a later step that
+  same cycle ran `go get klauspost/compress@v1.20.2` to match an advisory's
+  stated fix version, and Go satisfied that by pulling syft back to 1.55.0,
+  taking grype with it. Restoring compress to 1.20.3 afterwards did **not**
+  bring them back — `go get` only resolves upward for the module you name.
+  Main ran the old syft for a week and the "superseded" PRs were reopened.
+  **Never `go get` an exact advisory fix version without first checking what
+  is installed** — the tree is often already ahead of it, and pinning down is
+  a downgrade. Pass every target in one `go get` per module so MVS resolves
+  once, and prefer `@vX.Y.Z` only when it is genuinely higher than current.
+- **Verify by value, not by diff.** The same cycle ran a `git diff` audit over
+  `*/go.mod` and reported "all upgrades, no downgrades". It could not have
+  found the bug: a round trip of 1.55.0 → 1.57.0 → 1.55.0 changes no line, so
+  it produces no diff entry. A diff only shows net change; it is blind to
+  anything that came back to where it started. End every cycle by asserting
+  the intended versions are actually present:
+
+  ```bash
+  # for each (package, intended version), fail if any module is below it
+  python3 -I - <<'PY'
+  import re, sys
+  MODS = ["scanner-core","sbom-generator-shared","k8s-scan-server",
+          "pod-scanner","bjorn2scan-agent","k8s-update-controller"]
+  TARGETS = [("github.com/anchore/syft", "v1.57.1")]   # edit per cycle
+  key = lambda v: [int(x) if x.isdigit() else x
+                   for x in re.split(r'[.\-+]', v.lstrip('v'))]
+  bad = 0
+  for pkg, want in TARGETS:
+      for m in MODS:
+          for line in open(f"{m}/go.mod"):
+              hit = re.match(r'\s+' + re.escape(pkg) + r' (v\S+)', line)
+              if hit and key(hit.group(1)) < key(want):
+                  print(f"BEHIND {m}: {pkg} {hit.group(1)} < {want}"); bad += 1
+  sys.exit(1 if bad else 0)
+  PY
+  ```
+
+  Run it *after* `go mod tidy` and after any later `go get` in the same cycle,
+  not just once in the middle.
+- **zsh does not word-split unquoted variables.** `PKGS="a@v1 b@v2"; go get $PKGS`
+  passes one argument and fails with `invalid module version syntax`. Under
+  `cmd && echo ok` that failure does not trip `set -e` either, so a loop can
+  print nothing and look like it worked. List the arguments literally, or use
+  an array.
 
 ## Decision Tree
 
