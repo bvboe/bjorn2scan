@@ -3,7 +3,7 @@ module github.com/bvboe/bjorn2scan/k8s-scan-server
 go 1.27.4
 
 require (
-	github.com/KimMachineGun/automemlimit v1.0.1
+	github.com/KimMachineGun/automemlimit v1.0.2
 	github.com/bvboe/bjorn2scan/scanner-core v0.0.0
 	k8s.io/api v0.37.2
 	k8s.io/apimachinery v0.37.2
